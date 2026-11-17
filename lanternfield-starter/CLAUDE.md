@@ -8,7 +8,12 @@ A real-time maintenance-management browser game. It ships as one self-contained 
   - `src/css/*.css`: the styles, in name order.
   - `src/engine.js`: the engine. Pure logic with no DOM, seeded randomness only (`rnd(s)`, never Math.random or Date), and one `step(s)` is one park minute. It exposes `globalThis.LF`. In the build it stays the first plain `<script>`, which the engine tests read; `LF_ENGINE=src/engine.js` points them at the file directly.
   - `src/ui/*.js`: the UI, concatenated in name order inside one closure, so they share one scope. A canvas map (1000×680 world units) plus HTML panels, drawn from engine state. It exposes `window.LFUI` (`state`, `act`, `ui`, `scr`), which the tests rely on.
-    - The map's look is "Lantern Glow" (chosen in phase 1): `03a-art.js` draws every ride and building as flat vector art, split into the parts that never move (`base`), the parts that move (`move`) and anything drawn over them (`top`). `03b-map.js` draws the map. It caches the ground as day and night layers, plus each ride's art and name, and draws rings, badges and people live every frame. `src/css/20-look.css` styles the HUD to match.
+    - The map's look is "Lantern Glow" (chosen in phase 1): `03a-art.js` draws every ride and building as flat vector art, split into the parts that never move (`base`), the parts that move (`move`) and anything drawn over them (`top`). `03b-map.js` draws the map from caches:
+      - the ground: day and night layers blended for the time of day, with the hour's light tint, composed into one image;
+      - each ride as one image (base, moving parts, top, lights), repainted at the ride's own pace;
+      - the rings and badges that change only now and then.
+      The pulsing and draining rings are drawn live. `src/css/20-look.css` styles the HUD to match.
+    - The living park is `03c-life.js`: ride motion, broken-ride smoke, sparks and lamps, crew figures (each pose a cached image), queues, squall wind and rain, the light of the hour, and lanterns at Lantern Hour. Its state is in `VIS` and a capped particle pool (`PMAX`), never in the save. With reduced motion, rides hold still and still marks replace the smoke, sparks and flashing lamps.
   - `src/fonts/`: Bagel Fat One and Familjen Grotesk (Latin subsets, SIL Open Font License).
 - Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys: `kll-motion` (`auto`, `reduce` or `full`).
 - `design/`: art-direction mock-ups and their screenshot script. Not shipped.
@@ -28,7 +33,7 @@ A real-time maintenance-management browser game. It ships as one self-contained 
   - colour is never the only signal;
   - everything readable at 390px wide.
 - **Old saves must keep loading.** If the saved state changes, migrate it.
-- **Performance target:** 60 fps at 2× speed on a mid-range phone. The test is the phone budget in `tests/browser/perf.js`: a busy afternoon on a 390×844 phone with a 3× screen and the processor slowed 4×. It must run at least as fast as the game did before the visual work, which is kept as `tests/browser/baseline/before-visuals.html`.
+- **Performance target:** 60 fps at 2× speed on a mid-range phone. The test is the phone budget in `tests/browser/perf.js`: a busy afternoon on a 390×844 phone with a 3× screen and the processor slowed 4×. It must take no more main-thread time per frame than the game did before the visual work, which is kept as `tests/browser/baseline/before-visuals.html`. Squalls (rain) and Lantern Hour (lights) are the heaviest moments; check them too when you add effects.
   - Keep the map's caches working: anything that doesn't change every frame belongs in a cached layer or sprite.
   - Panels over the map use hard edges, not big soft `box-shadow`s, which measurably slowed the phone.
 - **The tests find things through hooks.** These include `window.LF` and `window.LFUI`, the `data-a` button names, and element ids such as `#rail`, `#board`, `#selp`, `#obj`, `#coach` and `#map`. If you rename any of them, update `tests/browser/` in the same change.

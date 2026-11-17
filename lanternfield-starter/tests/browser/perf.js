@@ -3,9 +3,11 @@
 // 1. A laptop-sized and a phone-sized screen, from the start of day 1. Fails only below 30 fps.
 // 2. The phone budget: a busy afternoon (day 2, about 14:30, guests on every path) on a 390x844 phone with a 3x screen
 //    and the processor slowed 4x. The game must run at least as fast as it did before the visual work, kept in
-//    tests/browser/baseline/before-visuals.html. Headless frame rates drift from run to run, so the two are measured
-//    alternately in fresh browsers (RUNS each) and their medians compared. Headless browsers also draw without a GPU,
-//    so a real phone is faster than this: the numbers are for comparing versions, not a promise about any one device.
+//    tests/browser/baseline/before-visuals.html. The two are measured alternately in fresh browsers (RUNS each) and
+//    their medians compared on main-thread time per frame, the work that limits the frame rate. Headless frame rates
+//    snap to whole frames (16.7, 33.3, 50 ms) and drift between runs, so fps is printed but is too coarse to compare.
+//    Headless browsers also draw without a GPU, so a real phone is faster than this: the numbers are for comparing
+//    versions, not a promise about any one device.
 //   node tests/browser/perf.js            all of it
 //   node tests/browser/perf.js --phone    only the phone budget
 const fs = require('fs'), path = require('path');
@@ -37,9 +39,11 @@ async function busyPhone(file) {
     LFUI.act('speed', { v: 2 });
   });
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await cdp.send('Performance.enable'); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await page.waitForTimeout(4000); // guests fill the paths
-  const r = await measure(page, 6000);
+  const busy = async () => (await cdp.send('Performance.getMetrics')).metrics.find(m => m.name === 'TaskDuration').value;
+  const b0 = await busy(), r = await measure(page, 6000);
+  r.mainMs = +((await busy() - b0) * 1000 / r.frames).toFixed(1); // main-thread time per frame
   await browser.close();
   return r;
 }
@@ -56,13 +60,13 @@ if (require.main === module) (async () => {
     if (r.avgMs > 33.4) problems.push(`${w}x${h}: average frame ${r.avgMs} ms (slower than 30 fps)`);
     await page.close();
   }
-  const fps = { before: [], now: [] };
+  const fps = { before: [], now: [] }, ms = { before: [], now: [] };
   for (let i = 0; i < RUNS; i++) for (const [k, file] of [['before', BASELINE], ['now', null]]) {
-    const r = await busyPhone(file); fps[k].push(r.fps);
+    const r = await busyPhone(file); fps[k].push(r.fps); ms[k].push(r.mainMs);
     console.log(`phone budget, ${k === 'now' ? 'this build ' : 'before visuals'} (390x844 @3x, CPU slowed 4x, busy afternoon): ${JSON.stringify(r)}`);
   }
-  const before = median(fps.before), now = median(fps.now);
-  if (now < before) problems.push(`phone budget: ${now} fps, slower than the ${before} fps the game managed before the visual work (medians of ${RUNS})`);
-  report('perf', problems, `phone budget ${now} fps against ${before} fps before the visual work (medians of ${RUNS})`);
+  const before = median(ms.before), now = median(ms.now);
+  if (now > before) problems.push(`phone budget: ${now} ms of main-thread work per frame, more than the ${before} ms before the visual work (medians of ${RUNS}; fps ${median(fps.now)} against ${median(fps.before)})`);
+  report('perf', problems, `phone budget ${now} ms per frame against ${before} ms before the visual work, ${median(fps.now)} fps against ${median(fps.before)} (medians of ${RUNS})`);
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

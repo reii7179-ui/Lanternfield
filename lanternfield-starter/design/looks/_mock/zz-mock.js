@@ -24,4 +24,7 @@ window.__mock = {
     const lit = S.rides.filter(r => r.sub && r.lh >= L.LIT_MIN), now = performance.now();
     for (let i = 0; i < n; i++) { const r = lit[i % Math.max(1, lit.length)] || S.rides[i % 12], h = 30 + Math.random() * 240, vy = 16, e = h / (3 * vy) * 1000; lanterns.push({ x: r.x + (Math.random() - .5) * 40, y: r.y - 16, vy, ph: Math.random() * 6, t0: now - e, life: e / .35 }); }
   },
+  zoom(z, x, y) { cam.z = z; cam.x = x; cam.y = y; cam.user = true; applyCam(); },
+  // keep the scripted player playing while the clip runs (recordings only): it acts before every park minute
+  drive(P, o) { const step = LF.step; LF.step = st => { if (st.phase === 'day') { if (st.clock % o.every === 0) P.dispatch(st, o); if (st.clock % o.inboxEvery === 0) P.answerAll(st); P.seatPlay(st, o); } return step(st); }; },
 };

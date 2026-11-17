@@ -13,6 +13,7 @@ const GA = { // day colour, night colour
   path: ['#ecd9ad', '#3a3a70'], pathEdge: ['#c2a372', '#22225a'], plaza: ['#f2e2bb', '#45437e'],
 };
 const ga = (k, n) => mix(GA[k][0], GA[k][1], n);
+const hexOf = c => c[0] === '#' ? c : '#' + c.match(/\d+/g).slice(0, 3).map(v => (+v).toString(16).padStart(2, '0')).join(''); // 'rgb(r,g,b)' to '#rrggbb'
 const palA = n => ({
   ink: '#0d1230', metal: mix('#e3e6ef', '#a3abd0', n), metal2: mix('#aeb5c9', '#5d6696', n), c1: '#ff6b5a', c2: '#ffc75a', c3: '#4fd1c5', canvas: '#fff3dc',
   wall: mix('#43557e', '#262f62', n), roof: mix('#f2845a', '#a84f3c', n), win: '#ffd98a', water: mix('#5cc0e0', '#2a4c9a', n), water2: '#e2f7ff',
@@ -24,7 +25,6 @@ const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed:
 const ART_SCALE = 1.2;
 const rideSt = r => ui.title ? 'ok' : L.status(S, r);
 const hashOf = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997; return h / 997; };
-const ridePose = r => hashOf(r.id); // where each ride's moving parts stand; the living park (phase 2) turns this into motion
 const dprNow = () => Math.min(window.devicePixelRatio || 1, 2);
 const fontsReady = () => !document.fonts || document.fonts.status === 'loaded'; // cached text is repainted once the fonts arrive
 const boost = () => clamp(.82 / sc, 1, 1.5); // rings, badges and markers grow when the map is small on screen (phones)
@@ -43,7 +43,8 @@ function glowOn(g, x, y, rad, col, a) { if (a <= 0) return; g.globalAlpha = Math
 function paintLights(g, s, n, on, dim) {
   const op = g.globalCompositeOperation;
   if (on && n > .15) { g.globalCompositeOperation = 'lighter'; for (const [x, y, r, col] of LIT) glowOn(g, x * s, y * s, r * s * (1.8 + n * .8), col, n * .9 * (dim || 1)); g.globalCompositeOperation = op; }
-  for (const [x, y, r, col] of LIT) if (r <= 3) { g.fillStyle = on ? (n > .3 ? '#fff4d6' : col) : 'rgba(40,40,60,.6)'; g.beginPath(); g.arc(x * s, y * s, .9 * s, 0, 7); g.fill(); }
+  let dots = null; for (const [x, y, r] of LIT) if (r <= 3) { if (!dots) { dots = new Path2D(); } dots.moveTo(x * s + .9 * s, y * s); dots.arc(x * s, y * s, .9 * s, 0, 7); }
+  if (dots) { g.fillStyle = on ? (n > .3 ? '#fff4d6' : '#ffd27a') : 'rgba(40,40,60,.6)'; g.fill(dots); }
   LIT.length = 0;
 }
 
@@ -111,6 +112,8 @@ function paintGround(g, n, k) {
   // lamp posts, and their pools of light after dark
   g.fillStyle = n > .3 ? '#fff1cf' : P.metal2; for (const [x, y] of sc0.lamps) { g.beginPath(); g.arc(x, y, 1.7, 0, 7); g.fill(); }
   if (n > .15) { g.globalCompositeOperation = 'lighter'; for (const [x, y] of sc0.lamps) glowOn(g, x, y, 30, '#ffc070', .5 * n); g.globalCompositeOperation = 'source-over'; }
+  // after dark every lit ride throws a pool of warm light on the ground (a ride that is not lit covers its pool: see draw)
+  if (n > .15) { g.globalCompositeOperation = 'lighter'; for (const r of S.rides) glowOn(g, r.x, r.y + 6, 78, '#ffb347', .32 * n); g.globalCompositeOperation = 'source-over'; }
   // building names (sized for the zoom this layer is painted at)
   const fs = Math.max(12, labelPx() * .9 / sc);
   g.font = `600 ${fs}px "Familjen Grotesk", system-ui, sans-serif`; g.textAlign = 'center'; g.lineJoin = 'round'; g.lineWidth = fs * .32; g.strokeStyle = 'rgba(8,11,32,.9)'; g.fillStyle = rgba('#f7edd8', .85);
@@ -124,16 +127,26 @@ function groundLayer(which, k) {
   const g = c.getContext('2d'); g.setTransform(k, 0, 0, k, -WB.x * k, -WB.y * k); paintGround(g, which === 'night' ? 1 : 0, k);
   return c;
 }
-function drawGround(n, now) {
+/* the ground the player sees: the day and night layers blended for the time of day, with the light of the hour (dawn, golden
+   hour, dusk, a squall) laid over it, composed into one image that changes only every few park minutes */
+const groundNow = { c: null, key: '' };
+function drawGround(n, now, tint) {
   const k = Math.min(2.2, sc * dprNow()), G = groundLayers, ch0 = Math.abs(k / (G.k || k) - 1);
   // repaint on a real zoom change (at most 5 times a second while pinching) or once the fonts arrive
   if (!G.k || G.fonts !== fontsReady() || (ch0 > .02 && (now - G.built > 200 || ch0 > .3))) { sceneOf(); G.k = k; G.built = now; G.fonts = fontsReady(); G.dayK = G.nightK = 0; }
   const need = n < 1 ? ['day'] : []; if (n > 0) need.push('night');
   for (const w of need) if (G[w + 'K'] !== G.k) { groundLayer(w, G.k); G[w + 'K'] = G.k; }
-  const d = dprNow(), lay = G[need[0]], dx = Math.round((ox + WB.x * sc) * d), dy = Math.round((oy + WB.y * sc) * d);
-  if (!(Math.abs(G.k - sc * d) < 1e-6 && dx <= 0 && dy <= 0 && dx + lay.width >= cv.width && dy + lay.height >= cv.height)) { ctx.fillStyle = ga('bg', n); ctx.fillRect(0, 0, cw, ch); }
-  if (n < 1) blitWorld(G.day, WB.x, WB.y, WB.w, WB.h, G.k);
-  if (n > 0) { ctx.globalAlpha = n; blitWorld(G.night, WB.x, WB.y, WB.w, WB.h, G.k); ctx.globalAlpha = 1; }
+  const nq = Math.round(n * 48) / 48, ta = tint ? Math.round(tint[1] * 64) / 64 : 0, key = [G.k, nq, tint ? tint[0] : '', ta, G.dayK, G.nightK].join('|'), C = groundNow;
+  if (C.key !== key) {
+    const lay = G[need[0]], c = C.c || (C.c = document.createElement('canvas')); if (c.width !== lay.width || c.height !== lay.height) { c.width = lay.width; c.height = lay.height; }
+    const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+    if (nq < 1) g.drawImage(G.day, 0, 0); if (nq > 0) { g.globalAlpha = nq < 1 ? nq : 1; g.drawImage(G.night, 0, 0); g.globalAlpha = 1; }
+    if (ta > 0) { g.fillStyle = rgba(tint[0], ta); g.fillRect(0, 0, c.width, c.height); }
+    C.key = key; C.bg = ta > 0 ? mix(hexOf(ga('bg', nq)), tint[0], ta) : ga('bg', nq); // the sea and sky outside the park, in the same light
+  }
+  const d = dprNow(), dx = Math.round((ox + WB.x * sc) * d), dy = Math.round((oy + WB.y * sc) * d);
+  if (!(Math.abs(G.k - sc * d) < 1e-6 && dx <= 0 && dy <= 0 && dx + C.c.width >= cv.width && dy + C.c.height >= cv.height)) { ctx.fillStyle = C.bg; ctx.fillRect(0, 0, cw, ch); }
+  blitWorld(C.c, WB.x, WB.y, WB.w, WB.h, G.k);
   ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 }
 /* draw a cached image of the park box (wx, wy, ww, wh) painted at k pixels per unit. When k matches the current zoom it is
@@ -144,26 +157,52 @@ function blitWorld(img, wx, wy, ww, wh, k) {
   else { ctx.save(); ctx.setTransform(d, 0, 0, d, 0, 0); ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.drawImage(img, wx, wy, ww, wh); ctx.restore(); }
 }
 
-/* ride sprites: art, shadow and lights, painted at the current zoom */
+/* ride sprites: the parts of a ride that never move (base, with its shadow and lights) and anything drawn over the
+   moving parts (top), painted at the current zoom and repainted only when the zoom, the dusk level or being lit changes */
 const SPR_BOX = { x: -55, y: -66, w: 110, h: 110 }; // in park units around the ride's point
 const sprites = {};
-function rideSprite(r, n, st) {
-  const k = sc * dprNow(), nb = Math.round(n * 16), on = st === 'ok' || st === 'degraded', lm = on ? (st === 'degraded' ? 'dim' : 'on') : 'off', run = RUNOF[st] > 0;
-  let s = sprites[r.id];
-  const key = nb + lm + run + fontsReady();
-  if (s && s.key === key && Math.abs(k / s.k - 1) < .12) return s.c;
-  if (!s) s = sprites[r.id] = { c: document.createElement('canvas'), k: 0, key: '' };
+const palCache = {};
+const palOf = n => { const nb = Math.round(n * 16); return palCache[nb] || (palCache[nb] = palA(nb / 16)); };
+function rideSprite(r, n, st, part) {
+  const a = ART[r.id]; if (part === 'top' && !a.top) return null;
+  const k = sc * dprNow(), nb = Math.round(n * 16), on = st === 'ok' || st === 'degraded', lm = on ? (st === 'degraded' ? 'dim' : 'on') : 'off', id = r.id + part;
+  let s = sprites[id];
+  const key = nb + lm + (st === 'service') + fontsReady();
+  if (s && s.key === key && Math.abs(k / s.k - 1) < .12) return s;
+  if (!s) s = sprites[id] = { c: document.createElement('canvas'), k: 0, key: '' };
   const w = Math.ceil(SPR_BOX.w * k), h = Math.ceil(SPR_BOX.h * k);
   if (s.c.width !== w || s.c.height !== h) { s.c.width = w; s.c.height = h; } else s.c.getContext('2d').clearRect(0, 0, w, h);
-  const g = s.c.getContext('2d'), P = palA(nb / 16), a = ART[r.id];
+  const g = s.c.getContext('2d'), P = palOf(n);
   g.setTransform(k, 0, 0, k, -SPR_BOX.x * k, -SPR_BOX.y * k);
-  g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(3, 22, 32, 7, 0, 0, 7); g.fill();
+  if (part === 'base') { g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(3, 22, 32, 7, 0, 0, 7); g.fill(); }
   g.save(); g.scale(ART_SCALE, ART_SCALE); g.lineCap = 'round'; g.lineJoin = 'round';
-  a.base(g, P); a.move(g, P, ridePose(r), RUNOF[st]); if (a.top) a.top(g, P);
-  g.restore(); paintLights(g, ART_SCALE, nb / 16, on, lm === 'dim' ? .5 : 1);
+  a[part](g, P); g.restore(); paintLights(g, ART_SCALE, nb / 16, on, lm === 'dim' ? .5 : 1);
+  if (lm === 'off' && st !== 'service') { g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(8,11,32,.45)'; g.fillRect(0, 0, w, h); g.globalCompositeOperation = 'source-over'; } // a stopped ride is dimmed, not see-through
   s.k = k; s.key = key;
-  return s.c;
+  return s;
 }
+/* each ride is one image: the cached base, the moving parts at their current phase, the cached top and the lights.
+   It is repainted at the ride's own pace (coaster trains every frame, the slow wheel every third), staggered across rides,
+   so a frame copies 14 images instead of drawing every moving part. */
+const frames = {}; let frameNo = 0;
+const RIDE_EVERY = { tide: 1, night: 1, mine: 1, light: 2, flume: 2, boats: 2, carou: 2, wheel: 3, gond: 3, arcade: 4, food: 4, play: 4, wsub: 6, esub: 6 };
+function rideFrame(r, n, st, idx) {
+  const base = rideSprite(r, n, st, 'base'), top = rideSprite(r, n, st, 'top'), v = VIS.ride[r.id], ph = v ? v.ph : hashOf(r.id), rock = st === 'down' && r.job && r.job.rescue && !reduce;
+  const f = frames[r.id] || (frames[r.id] = { c: document.createElement('canvas'), key: '', ph: NaN, k: 0 });
+  const key = base.key + base.k + (top ? top.key : '') + st, due = (frameNo + idx) % (RIDE_EVERY[r.id] || 3) === 0;
+  if (f.key === key && !(due && (f.ph !== ph || rock))) return f;
+  const c = f.c; if (c.width !== base.c.width || c.height !== base.c.height) { c.width = base.c.width; c.height = base.c.height; }
+  const g = c.getContext('2d'), k = base.k, on = st === 'ok' || st === 'degraded', shown = on || st === 'service';
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.drawImage(base.c, 0, 0);
+  g.setTransform(k, 0, 0, k, -SPR_BOX.x * k, -SPR_BOX.y * k);
+  if (rock) { g.translate(0, -6); g.rotate(Math.sin((VIS.vt || 0) * 2.6 + ph * 6) * .035); g.translate(0, 6); } // stuck with guests on: it rocks
+  g.save(); g.scale(ART_SCALE, ART_SCALE); g.lineCap = 'round'; g.lineJoin = 'round'; g.globalAlpha = shown ? 1 : .7; ART[r.id].move(g, palOf(n), ph, RUNOF[st]); g.restore();
+  paintLights(g, ART_SCALE, n, on, st === 'degraded' ? .5 : 1);
+  if (top) { g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(top.c, 0, 0); }
+  f.key = key; f.ph = ph; f.k = k;
+  return f;
+}
+function drawRide(r, n, st, idx) { const f = rideFrame(r, n, st, idx); blitWorld(f.c, r.x + SPR_BOX.x, r.y + SPR_BOX.y, SPR_BOX.w, SPR_BOX.h, f.k); }
 
 /* ride names: a pill, with a status word when the ride is not running (so colour is never the only signal) */
 const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW' };
@@ -183,24 +222,55 @@ function namePill(r, st) {
 }
 
 /* rings and badges round a ride: large, with a dark edge so they read on light paths, dark grass and bright glows */
-function ring(x, y, R, a0, a1, w, col, edge) {
-  ctx.beginPath(); ctx.arc(x, y, R, a0, a1);
-  if (edge !== false) { ctx.strokeStyle = 'rgba(5,7,22,.88)'; ctx.lineWidth = w + 3.2; ctx.stroke(); }
-  ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+function ringOn(g, x, y, R, a0, a1, w, col, edge) {
+  g.beginPath(); g.arc(x, y, R, a0, a1);
+  if (edge !== false) { g.strokeStyle = 'rgba(5,7,22,.88)'; g.lineWidth = w + 3.2; g.stroke(); }
+  g.strokeStyle = col; g.lineWidth = w; g.stroke();
+}
+const ring = (...a) => ringOn(ctx, ...a);
+/* the rings and badges that change only now and then (health, work progress, the Lantern Hour ring, selection, badges)
+   are cached per ride and repainted when one of them changes; the ones that pulse or drain are drawn live */
+const infos = {};
+function badgesOf(r) {
+  const j = r.job, out = [];
+  if (j && j.type === 'fault') { out.push([j.trade[0].toUpperCase(), TC[j.trade]]); if (j.mode === 'full' && j.part && j.ps === 'none' && S.stock[j.part] < 1) out.push(['?', '#b79cf5']); }
+  if (j && j.rescue) out.push(['!', '#ff5d4a']);
+  if (r.warnAt) out.push(['!', '#ffb347']);
+  if (r.patched) out.push(['P', '#f7edd8']);
+  if (S.prio === r.id) out.push(['R', '#ffb347']);
+  if (r.vouch > S.clock) out.push(['V', '#8fe8c4']);
+  if (r.fl > S.clock) out.push(['F', '#ffd27a']);
+  if (r.svcReq && !j) out.push(['S', '#79c2ff']);
+  return out;
+}
+function infoSprite(r, b) {
+  const j = ui.title ? null : r.job, R = 37, top = -Math.PI / 2, lhNow = !ui.title && S.phase === 'day' && S.clock > L.LH, k = sc * dprNow();
+  const prog = j && j.prog > 0 ? Math.round(clamp(j.prog / L.need(j), 0, 1) * 72) : -1, lh = prog < 0 && lhNow && r.sub ? Math.round(clamp(r.lh / L.LIT_MIN, 0, 1) * 45) : -1;
+  const bl = ui.title ? [] : badgesOf(r), key = [ui.title ? -1 : Math.round(r.health), prog, lh, ui.sel === r.id, bl.map(x => x[0] + x[1]).join(''), b.toFixed(3), k.toFixed(4), fontsReady()].join('|');
+  let s = infos[r.id]; if (s && s.key === key) return s;
+  const x0 = -(R + 16 * b), x1 = Math.max(R + 16 * b, (R + 2) * .72 + bl.length * 24 * b + 2), y0 = -(R + 16 * b), y1 = R + 16 * b; // only as wide as its badges need: blitting empty pixels costs
+  if (!s) s = infos[r.id] = { c: document.createElement('canvas') };
+  const c = s.c, w = Math.ceil((x1 - x0) * k), h = Math.ceil((y1 - y0) * k); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } else c.getContext('2d').clearRect(0, 0, w, h);
+  const g = c.getContext('2d'); g.setTransform(k, 0, 0, k, -x0 * k, -y0 * k); g.lineCap = 'butt';
+  if (ui.sel === r.id) { g.setLineDash([5, 5]); ringOn(g, 0, 0, R + 11 * b, 0, 7, 2.2 * b, '#f7edd8'); g.setLineDash([]); }
+  if (!ui.title) {
+    const hc = r.health >= 60 ? '#5fd6a8' : r.health >= 35 ? '#ffb347' : '#ff5d4a';
+    ringOn(g, 0, 0, R, 0, 7, 4 * b, 'rgba(247,237,216,.16)');
+    g.lineCap = 'round'; ringOn(g, 0, 0, R, top, top + Math.max(.02, Math.round(r.health) / 100) * TAU, 4 * b, hc, false); g.lineCap = 'butt';
+    if (prog >= 0) ringOn(g, 0, 0, R + 6 * b, top, top + prog / 72 * TAU, 4.5 * b, '#79c2ff');
+    else if (lh >= 0) ringOn(g, 0, 0, R + 6 * b, top, top + lh / 45 * TAU, 3.5 * b, '#ffd27a');
+  }
+  const br = 11 * b; let bx = (R + 2) * .72; const by = -(R + 2) * .72;
+  for (const [txt, bg] of bl) { g.fillStyle = bg; g.strokeStyle = '#05071a'; g.lineWidth = 2.6 * b; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#16122b'; g.font = `800 ${12.5 * b}px "Familjen Grotesk", system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, bx, by + .5 * b); bx += br * 2 + 2 * b; }
+  Object.assign(s, { key, k, x0, y0, w: x1 - x0, h: y1 - y0 });
+  return s;
 }
 function rideInfo(r, t, st, names) {
-  const j = ui.title ? null : r.job, b = boost(), cx = r.x, cy = r.y - 6, R = 37, top = -Math.PI / 2, lhNow = !ui.title && S.phase === 'day' && S.clock > L.LH;
+  const j = ui.title ? null : r.job, b = boost(), cx = r.x, cy = r.y - 6, R = 37, top = -Math.PI / 2;
+  const inf = infoSprite(r, b); blitWorld(inf.c, cx + inf.x0, cy + inf.y0, inf.w, inf.h, inf.k);
   ctx.lineCap = 'butt';
-  if (ui.sel === r.id) { ctx.setLineDash([5, 5]); ring(cx, cy, R + 11 * b, 0, 7, 2.2 * b, '#f7edd8'); ctx.setLineDash([]); }
   const armed = j && j.type === 'fault' && selUnits().some(c => c.skills[j.trade] || j.rescue);
   if (armed && !reduce) ring(cx, cy, R + 8 * b, 0, 7, 2.2 * b, rgba('#79c2ff', .5 + .4 * Math.sin(t * 5)), false);
-  if (!ui.title) {
-    const h = r.health / 100, hc = r.health >= 60 ? '#5fd6a8' : r.health >= 35 ? '#ffb347' : '#ff5d4a';
-    ring(cx, cy, R, 0, 7, 4 * b, 'rgba(247,237,216,.16)');
-    ctx.lineCap = 'round'; ring(cx, cy, R, top, top + Math.max(.02, h) * TAU, 4 * b, hc, false); ctx.lineCap = 'butt';
-    if (j && j.prog > 0) ring(cx, cy, R + 6 * b, top, top + clamp(j.prog / L.need(j), 0, 1) * TAU, 4.5 * b, '#79c2ff');
-    else if (lhNow && r.sub) ring(cx, cy, R + 6 * b, top, top + clamp(r.lh / L.LIT_MIN, 0, 1) * TAU, 3.5 * b, '#ffd27a');
-  }
   if (j && j.type === 'fault' && (j.rescue || (j.esc && j.sev === 'minor'))) { // countdown: red for stuck guests, amber for a fault about to get worse
     const due = j.rescue || j.esc, span = j.rescue ? 30 : Math.max(1, j.esc - j.t0), f = clamp((due - S.clock) / span, 0, 1), urgent = !!j.rescue;
     ring(cx, cy, R + (urgent ? 13 : 11) * b, top, top + f * TAU, (urgent ? 5.5 : 4) * b, urgent ? rgba('#ff5d4a', reduce ? 1 : .7 + .3 * Math.sin(t * 9)) : '#ffb347');
@@ -216,16 +286,6 @@ function rideInfo(r, t, st, names) {
   if (r.sub && !ui.title && r.q > 1) { const q = Math.min(9, Math.ceil(r.q / (r.cap * S.qtol) * 9)); ctx.fillStyle = r.jam ? '#ff5d4a' : rgba('#f7edd8', .8); ctx.beginPath(); for (let i = 0; i < q; i++) { const qx = cx - (q - 1) * 3 * b + i * 6 * b, qy = r.y + 37 + 3 * b; ctx.moveTo(qx + 2 * b, qy); ctx.arc(qx, qy, 2 * b, 0, 7); } ctx.fill(); }
   const p = namePill(r, st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
   if (ui.title) return;
-  const br = 11 * b; let bx = cx + (R + 2) * .72, by = cy - (R + 2) * .72;
-  const badge = (txt, bg) => { ctx.fillStyle = bg; ctx.strokeStyle = '#05071a'; ctx.lineWidth = 2.6 * b; ctx.beginPath(); ctx.arc(bx, by, br, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#16122b'; ctx.font = `800 ${12.5 * b}px "Familjen Grotesk", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, bx, by + .5 * b); ctx.textBaseline = 'alphabetic'; bx += br * 2 + 2 * b; };
-  if (j && j.type === 'fault') { badge(j.trade[0].toUpperCase(), TC[j.trade]); if (j.mode === 'full' && j.part && j.ps === 'none' && S.stock[j.part] < 1) badge('?', '#b79cf5'); }
-  if (j && j.rescue) badge('!', '#ff5d4a');
-  if (r.warnAt) badge('!', '#ffb347');
-  if (r.patched) badge('P', '#f7edd8');
-  if (S.prio === r.id) badge('R', '#ffb347');
-  if (r.vouch > S.clock) badge('V', '#8fe8c4');
-  if (r.fl > S.clock) badge('F', '#ffd27a');
-  if (r.svcReq && !j) badge('S', '#79c2ff');
   const vip = S.events.find(e => e.k === 'vip' && !e.done && e.ride === r.id && e.warned);
   if (vip) { const vw = 58 * b, vh = 19 * b, vx = cx - R - vw * .7, vy = cy - R - 4; ctx.fillStyle = '#ffd27a'; ctx.strokeStyle = '#05071a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(vx, vy, vw, vh, 6); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#2a1700'; ctx.font = `700 ${10.5 * b}px "Familjen Grotesk", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText('VIP ' + fmtClock(vip.at), vx + vw / 2, vy + vh * .7); }
 }
@@ -245,24 +305,28 @@ function drawGuests(n) {
 
 function draw(now, frac) {
   const t = now / 1000, clock = ui.title ? 1290 : S.clock, n = nightOf(clock), day = S.phase === 'day', op = ctx.globalCompositeOperation;
-  drawGround(n, now); // leaves the park transform on
+  // the living park moves with the park clock: still when paused, faster at 2x; the title screen idles at 1x
+  const dt = VIS.last ? Math.min(.1, Math.max(0, (now - VIS.last) / 1000)) : 0, pm = VIS.run ? dt * TPS * S.speed : ui.title ? dt * TPS : 0, w = weatherNow();
+  VIS.last = now; if (pm > 0) VIS.vt = (VIS.vt || 0) + dt;
+  lifeStep(pm > 0 ? dt : 0, pm, n, w.wind);
+  drawGround(n, now, skyTint(clock, w)); // leaves the park transform on
   if (day && S.fab.length && L.onNow(S, 'mach')) { ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(L.SHOP.x - 34, L.SHOP.y - 24, 68, 42, 8); ctx.stroke(); }
   for (const r of S.rides) if (r.sub) { const sb = L.ride(S, r.sub), off = L.subDown(S, sb); line([[sb.x, sb.y], [r.x, r.y]], 1.5, off ? rgba('#ff5d4a', .6) : rgba('#f4d35e', .1 + .1 * n), [3, 9]); }
-  drawGuests(n);
+  drawGuests(n); drawQueues(n);
   // rides: a pool of light when lit after dark, a red pulse when closed by a fault, then the art
+  if (n > .15) for (const r of S.rides) { const st = rideSt(r); if (!(st === 'ok' || st === 'degraded')) glowOn(ctx, r.x, r.y + 6, 70, '#0b1230', .6 * n); } // a ride that is not lit has no pool of light
   ctx.globalCompositeOperation = 'lighter';
   for (const r of S.rides) {
     const st = rideSt(r);
-    if (n > .1 && (st === 'ok' || st === 'degraded')) glowOn(ctx, r.x, r.y + 6, 78, st === 'ok' ? '#ffb347' : '#ff8f3d', .32 * n);
     if (st === 'down') glowOn(ctx, r.x, r.y - 4, 54, '#ff5d4a', reduce ? .45 : .4 + .25 * Math.sin(t * 6));
   }
   ctx.globalCompositeOperation = op;
-  for (const r of S.rides) {
-    const st = rideSt(r), on = st === 'ok' || st === 'degraded' || st === 'service';
-    const img = rideSprite(r, n, st); ctx.globalAlpha = on ? 1 : .62; blitWorld(img, r.x + SPR_BOX.x, r.y + SPR_BOX.y, SPR_BOX.w, SPR_BOX.h, sprites[r.id].k); ctx.globalAlpha = 1;
-  }
+  frameNo++; S.rides.forEach((r, i) => drawRide(r, n, rideSt(r), i));
+  for (const r of S.rides) staticFault(r, rideSt(r), t);
+  drawParts();
+
   const names = []; for (const r of S.rides) rideInfo(r, t, rideSt(r), names); for (const f of names) f();
-  drawCrew(t, frac);
+  drawCrew(t, frac, pm > 0 ? dt : 0);
   for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (now - p.t0) / 600; if (a >= 1) { pings.splice(i, 1); continue; } ctx.strokeStyle = rgba(p.col, 1 - a); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 6 + 22 * a, 0, 7); ctx.stroke(); }
   for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i], a = (now - p.t0) / 1800; if (a >= 1) { pops.splice(i, 1); continue; } ctx.globalAlpha = 1 - a * a; label(p.txt, p.x, p.y - 56 - a * 26, 15, p.col, 700); ctx.globalAlpha = 1; }
   if (ui.title && !reduce && lanterns.length < 26 && Math.random() < .04) { const r = S.rides[Math.floor(Math.random() * 12)]; lanterns.push({ x: r.x, y: r.y - 20, vy: 14 + Math.random() * 12, ph: Math.random() * 6, t0: now, life: 9000 }); }
@@ -270,38 +334,9 @@ function draw(now, frac) {
     const l = lanterns[i], a = (now - l.t0) / l.life; if (a >= 1) { lanterns.splice(i, 1); continue; } if (a < 0) continue;
     const y = l.y - 20 - l.vy * (now - l.t0) / 1000 * 3, x = l.x + Math.sin(t * 1.3 + l.ph) * 10, al = Math.min(1, a * 6) * (1 - a);
     ctx.globalCompositeOperation = 'lighter'; glowOn(ctx, x, y, 30, '#ffb347', .7 * al); ctx.globalCompositeOperation = op;
-    ctx.fillStyle = rgba('#ffd27a', al); ctx.beginPath(); ctx.roundRect(x - 5, y - 7, 10, 13, 3); ctx.fill(); ctx.fillStyle = rgba('#fff4d6', al * .9); ctx.fillRect(x - 2, y - 3, 4, 6);
+    ctx.fillStyle = rgba('#ffd27a', al); ctx.beginPath(); ctx.roundRect(x - 5, y - 7, 10, 13, 3); ctx.fill(); ctx.fillStyle = rgba('#b4553f', al); ctx.fillRect(x - 3, y - 9, 6, 2.5); ctx.fillRect(x - 3, y + 6, 6, 2); ctx.fillStyle = rgba('#fff4d6', al * .9); ctx.fillRect(x - 2, y - 3, 4, 6);
   }
+  drawWeather(w, VIS.vt || 0);
   ctx.restore();
   if (ui.box) { const b = ui.box; ctx.fillStyle = 'rgba(121,194,255,.12)'; ctx.strokeStyle = '#79c2ff'; ctx.lineWidth = 1.5; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); }
-  if (n > 0 && n < 1) { ctx.fillStyle = rgba('#ff7b3d', .1 * Math.sin(n * Math.PI)); ctx.fillRect(0, 0, cw, ch); }
-}
-
-/* people on shift: tokens with the same markers as before (sprint, push, route, selection, energy, carrying, waiting, break, talk, You) */
-function drawCrew(t, frac) {
-  if (ui.title) return;
-  for (const c of S.crew) {
-    if (!c.on || !(c.state === 'walk' || c.state === 'run')) continue;
-    const p = prev[c.id] || [c.x, c.y], x = p[0] + (c.x - p[0]) * frac, y = p[1] + (c.y - p[1]) * frac, d = c.fetch ? L.STORE : c.target ? L.ride(S, c.target) : c.dest ? L.ride(S, c.dest) : c.post || null;
-    if (d) line([[x, y], [d.x, d.y]], 1.5, rgba(TC[rk(c)], .6), [4, 6]);
-  }
-  for (const c of S.crew) {
-    if (!c.on) continue;
-    const p = prev[c.id] || [c.x, c.y], x = p[0] + (c.x - p[0]) * frac, y = p[1] + (c.y - p[1]) * frac, on = ui.units.includes(c.id), col = TC[rk(c)];
-    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x + 2, y + 10, 10, 4, 0, 0, 7); ctx.fill();
-    if (c.sprint > S.clock) { ctx.strokeStyle = rgba('#8fe8c4', .85); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 14.5, 0, 7); ctx.stroke(); }
-    if (c.push > S.clock) { ctx.strokeStyle = rgba('#ffb347', .9); ctx.lineWidth = 2; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, 18, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
-    if (on) { ctx.strokeStyle = '#79c2ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 16 + (reduce ? 0 : Math.sin(t * 5) * 1.5), 0, 7); ctx.stroke(); }
-    ctx.fillStyle = col; ctx.strokeStyle = '#05071a'; ctx.lineWidth = 2.5; ctx.beginPath();
-    if (c.role === 'tech') ctx.arc(x, y, 11, 0, 7); else ctx.roundRect(x - 10, y - 10, 20, 20, 5);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#16122b'; ctx.font = '700 12px "Familjen Grotesk", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(c.name[0], x, y + 4.2);
-    if (isMe(c)) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(x, y, 21, 0, 7); ctx.stroke(); ctx.setLineDash([]); label('You', x, y - 25, 12, '#ffd27a', 700); }
-    if (c.carry || c.state === 'run') { ctx.fillStyle = '#f7edd8'; ctx.strokeStyle = '#10142f'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.rect(x + 7, y - 15, 9, 8); ctx.fill(); ctx.stroke(); }
-    if (c.state === 'wait') { ctx.fillStyle = '#b79cf5'; ctx.beginPath(); ctx.arc(x + 10, y - 9, 4, 0, 7); ctx.fill(); }
-    if (c.role === 'tech' && !c.temp && !c.agency && L.enOf(c) < 70) { const e = L.enOf(c) / 100; ctx.fillStyle = 'rgba(16,20,47,.85)'; ctx.fillRect(x - 11, y + 14, 22, 4); ctx.fillStyle = e >= .6 ? '#5fd6a8' : e >= .3 ? '#ffb347' : '#ff5d4a'; ctx.fillRect(x - 10, y + 15, 20 * e, 2); }
-    if (c.state === 'break') label('z', x + 13, y - 11, 12, '#9fd4ff', 700);
-    if (c.state === 'talk') { ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(x + 11, y - 11, 3.5, 0, 7); ctx.fill(); }
-    if (ui.coachUnit === c.id && !reduce) { ctx.strokeStyle = rgba('#ffb347', .55 + .45 * Math.sin(t * 7)); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 24, 0, 7); ctx.stroke(); }
-  }
 }

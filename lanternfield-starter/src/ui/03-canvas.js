@@ -86,7 +86,7 @@ function stepGuests(dm) {
   if (guests.length < want && Math.random() < .5) { const r = pickRide(); if (r) guests.push({ x: L.GATE.x + (Math.random() - .5) * 20, y: L.GATE.y, path: routeTo(r), i: 0, ride: r.id, wait: 0, sp: 34 + Math.random() * 16, sad: false }); }
   for (let k = guests.length - 1; k >= 0; k--) {
     const g = guests[k];
-    if (g.wait > 0) { g.wait -= dm; if (g.wait <= 0) leave(g); continue; }
+    if (g.wait > 0) { const r = L.ride(S, g.ride); if (r && !(L.AV[L.status(S, r)] > 0)) { g.wait = 0; g.sad = true; leave(g); continue; } g.wait -= dm; if (g.wait <= 0) leave(g); continue; }
     const p = g.path[g.i]; if (!p) { guests.splice(k, 1); continue; }
     const dx = p[0] - g.x, dy = p[1] - g.y, d = Math.hypot(dx, dy), stepLen = g.sp * dm;
     if (d <= stepLen) {
@@ -94,7 +94,7 @@ function stepGuests(dm) {
       if (g.i >= g.path.length) {
         if (g.out) { guests.splice(k, 1); continue; }
         const r = L.ride(S, g.ride);
-        if (r && L.AV[L.status(S, r)] > 0) g.wait = 6 + Math.random() * 14; else { g.sad = true; leave(g); }
+        if (r && L.AV[L.status(S, r)] > 0) g.wait = 6 + Math.random() * 14 + Math.min(40, (r.q || 0) / Math.max(1, r.cap) * 5); else { g.sad = true; leave(g); }
       }
     } else { g.x += dx / d * stepLen; g.y += dy / d * stepLen; }
   }

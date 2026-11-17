@@ -132,7 +132,7 @@ function act(a, d, el, ev) {
 function worldPt(ev) { const b = cv.getBoundingClientRect(); return [(ev.clientX - b.left - ox) / sc, (ev.clientY - b.top - oy) / sc]; }
 function hit(x, y) {
   const ur = Math.max(16, 20 / sc), rr = Math.max(44, 34 / sc);
-  for (const c of S.crew) if (c.on && !c.temp && Math.hypot(c.x - x, c.y - y) < ur) return { unit: c };
+  for (const c of S.crew) if (c.on && !c.temp && (Math.hypot(c.x - x, c.y - y) < ur || Math.hypot(c.x - x, c.y + 14 * boost() - y) < ur * .8)) return { unit: c }; // the head token, or the body under it
   let best = null, bd = rr;
   for (const r of S.rides) { const d = Math.hypot(r.x - x, r.y - (y - 8)); if (d < bd) { bd = d; best = r; } }
   if (best) return { ride: best };
@@ -256,6 +256,7 @@ function frame(t) {
 function tick(t) {
   const dt = last ? Math.min(.1, (t - last) / 1000) : 0; last = t;
   const run = !ui.title && !ui.help && !ui.seats && !ui.role && !S.paused && S.phase === 'day' && !coachHold();
+  VIS.run = run; // the living park moves only while the park clock does
   if (run) {
     acc += dt * TPS * S.speed;
     while (acc >= 1 && S.phase === 'day') { for (const c of S.crew) prev[c.id] = [c.x, c.y]; L.step(S); acc -= 1; drainFx(t); if (S.paused) break; }

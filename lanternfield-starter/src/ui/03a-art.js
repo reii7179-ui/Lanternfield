@@ -116,6 +116,7 @@ const ART = {
       g.fillStyle = P.metal; g.fill(poly([[-27, 18], [-25, -7], [-23, -7], [-21, 18]])); g.fill(poly([[21, 18], [23, -25], [25, -25], [27, 18]]));
       g.strokeStyle = P.metal2; g.lineWidth = 1; g.beginPath(); for (let u = 0; u <= 1.001; u += .05) { const [x, y] = gondAt(u); u ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
       g.fillStyle = P.wall; g.beginPath(); g.roundRect(-30, 16.5, 12, 4, 2); g.roundRect(18, 16.5, 12, 4, 2); g.fill();
+      g.fillStyle = P.wall; g.fillRect(-9, 6, 18, 12); g.fillStyle = P.roof; g.fill(poly([[-11, 6], [0, 0], [11, 6]])); g.fillStyle = P.dark; g.fillRect(-3, 10, 6, 8); // the boarding station
     },
     move(g, P, ph) { for (let k = 0; k < 3; k++) { const u = ((ph + k / 3) % 1) * .84 + .08, [x, y] = gondAt(u); g.strokeStyle = P.metal; g.lineWidth = .8; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 4); g.stroke(); g.fillStyle = [P.c1, P.c2, P.c3][k]; g.beginPath(); g.roundRect(x - 4, y + 4, 8, 7, 2); g.fill(); g.fillStyle = P.glass; g.fillRect(x - 2.6, y + 5.5, 5.2, 2.5); lite(x, y + 7, 3, P.win); } },
   },
