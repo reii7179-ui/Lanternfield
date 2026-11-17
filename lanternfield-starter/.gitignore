@@ -2,3 +2,5 @@ node_modules/
 tests/browser/out/
 dist/
 design/out/
+design/shots/*
+!design/shots/sheet-*.png

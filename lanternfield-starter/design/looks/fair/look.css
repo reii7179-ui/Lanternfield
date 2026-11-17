@@ -1,0 +1,37 @@
+/* Look C, "Seaside Fair": cream paper cards with warm ink, fairground red and teal. Mock-up only.
+   The status colours are darkened so they still read as text on paper. */
+:root{--night:#f6ecd8;--panel:#efe2c6;--raise:#e5d3b0;--line:#b99f74;--ink:#2e2232;--dim:#6b5b62;
+  --lantern:#c4700f;--ember:#c4352a;--jade:#1e8358;--sky:#2a6fb0;
+  --mech:#d9693c;--elec:#d6a822;--ctrl:#2f9c90;--mach:#9a6fd6;--store:#5c7fd6;--sup:#7a6a5a;--eng:#d0679b;--mat:#3d93c4;--hr:#6fa33c;
+  color-scheme:light}
+body{background:#5fb3bb}
+.top{background:#c43e31;color:#fff6e6;border-bottom:3px solid #8e2a22;box-shadow:0 6px 0 -3px #f2b63c,0 12px 26px rgba(60,30,20,.25)}
+.top .brand{color:#fff1cc;text-shadow:0 2px 0 #8e2a22}
+.top .when small,.top .stat small{color:#ffd9c4}
+.top .stat{background:#a8332a;border-color:#8e2a22}
+.top .mini{background:#fff6e6;color:#2e2232;border-color:#8e2a22}
+.top .mini.seatb{color:#a8332a}
+.top .speed{background:#a8332a;border-color:#8e2a22}
+.top .speed button{color:#ffd9c4}
+.top .speed button[aria-pressed="true"]{background:#f2b63c;color:#2a1700}
+.top .glowbar{background:#8e2a22}
+.top .glowbar span{background:#f2b63c}
+.hp{background:color-mix(in srgb,#fbf3e1 95%,transparent);border:1.5px solid #3b2a2a;border-radius:6px;box-shadow:3px 4px 0 rgba(59,42,42,.35);-webkit-backdrop-filter:none;backdrop-filter:none}
+.ohead{color:#a8332a}
+.oitem{background:#f1e4c8;border:1px dashed #c9b083}
+.dock{background:#efe2c6;border-top:3px solid #3b2a2a;box-shadow:0 -6px 0 -3px #c43e31}
+.as{background:#fbf3e1;border:1.5px solid #b99f74;border-left:5px solid var(--c);border-radius:4px}
+.as.on{background:#fff;border-color:#3b2a2a;border-left-color:var(--c);box-shadow:2px 3px 0 rgba(59,42,42,.3)}
+.selp{background:#fbf3e1;border:1.5px solid #3b2a2a;border-radius:6px}
+.cmd,.mini{background:#fbf3e1;border:1.5px solid #b99f74;border-radius:6px}
+.cmd.go{background:#f2b63c;border-color:#3b2a2a;color:#2a1700;box-shadow:2px 2px 0 #3b2a2a}
+.unit{background:#fbf3e1;border:1.5px solid #3b2a2a;border-radius:6px}
+.ticker{background:#fbf3e1;border:1.5px solid #3b2a2a;border-left:6px solid var(--c,var(--dim));border-radius:4px;box-shadow:3px 4px 0 rgba(59,42,42,.3)}
+#mini{border-radius:4px;border:1.5px solid #3b2a2a}
+.log .radio{color:#2e2232}
+.log .radio{text-shadow:none;color:#2e2232;background:color-mix(in srgb,#fbf3e1 94%,transparent);border:1.5px solid #3b2a2a;border-radius:6px}
+.lbtn{background:#fbf3e1;border-color:#3b2a2a;color:#6b5b62}
+.radio div.k-bad span{color:#a32a20}
+.radio div.k-good span{color:#17694a}
+.radio div.k-event span{color:#8a4e06}
+.radio div span{color:#2e2232}
