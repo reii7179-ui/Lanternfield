@@ -3,10 +3,14 @@
 A real-time maintenance-management browser game. It ships as one self-contained `index.html` that works offline when double-clicked.
 
 ## How the code is laid out today
-- `index.html` holds the CSS and two scripts.
-  - The first `<script>` is the engine. It is pure logic with no DOM, uses seeded randomness only (`rnd(s)`, never Math.random or Date), and one `step(s)` is one park minute. It exposes `globalThis.LF`.
-  - The second `<script>` is the UI: a canvas map (1000×680 world units) plus HTML panels, drawn from engine state. It exposes `window.LFUI` (`state`, `act`, `ui`, `scr`), which the tests rely on.
-- Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`.
+- **Edit the files in `src/`, never `index.html` by hand.** `npm run build` (`build.js`, no dependencies) puts them back together into the one self-contained `index.html`, with the fonts inlined so it works offline. `npm test` starts with `npm run build:check`, which fails if `index.html` is out of date with `src/`.
+  - `src/index.html`: the page shell, with placeholder lines for the fonts, CSS, engine and UI.
+  - `src/css/*.css`: the styles, in name order.
+  - `src/engine.js`: the engine. Pure logic with no DOM, seeded randomness only (`rnd(s)`, never Math.random or Date), and one `step(s)` is one park minute. It exposes `globalThis.LF`. In the build it stays the first plain `<script>`, which the engine tests read; `LF_ENGINE=src/engine.js` points them at the file directly.
+  - `src/ui/*.js`: the UI, concatenated in name order inside one closure, so they share one scope. A canvas map (1000×680 world units) plus HTML panels, drawn from engine state. It exposes `window.LFUI` (`state`, `act`, `ui`, `scr`), which the tests rely on.
+  - `src/fonts/`: Bagel Fat One and Familjen Grotesk (Latin subsets, SIL Open Font License).
+- Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys: `kll-motion` (`auto`, `reduce` or `full`).
+- `design/`: art-direction mock-ups and their screenshot script. Not shipped.
 - `tests/` holds the engine and browser tests; see `tests/README.md`.
 
 ## Rules
@@ -17,7 +21,7 @@ A real-time maintenance-management browser game. It ships as one self-contained 
 - **Keep the engine DOM-free and deterministic.** Animation timers, particles and any other visual-only state belong in the UI and never in the saved game.
 - **The shipped game stays one self-contained index.html.** A build step is fine; point the tests at its output with `LF_GAME`, and at the engine file with `LF_ENGINE` once the engine is split out.
 - **Keep the accessibility features:**
-  - reduced-motion support;
+  - reduced-motion support: the in-game Motion setting (Auto follows the device). Read the live `reduce` flag in the UI; CSS uses `html.calm`;
   - keyboard controls (listed in How to play);
   - touch support;
   - colour is never the only signal;
