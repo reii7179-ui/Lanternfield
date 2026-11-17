@@ -2,7 +2,7 @@
 // One comparison sheet per look from design/shots: day and night on a laptop, day on a phone.
 //   node design/sheet.js current glow iso fair
 const path = require('path'), { chromium } = require('playwright');
-const NAMES = { current: ['Today', 'The game as it is now, for comparison.'], glow: ['A · Lantern Glow', 'Polished flat vector at night with a soft glow. Glass HUD, gold accents.'], iso: ['B · Diorama', 'Isometric 2.5D: a raised island, boxed buildings, rides on plinths. Chunky toy-box HUD.'], fair: ['C · Seaside Fair', 'Warm painterly fair drawn in code: painted textures, inked edges, bunting. Paper HUD.'] };
+const NAMES = { current: ['Lantern Glow, in the game', 'What src/ builds now: cached layers, large high-contrast rings, bigger phone labels, chunky buttons.'], glow: ['A · Lantern Glow', 'Polished flat vector at night with a soft glow. Glass HUD, gold accents.'], iso: ['B · Diorama', 'Isometric 2.5D: a raised island, boxed buildings, rides on plinths. Chunky toy-box HUD.'], fair: ['C · Seaside Fair', 'Warm painterly fair drawn in code: painted textures, inked edges, bunting. Paper HUD.'] };
 (async () => {
   const b = await chromium.launch({ args: ['--no-sandbox'] });
   for (const look of process.argv.slice(2)) {

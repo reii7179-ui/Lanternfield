@@ -26,7 +26,7 @@ npx playwright install chromium
 | `node tests/browser/layout.js` | **Layout.** 7 screen sizes. Fails on overlapping panels, clipped ride names, cut-off buttons, top-bar overflow, sideways scrolling, or an unreachable Start button. | ~30 s |
 | `node tests/browser/saves.js` | **Saves.** Broken or old saves start a fresh game; a reload mid-day carries on. | ~15 s |
 | `node tests/browser/motion.js` | **Motion setting.** Auto follows the device's reduced-motion setting, Reduced and Full override it, CSS animations stop when reduced, the choice survives a reload and stays out of the saved game. | ~10 s |
-| `node tests/browser/perf.js` | **Frame time** at 2× speed. Prints numbers; fails only below 30 fps. | ~20 s |
+| `node tests/browser/perf.js` | **Frame time** at 2× speed. Laptop and phone screens fail only below 30 fps. **Phone budget:** a busy afternoon on a 390×844 phone with a 3× screen and the processor slowed 4×. It runs alternately with the game from before the visual work (`baseline/before-visuals.html`), three times each in fresh browsers, and fails if this build's median is slower. `--phone` runs only the phone budget. | ~3 min |
 | `node tests/browser/final-screen.js` | **End-of-season screen.** Score split, your own work, playtest record, Copy button. | ~15 s |
 | `node tests/browser/coach.js` | **Coaching.** Does what each seat's coach asks, with real clicks, all seats side by side; checks the clock waits when it should. Options: `--phone`, `--desk`, a seat list. | ~2 min |
 | `node tests/browser/real-day.js` | **One real day** of clicks and keys at 2×; checks the playtest record. | ~3–4 min |

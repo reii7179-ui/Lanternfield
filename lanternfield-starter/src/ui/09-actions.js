@@ -248,7 +248,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 const saneSave = s => !!(s && s.v === 7 && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return saneSave(s) ? s : null; } catch (e) { return null; } }
 
-let last = 0, acc = 0, lastUI = 0, lastSave = 0;
+let last = 0, acc = 0, lastUI = 0, lastSave = 0, lastMini = 0;
 function frame(t) {
   requestAnimationFrame(frame);
   try { tick(t); } catch (e) { oops('frame', e); try { const d = Math.min(window.devicePixelRatio || 1, 2); ctx.setTransform(d, 0, 0, d, 0, 0); } catch (e2) { /* keep the loop alive */ } }
@@ -262,7 +262,8 @@ function tick(t) {
     if (S.phase !== 'day' || S.paused) acc = 0;
     stepGuests(dt * TPS * S.speed);
   } else if (ui.title && !reduce) stepGuests(dt * TPS);
-  draw(t, run ? Math.min(1, acc) : 1); drawMini(t);
+  draw(t, run ? Math.min(1, acc) : 1);
+  if (t - lastMini > 90) { drawMini(t); lastMini = t; } // the minimap is small: about ten redraws a second is plenty
   if (t - lastUI > 140) { renderUI(); lastUI = t; }
   if (t - lastSave > 5000) { save(); lastSave = t; }
 }
