@@ -1,0 +1,18 @@
+{
+  "name": "keep-lanternfield-lit",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Keep Lanternfield Lit: a real-time maintenance-management game in one HTML file",
+  "scripts": {
+    "test": "npm run test:engine && npm run test:browser",
+    "test:engine": "node tests/engine/golden.js && node tests/engine/fuzz.js",
+    "test:golden": "node tests/engine/golden.js",
+    "test:fuzz": "node tests/engine/fuzz.js",
+    "balance": "node tests/engine/balance.js",
+    "test:browser": "node tests/browser/smoke.js && node tests/browser/layout.js && node tests/browser/saves.js && node tests/browser/perf.js && node tests/browser/final-screen.js && node tests/browser/coach.js",
+    "test:slow": "node tests/browser/real-day.js && node tests/browser/coach.js sup,tech --phone && node tests/browser/coach.js sup --desk"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
