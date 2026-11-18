@@ -21,7 +21,7 @@ function watch(name, seed) {
   while (!s.final) {
     if (s.phase === 'plan') { if (o.plan) P.plan(s); L.startDay(s); continue; }
     if (o.hands && (!o.every || s.clock % o.every === 0)) P.dispatch(s, o);
-    if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) { P.answerAll(s); P.signOffs(s, o); }
+    if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) { P.answerAll(s, o); P.signOffs(s, o); }
     P.seatPlay(s, o);
     const before = s.rides.map(r => r.so ? JSON.parse(JSON.stringify(r.so)) : null), day = s.day;
     L.step(s); s.fx.length = 0;

@@ -46,6 +46,7 @@ module.exports = function makePlayers(L) {
       const f = freeAny().sort((a, b) => dist(a, r) - dist(b, r))[0]; if (!f) continue;
       if (f.skills[j.trade]) L.assign(s, f, r); else L.moveOrder(s, f, r.x + f.ox, r.y + f.oy); L.sprint(s, f);
     }
+    if (o.tools && !s.tools && L.takeJob) { const r = unsent(s).find(r => r.job.sev === 'major' && s.clock - r.job.t0 >= 2 && !freeT().some(c => c.skills[r.job.trade])); if (r) L.takeJob(s, r.id); }
     const jobs = unsent(s).filter(r => s.clock - r.job.t0 >= o.delay).sort((a, b) => ((!a.sub) - (!b.sub) ? (!b.sub) - (!a.sub) : (b.job.sev === 'major') - (a.job.sev === 'major') || b.w - a.w));
     for (const r of jobs) {
       const j = r.job;
@@ -102,13 +103,14 @@ module.exports = function makePlayers(L) {
     for (const r of s.rides) {
       const so = r.so; if (!so || so.esc || s.clock - so.at < (o.delay || 0)) continue;
       const st = so.steps[so.i];
-      if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(s, st, so) === s.seat) L.countersign(s, r.id, L.soBad(so) ? 'back' : 'sign');
+      if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(s, st, so) === s.seat) L.countersign(s, r.id, L.soBad(so) && !o.stamp ? 'back' : 'sign');
       if (st === 'review' && L.soSigner(s, 'dir', so) === s.seat) L.review(s, r.id, 'retrain');
     }
   }
 
-  function answerAll(s) { // the computer's own pick for every request
+  function answerAll(s, o) { // the computer's own pick for every request (a rubber stamp says yes to all of them)
     for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; }
+      if (o && o.stamp) { let vs = []; try { vs = Q.opts(s, it).map(x => x.v); } catch (e) { /* no options */ } v = ['yes', 'ok', 'give', 'std', 'sign'].find(x => vs.includes(x)) || vs[0] || v; L.answer(s, it.id, v); continue; }
       // a manager keeps to the budget: once the day is over it, only a closed ride, a rush job or stuck guests get money spent on them
       if (s.seat === 'mgr' && L.keySpend && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && L.maintSpend(s) > s.budget && !L.keySpend(s, it.rid && L.ride(s, it.rid))) v = it.k === 'express' ? 'wait' : 'no';
       // overtime only to get a closed ride back, not for every job still open at 17:00
@@ -157,7 +159,7 @@ module.exports = function makePlayers(L) {
     while (!s.final) {
       if (s.phase === 'plan') { if (o.plan) plan(s); if (o.inbox) desk(s); L.startDay(s); continue; }
       if (o.hands && (!o.every || s.clock % o.every === 0)) dispatch(s, o);
-      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) answerAll(s);
+      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) answerAll(s, o);
       if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) signOffs(s, o);
       seatPlay(s, o);
       L.step(s); s.fx.length = 0;
@@ -177,6 +179,10 @@ module.exports = function makePlayers(L) {
     'sup human sharp': { ...sup, smart: true, talk: 'quiet', delay: 5, every: 3, inboxEvery: 4, diff: 'sharp', about: 'Attentive player on Sharp' },
     'sup human 2x': { ...sup, smart: true, talk: 'quiet', delay: 10, every: 6, inboxEvery: 8, about: 'Same reflexes as sup human, playing at 2x' },
     'sup human 2x relaxed': { ...sup, smart: true, talk: 'quiet', delay: 10, every: 6, inboxEvery: 8, diff: 'relaxed', about: 'Same, at 2x on Relaxed' },
+    'sup ignores everything': { ...sup, smart: true, talk: 'quiet', inbox: false, about: 'Dispatches well, but never answers a request or signs anything' },
+    'sup answers fast': { ...sup, smart: true, talk: 'quiet', delay: 4, every: 3, about: 'Floor reflexes of sup human, but every request answered the minute it lands' },
+    'sup rubber stamp': { ...sup, smart: true, talk: 'quiet', stamp: true, about: 'Dispatches well, signs every sheet and says yes to everything' },
+    'sup on the tools': { ...sup, smart: true, talk: 'quiet', tools: true, about: 'Dispatches well, but picks up a spanner whenever a breakdown waits' },
     'tech idle': { seat: 'tech', plan: true, about: 'Technician who never answers a work order' },
     'tech active': { seat: 'tech', plan: true, inbox: true, inboxEvery: 3, play: 'tech', about: 'Takes work orders, locks out, diagnoses, rests' },
     'mgr idle': { seat: 'mgr', about: 'Manager who does nothing at all' },

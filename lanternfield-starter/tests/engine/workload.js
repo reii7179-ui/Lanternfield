@@ -19,7 +19,7 @@ for (const name of ['tech active', 'sup human', 'sup skilled', 'mgr active', 'di
   for (let i = 1; i <= N; i++) { const o = P.PLAYERS[name], s = L.newGame(i * 101); if (o.seat) L.setSeat(s, o.seat); if (o.diff) L.setDiff(s, o.diff); // P.season, counting the minutes the technician is on shift
     while (!s.final) { if (s.phase === 'plan') { if (o.plan) P.plan(s); if (o.inbox && P.desk) P.desk(s); L.startDay(s); continue; }
       if (o.hands && (!o.every || s.clock % o.every === 0)) P.dispatch(s, o);
-      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) { P.answerAll(s); if (P.signOffs) P.signOffs(s, o); }
+      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) { P.answerAll(s, o); if (P.signOffs) P.signOffs(s, o); }
       P.seatPlay(s, o); L.step(s); s.fx.length = 0; const m = L.me(s); if (m && m.on) onMins++; }
     mins += s.sc[o.seat].min; }
   if (name === 'tech active') rows.push(['  (on shift)', (count._ || 0) / (onMins / 60), '']);

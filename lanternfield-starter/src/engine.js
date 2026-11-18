@@ -112,7 +112,7 @@ const SAVE_V = 8; // the saved game's version: bump it when the saved state chan
 function migrate(s) { // an older save brought up to date; anything new starts empty
   if (!s || typeof s !== 'object' || !s.sc) return s;
   if (s.v !== 7 && s.v !== 8) return s;
-  for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0 }); }
+  for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0, upSum: Number.isFinite(c.upSum) ? c.upSum : 0 }); }
   Object.assign(s, { big: s.big || [], boardQ: s.boardQ || [], bigN: s.bigN || 0, bigDay: s.bigDay != null ? s.bigDay : -9 });
   s.plan = s.plan || []; s.dplan = s.dplan || [];
   if (!s.salt) s.salt = s.seed; for (const t of s.crew || []) if (!t.traits) t.traits = traitsFor(s, t); if (!s.styles) rollStyles(s); // an older save: traits and styles from its seed
@@ -354,7 +354,7 @@ function mkStaff0(s, i, a, name, role, skills, shift, grade) {
 function place(t) { t.x = YARD.x + t.ox * .7; t.y = YARD.y - 30 + t.oy * .5; if (t.role === 'store') { t.x = STORE.x; t.y = STORE.y; } if (t.role === 'mach') { t.x = SHOP.x; t.y = SHOP.y; } if (isMgr(t)) { t.x = OFFICE.x + ({ eng: -18, mat: 0, hr: 18 })[t.role]; t.y = OFFICE.y; } }
 // what each seat is judged on, counted only while you sit in it
 const mkSc = () => ({
-  tech: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, jobs: 0, dx: 0, ftf: 0, lock: 0, skip: 0, hurt: 0, wo: 0, woOk: 0, woLate: 0, reports: 0, asks: 0 },
+  tech: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, upSum: 0, jobs: 0, dx: 0, ftf: 0, lock: 0, skip: 0, hurt: 0, wo: 0, woOk: 0, woLate: 0, reports: 0, asks: 0 },
   sup: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, disp: 0, resp: 0, respN: 0, quick: 0, rescued: 0, stuck: 0, upSum: 0, asks: 0 },
   mgr: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, budOk: 0, upSum: 0, moraleSum: 0, oneone: 0, asks: 0 },
   dir: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, budOk: 0, upSum: 0, asks: 0 },
@@ -1504,7 +1504,10 @@ function raise(s, k, o) {
   return null;
 }
 function onTime(s) { const sc = s.sc[s.seat]; sc.onTime++; sc.mrun = 0; sc.run = (sc.run || 0) + 1; if (sc.run % 5 === 0) { sc.bonus = (sc.bonus || 0) + 1; s.cm = clamp(s.cm + 1, 0, 100); s.glow = Math.min(100, s.glow + 1); log(s, `${sc.run} answers on time in a row. People know they can count on you (office morale +1).`, 'good'); } }
-function miss(s) { const sc = s.sc[s.seat]; sc.missed++; sc.run = 0; sc.mrun = (sc.mrun || 0) + 1; sc.missW = (sc.missW || 0) + Math.min(3, 1 + .5 * (sc.mrun - 1)); }
+function miss(s) { const sc = s.sc[s.seat]; sc.missed++; sc.run = 0; sc.mrun = (sc.mrun || 0) + 1; sc.missW = (sc.missW || 0) + Math.min(3, 1 + .5 * (sc.mrun - 1));
+  // someone else has to pick it up: the office notices, more so when it keeps happening
+  s.cm = clamp(s.cm - (sc.mrun >= 3 ? 2 : 1), 0, 100);
+  if (sc.mrun === 3) log(s, 'Three misses in a row. The people picking up your work are getting fed up: office morale falls faster now.', 'bad'); }
 function escalate(s, it, why) { // why: 'late' ran out of time, 'full' inbox full while you sat on an old item, 'busy' inbox full (not a miss)
   const sc = s.sc[s.seat], x = above(s, s.seat), Q = REQ[it.k], what = reqWhat(s, it);
   if (why !== 'busy') miss(s);
@@ -1915,17 +1918,17 @@ function personal(s) {
   const seat = LV.slice().sort((a, b) => s.sc[b].min - s.sc[a].min)[0], c = s.sc[seat], days = Math.max(1, c.days), r01 = (a, b, dflt) => a + b ? a / (a + b) : dflt;
   const req = r01(c.onTime + (c.bonus || 0), c.missW != null ? c.missW : c.missed, .5), parts = [];
   const add = (name, w, v) => { parts.push([name, w, clamp(v, 0, 1)]); };
-  if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs finished', .35, c.jobs / segDays / 4); add('Cause found first time', .2, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .25, r01(c.lock, c.skip, .5)); add('Work orders answered', .2, r01(c.woOk, c.woLate, .5)); }
-  else if (seat === 'sup') { const avg = c.respN ? c.resp / c.respN : 99; add('Response time', .35, (25 - avg) / 17); add('Fast responses', .25, c.respN ? (c.fast || 0) / c.respN : 0); add('Requests answered in time', .2, req); add('No guests left stuck', .2, 1 - c.stuck / 3); }
-  else if (seat === 'mgr' || seat === 'dir') { const u = c.days ? c.upSum / c.days : 0; add('Uptime on your days', .4, (u - .7) / .2); add('Days on budget', .2, c.days ? c.budOk / days : 0);
-    if (seat === 'mgr') add('Crew morale', .2, c.days ? (c.moraleSum / days - 35) / 30 : 0); else add('Days on strategy', .2, c.days ? 1 - c.off / days : 0); add('Requests answered in time', .2, req); }
+  if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs finished', .3, c.jobs / segDays / 4); add('Cause found first time', .15, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .2, r01(c.lock, c.skip, .5)); add('Work orders answered', .15, r01(c.woOk, c.woLate, .5)); add('Checks and sign-offs in time', .2, req); }
+  else if (seat === 'sup') { const avg = c.respN ? c.resp / c.respN : 99; add('Response time', .3, (25 - avg) / 17); add('Fast responses', .2, c.respN ? (c.fast || 0) / c.respN : 0); add('Requests answered in time', .3, req); add('No guests left stuck', .2, 1 - c.stuck / 3); }
+  else if (seat === 'mgr' || seat === 'dir') { const u = c.days ? c.upSum / c.days : 0; add('Uptime on your days', .35, (u - .7) / .2); add('Days on budget', .15, c.days ? c.budOk / days : 0);
+    if (seat === 'mgr') add('Crew morale', .2, c.days ? (c.moraleSum / days - 35) / 30 : 0); else add('Days on strategy', .2, c.days ? 1 - c.off / days : 0); add('Requests answered in time', .3, req); }
   else { add('Profit on your days', .4, c.days ? (c.netSum / days + 3000) / 8000 : 0); add('Board confidence', .3, c.days ? ((c.confD || 0) / days + 3) / 6 : 0); add('Requests answered in time', .3, req); }
   // the seat card's mistakes: each one costs (capped), and refusing an unsafe push earns a little back
   const n = k => c[k] || 0, cap = (v, m) => Math.min(m, v);
   const mist = seat === 'tech' ? cap(.03 * n('skip'), .12) + cap(.03 * n('guess'), .12) + cap(.04 * n('quiet'), .12) + cap(.06 * n('gaveIn'), .18) - cap(.02 * n('refused'), .06)
     : seat === 'sup' ? cap(.02 * n('tools') / 15, .2) + cap(.02 * n('wrong'), .1) + cap(.015 * Math.max(0, n('otYes') - days / 2), .1) + cap(.02 * n('padPull'), .1)
     : seat === 'mgr' ? cap(.01 * n('over'), .1) + cap(.04 * n('budIgnored'), .16) + cap(.01 * n('oneTrade'), .1)
-    : seat === 'dir' ? cap(.03 * n('prio'), .15) + cap(.03 * Math.max(0, n('overOk') - days / 3), .12) + cap(.05 * n('vipLate'), .15) + cap(.01 * n('over'), .1)
+    : seat === 'dir' ? cap(.03 * n('prio'), .15) + cap(.025 * Math.max(0, n('overOk') - 1), .12) + cap(.05 * n('vipLate'), .15) + cap(.01 * n('over'), .1)
     : cap(.03 * n('spin'), .12) + cap(.01 * n('empty'), .14) + cap(.02 * n('floor'), .2) + cap(.01 * n('over'), .1);
   // sign-offs: good ones signed quickly earn a little; a weak sheet you countersigned that went wrong costs more
   const csUp = Math.min(.05, .01 * (c.csFast || 0)), csDown = Math.min(.2, .04 * (c.csHurt || 0) + .06 * (c.csInj || 0));
