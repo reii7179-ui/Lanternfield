@@ -11,7 +11,7 @@
     "test:golden": "node tests/engine/golden.js",
     "test:fuzz": "node tests/engine/fuzz.js",
     "balance": "node tests/engine/balance.js",
-    "test:browser": "node tests/browser/smoke.js && node tests/browser/layout.js && node tests/browser/saves.js && node tests/browser/motion.js && node tests/browser/ui-motion.js && node tests/browser/sound.js && node tests/browser/perf.js && node tests/browser/final-screen.js && node tests/browser/playtest.js && node tests/browser/coach.js",
+    "test:browser": "node tests/browser/smoke.js && node tests/browser/layout.js && node tests/browser/saves.js && node tests/browser/motion.js && node tests/browser/ui-motion.js && node tests/browser/sound.js && node tests/browser/perf.js && node tests/browser/dusk.js && node tests/browser/final-screen.js && node tests/browser/playtest.js && node tests/browser/coach.js",
     "test:slow": "node tests/browser/real-day.js && node tests/browser/coach.js sup,tech --phone && node tests/browser/coach.js sup --desk",
     "package:itch": "node scripts/package-itch.js",
     "records": "node scripts/records.js",

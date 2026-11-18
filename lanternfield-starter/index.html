@@ -2178,7 +2178,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+595957e1', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+d6a9853b', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -2830,28 +2830,63 @@ function groundLayer(which, k) {
   const g = c.getContext('2d'); g.setTransform(k, 0, 0, k, -WB.x * k, -WB.y * k); paintGround(g, which === 'night' ? 1 : 0, k);
   return c;
 }
+/* the hour before dusk: if a zoom has thrown the night layer away, it is painted again a quarter at a time over four frames,
+   so dusk does not open with a stall (on a slow phone the whole layer at once takes several frames' worth of time) */
+const ONE = (() => { const c = document.createElement('canvas'); c.width = c.height = 1; return c.getContext('2d'); })();
+function nightBand(G) {
+  const k = G.k, P = G.pre || (G.pre = { band: 0 }), B = 4, w = Math.ceil(WB.w * k), h = Math.ceil(WB.h * k);
+  const c = G.night || (G.night = document.createElement('canvas')); if (P.band === 0 && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; }
+  const g = c.getContext('2d'), y0 = Math.floor(h * P.band / B), y1 = Math.floor(h * (P.band + 1) / B);
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.beginPath(); g.rect(0, y0, w, y1 - y0); g.clip();
+  g.setTransform(k, 0, 0, k, -WB.x * k, -WB.y * k); paintGround(g, 1, k); g.restore();
+  ONE.drawImage(c, 0, y0, 1, 1, 0, 0, 1, 1); // the browser paints a canvas only when it is next used: use one pixel of it now, so this band is painted now
+  if (++P.band === B) { G.nightK = k; G.pre = null; }
+}
 /* the ground the player sees: the day and night layers blended for the time of day, with the light of the hour (dawn, golden
-   hour, dusk, a squall) laid over it, composed into one image that changes only every few park minutes */
-const groundNow = { c: null, key: '' }, mapLabels = [];
+   hour, dusk, a squall) laid over it.
+   - In full day or full night with no tint, the layer itself is drawn: nothing to compose.
+   - While the light changes, the blend is composed into one image, but only for the part of the park on screen (plus a
+     margin for panning and shake): on a phone that is about half the park. It is recomposed when the light has changed,
+     at most every 0.6 s, and less often on a phone that is struggling (adaptive quality), or at once when the view moves
+     past the margin. */
+const groundNow = { c: null, key: '', r: null }, mapLabels = [];
 function drawGround(n, now, tint) {
   const k = Math.min(2.2, sc * dprNow()), G = groundLayers, ch0 = Math.abs(k / (G.k || k) - 1);
   // repaint on a real zoom change (at most 5 times a second while pinching) or once the fonts arrive
-  if (!G.k || G.fonts !== fontsReady() || (ch0 > .02 && (now - G.built > 200 || ch0 > .3))) { sceneOf(); G.k = k; G.built = now; G.fonts = fontsReady(); G.dayK = G.nightK = 0; }
+  if (!G.k || G.fonts !== fontsReady() || (ch0 > .02 && (now - G.built > 200 || ch0 > .3))) { sceneOf(); G.k = k; G.built = now; G.fonts = fontsReady(); G.dayK = G.nightK = 0; G.pre = null; }
   const need = n < 1 ? ['day'] : []; if (n > 0) need.push('night');
-  for (const w of need) if (G[w + 'K'] !== G.k) { groundLayer(w, G.k); G[w + 'K'] = G.k; }
-  const nq = Math.round(n * 48) / 48, ta = tint ? Math.round(tint[1] * 30) / 30 : 0, key = [G.k, nq, tint ? tint[0] : '', ta, G.dayK, G.nightK].join('|'), C = groundNow;
-  const layersKey = [G.k, G.dayK, G.nightK].join('|');
-  if (C.key !== key && (!C.c || C.layers !== layersKey || now - (C.at || 0) > 600)) { // light changes recompose at most every 0.6 s (a squall's tint ramps in many small steps)
-    C.at = now; C.layers = layersKey;
-    const lay = G[need[0]], c = C.c || (C.c = document.createElement('canvas')); if (c.width !== lay.width || c.height !== lay.height) { c.width = lay.width; c.height = lay.height; }
-    const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
-    if (nq < 1) g.drawImage(G.day, 0, 0); if (nq > 0) { g.globalAlpha = nq < 1 ? nq : 1; g.drawImage(G.night, 0, 0); g.globalAlpha = 1; }
-    if (ta > 0) { g.fillStyle = rgba(tint[0], ta); g.fillRect(0, 0, c.width, c.height); }
-    C.key = key; C.bg = ta > 0 ? mix(hexOf(ga('bg', nq)), tint[0], ta) : ga('bg', nq); // the sea and sky outside the park, in the same light
+  for (const w of need) if (G[w + 'K'] !== G.k) { groundLayer(w, G.k); G[w + 'K'] = G.k; G.pre = null; }
+  if (n === 0 && !ui.title && S.phase === 'day' && S.clock >= 1020 && S.clock < 1080 && G.nightK !== G.k && now - G.built > 1000) nightBand(G);
+  const nq = Math.round(n * 48) / 48, ta = tint ? Math.round(tint[1] * 30) / 30 : 0, C = groundNow, d = dprNow();
+  const s = sc * d / G.k, bx = (ox + WB.x * sc) * d, by = (oy + WB.y * sc) * d; // layer pixels to screen pixels, and where the layer's corner lands
+  const fill = (img, x0, y0) => { // the sea and sky outside the park, unless the image covers the whole map
+    const ix = bx + x0 * s, iy = by + y0 * s;
+    if (!(Math.abs(s - 1) < 1e-6 && Math.round(ix) <= 0 && Math.round(iy) <= 0 && Math.round(ix) + img.width >= cv.width && Math.round(iy) + img.height >= cv.height)) { ctx.fillStyle = C.bg; ctx.fillRect(0, 0, cw, ch); }
+  };
+  if (!(nq > 0 && nq < 1) && !(ta > 0)) { // plain day or night
+    const lay = nq >= 1 ? G.night : G.day; C.key = ''; C.r = C.vis = null; C.bg = ga('bg', nq); // the next change of light composes afresh
+    fill(lay, 0, 0); blitWorld(lay, WB.x, WB.y, WB.w, WB.h, G.k);
+  } else {
+    const lw = G[need[0]].width, lh = G[need[0]].height, cl = (v, m) => Math.max(0, Math.min(m, v));
+    const vx0 = cl(Math.floor(-bx / s), lw), vy0 = cl(Math.floor(-by / s), lh), vx1 = cl(Math.ceil((cv.width - bx) / s), lw), vy1 = cl(Math.ceil((cv.height - by) / s), lh);
+    const key = [G.k, nq, tint ? tint[0] : '', ta, G.dayK, G.nightK].join('|'), layersKey = [G.k, G.dayK, G.nightK].join('|'), r = C.r;
+    C.vis = [vx0, vy0, vx1, vy1]; // what is on screen, in layer pixels (the tests check the composed part covers it)
+    const inside = C.c && r && C.layers === layersKey && vx0 >= r[0] && vy0 >= r[1] && vx1 <= r[2] && vy1 <= r[3];
+    const every = Math.min(1500, 600 / Math.max(.4, QUAL.q)); // light changes: every 0.6 s, up to 1.5 s on a struggling phone
+    if (vx1 > vx0 && vy1 > vy0 && (!inside || (C.key !== key && now - (C.at || 0) > every))) {
+      const mx = Math.max(48, Math.round((vx1 - vx0) * .125)), my = Math.max(48, Math.round((vy1 - vy0) * .125)), q = 32; // the margin, and a grid so a small pan reuses the image
+      const x0 = cl(Math.floor((vx0 - mx) / q) * q, lw), y0 = cl(Math.floor((vy0 - my) / q) * q, lh), x1 = cl(Math.ceil((vx1 + mx) / q) * q, lw), y1 = cl(Math.ceil((vy1 + my) / q) * q, lh), w = x1 - x0, h = y1 - y0;
+      const c = C.c || (C.c = document.createElement('canvas')); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+      // whole layers drawn at an offset (the canvas clips them): cheaper than copying a part of a layer, which costs extra
+      if (nq < 1) g.drawImage(G.day, -x0, -y0); if (nq > 0) { g.globalAlpha = nq < 1 ? nq : 1; g.drawImage(G.night, -x0, -y0); g.globalAlpha = 1; }
+      if (ta > 0) { g.fillStyle = rgba(tint[0], ta); g.fillRect(0, 0, w, h); }
+      C.r = [x0, y0, x1, y1]; C.at = now; C.key = key; C.layers = layersKey;
+      C.bg = ta > 0 ? mix(hexOf(ga('bg', nq)), tint[0], ta) : ga('bg', nq); // the sea and sky outside the park, in the same light
+    }
+    if (C.r && C.layers === layersKey) { const [x0, y0, x1, y1] = C.r; fill(C.c, x0, y0); blitWorld(C.c, WB.x + x0 / G.k, WB.y + y0 / G.k, (x1 - x0) / G.k, (y1 - y0) / G.k, G.k); }
+    else { ctx.fillStyle = C.bg || ga('bg', nq); ctx.fillRect(0, 0, cw, ch); } // the park is off screen
   }
-  const d = dprNow(), dx = Math.round((ox + WB.x * sc) * d), dy = Math.round((oy + WB.y * sc) * d);
-  if (!(Math.abs(G.k - sc * d) < 1e-6 && dx <= 0 && dy <= 0 && dx + C.c.width >= cv.width && dy + C.c.height >= cv.height)) { ctx.fillStyle = C.bg; ctx.fillRect(0, 0, cw, ch); }
-  blitWorld(C.c, WB.x, WB.y, WB.w, WB.h, G.k);
   ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 }
 /* draw a cached image of the park box (wx, wy, ww, wh) painted at k pixels per unit. When k matches the current zoom it is
@@ -4533,7 +4568,7 @@ function start(data) {
   for (const [n, fn] of [['bind', bind], ['resize', resize], ['render', renderUI]]) { try { fn(); } catch (e) { oops('start ' + n, e); } }
   requestAnimationFrame(frame);
 }
-window.LFUI = { get state() { return S; }, act, ui, scr: (x, y) => [ox + x * sc, oy + y * sc], labels: () => mapLabels.map(l => ({ ...l })), quality: () => QUAL.q, feel: () => ({ flash: !reduce && performance.now() - (FEEL.flashT || -1e9) < 440, shake: !!shakeNow(performance.now()) }) }; // the last one is for tests: where a park point is on screen
+window.LFUI = { get state() { return S; }, act, ui, scr: (x, y) => [ox + x * sc, oy + y * sc], labels: () => mapLabels.map(l => ({ ...l })), quality: () => QUAL.q, ground: () => { const G = groundLayers, r = groundNow.r, v = groundNow.vis; return { plain: !v, nightReady: G.nightK === G.k, covers: !!(v && r && v[0] >= r[0] && v[1] >= r[1] && v[2] <= r[2] && v[3] <= r[3]) }; }, feel: () => ({ flash: !reduce && performance.now() - (FEEL.flashT || -1e9) < 440, shake: !!shakeNow(performance.now()) }) }; // the last one is for tests: where a park point is on screen
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 })();
 </script>
