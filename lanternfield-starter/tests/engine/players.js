@@ -30,6 +30,9 @@ module.exports = function makePlayers(L) {
     for (const [k, v] of Object.entries({ kit: 3, sensor: 2, contactor: 2, bearing: 2, seal: 2, tyres: 1, chain: 1, relay: 1, breaker: 1, brake: 1, iocard: 1 })) s.min[k] = v;
     if (!L.has(s, 'store')) for (const k in s.min) { const have = s.stock[k] + s.inbound.filter(x => x.sku === k).length; for (let n = have; n < s.min[k]; n++) L.order(s, k, 'std'); }
     if (techs(s).some(t => t.morale < 45)) L.teamMeal(s);
+    // a director or chief executive fills the key posts below them, so the work lands on the right desks (seat-card mistake 14)
+    if (s.seat === 'dir' || s.seat === 'ceo') { const i = s.cands.findIndex(c => !c.gone && c.role === 'eng'); if (!L.has(s, 'eng') && i >= 0 && s.cash > 4000) L.hire(s, i); }
+    if (s.seat === 'ceo' && !((s.org.opsdir || 0) + (s.org.engdir || 0)) && s.cash > 6000 && L.hireOrg) L.hireOrg(s, 'opsdir');
   }
 
   function dispatch(s, o) { // the supervisor's hands
