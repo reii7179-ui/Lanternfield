@@ -254,7 +254,8 @@ function drainFx(t) {
   S.fx.length = 0;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* no storage: the week simply does not carry over */ } }
-const saneSave = s => !!(s && s.v === 7 && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
+// an older save is brought up to date by the engine first (L.migrate), then checked
+const saneSave = s => !!(s && (L.migrate(s), s.v === L.SAVE_V) && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return saneSave(s) ? s : null; } catch (e) { return null; } }
 
 let last = 0, acc = 0, lastUI = 0, lastSave = 0, lastMini = 0;

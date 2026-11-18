@@ -654,6 +654,8 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .req>i{position:absolute;left:0;bottom:0;height:3px;background:var(--c)}
 .sent{font-size:11.5px;color:var(--dim);border:1px dashed var(--line);border-radius:6px;padding:4px 7px;line-height:1.25}
 .sent b{color:var(--ink);font-weight:700}
+.sent.esc{border-style:solid;border-color:var(--ember);color:var(--ink)}
+.sent.esc b{color:var(--ember)}
 .more{font-size:11.5px;color:var(--dim);text-align:center}
 .ohead .count{margin-right:6px}
 .kmeter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px}
@@ -840,6 +842,12 @@ const PERKS = {
 };
 /* the chain of command you can sit in. Each seat can spend up to its limit; above that it has to ask. */
 const LV = ['tech', 'sup', 'mgr', 'dir', 'ceo'];
+const SAVE_V = 8; // the saved game's version: bump it when the saved state changes, and teach migrate() the step up
+function migrate(s) { // an older save brought up to date; anything new starts empty
+  if (!s || typeof s !== 'object' || !s.sc) return s;
+  if (s.v === 7) { for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0 }); } s.v = 8; }
+  return s;
+}
 const RANK = { tech: 0, sup: 1, mgr: 2, dir: 3, ceo: 4 };
 const LIMIT = { tech: 0, sup: 300, mgr: 1500, dir: 5000, ceo: 1e9 };
 const SEATNAME = { tech: 'Technician', sup: 'Maintenance Supervisor', mgr: 'Engineering Manager', dir: 'Operations Director', ceo: 'Chief Executive', board: 'The board' };
@@ -1067,15 +1075,15 @@ function mkStaff(s, name, role, skills, shift, grade) {
 function place(t) { t.x = YARD.x + t.ox * .7; t.y = YARD.y - 30 + t.oy * .5; if (t.role === 'store') { t.x = STORE.x; t.y = STORE.y; } if (t.role === 'mach') { t.x = SHOP.x; t.y = SHOP.y; } if (isMgr(t)) { t.x = OFFICE.x + ({ eng: -18, mat: 0, hr: 18 })[t.role]; t.y = OFFICE.y; } }
 // what each seat is judged on, counted only while you sit in it
 const mkSc = () => ({
-  tech: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, over: 0, jobs: 0, dx: 0, ftf: 0, lock: 0, skip: 0, hurt: 0, wo: 0, woOk: 0, woLate: 0, reports: 0, asks: 0 },
-  sup: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, over: 0, disp: 0, resp: 0, respN: 0, quick: 0, rescued: 0, stuck: 0, upSum: 0, asks: 0 },
-  mgr: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, over: 0, budOk: 0, upSum: 0, moraleSum: 0, oneone: 0, asks: 0 },
-  dir: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, over: 0, budOk: 0, upSum: 0, asks: 0 },
-  ceo: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, over: 0, netSum: 0, conf0: -1, upSum: 0, asks: 0 },
+  tech: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, jobs: 0, dx: 0, ftf: 0, lock: 0, skip: 0, hurt: 0, wo: 0, woOk: 0, woLate: 0, reports: 0, asks: 0 },
+  sup: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, disp: 0, resp: 0, respN: 0, quick: 0, rescued: 0, stuck: 0, upSum: 0, asks: 0 },
+  mgr: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, budOk: 0, upSum: 0, moraleSum: 0, oneone: 0, asks: 0 },
+  dir: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, budOk: 0, upSum: 0, asks: 0 },
+  ceo: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, netSum: 0, conf0: -1, upSum: 0, asks: 0 },
 });
 function newGame(seed) {
   const s = {
-    v: 7, strategy: 'uptime', comp: 20, cdT: 0, later: [], sf: {}, sq: {}, seat: 'sup', me: null, inbox: [], asks: [], rq: 0, sc: mkSc(), budget: 3500, focus: 'uptime', freeze: 0, cool: false, cdW: 0, cdq: {}, spons: 0, aiMin: false, prio: null, talk: null, away: 0, cdV: 0, diff: 'standard', rk: {}, hh: 0,
+    v: SAVE_V, strategy: 'uptime', comp: 20, cdT: 0, later: [], sf: {}, sq: {}, seat: 'sup', me: null, inbox: [], asks: [], rq: 0, sc: mkSc(), budget: 3500, focus: 'uptime', freeze: 0, cool: false, cdW: 0, cdq: {}, spons: 0, aiMin: false, prio: null, talk: null, away: 0, cdV: 0, diff: 'standard', rk: {}, hh: 0,
     streak: 0, best: 0, cdC: 0, waves: [], seed: (seed >>> 0) || 7, day: 1, clock: OPEN, phase: 'plan', closed: false, paused: true, speed: 1,
     cash: CASH0, glow: 80, crowd: 1, heat: false, att: .35, total: 0, seq: 0, nextT: 1,
     rides: [], crew: [], events: [], feed: [], fx: [], reports: [], forecast: null, cands: [], final: null,
@@ -1424,7 +1432,7 @@ function supStep(s) { // whoever is running the shift sends people to work; with
     const j = r.job;
     if (supOn && j.mode === 'full' && j.part && j.ps === 'none' && s.stock[j.part] < 1) {
       if (P.nopart === 'patch' && !j.lock && s.focus !== 'safety') j.mode = 'patch';
-      else { if (P.nopart === 'express' && !incoming(s, j.part) && s.freeze !== s.day) order(s, j.part, 'exp'); if (j.prog >= .3 * j.work) continue; }
+      else { if (P.nopart === 'express' && !incoming(s, j.part) && s.freeze !== s.day && !budgetWait(s)) order(s, j.part, 'exp'); if (j.prog >= .3 * j.work) continue; }
     }
     const f = free(j.trade).filter(c => !(j.skip || []).includes(c.id)); if (!f.length) continue;
     if (supOn) f.sort((a, b) => (b.skills[j.trade] * 60 - dist(b, r) / 6) - (a.skills[j.trade] * 60 - dist(a, r) / 6));
@@ -1489,7 +1497,9 @@ const Who = (w, verb) => w + ' ' + verb;
 const me = s => s.seat === 'tech' ? staff(s, s.me) : null;
 const maintSpend = s => { const d = s.d; if (s.phase !== 'day') return d.wages + d.ot + d.parts + d.contract - (d.mkt || 0);
   return s.crew.filter(t => !t.temp).reduce((a, t) => a + wage(t) + (t.shift === 'full' && !isMgr(t) && !t.sick ? otCost(t) : 0), 0) + d.parts + d.contract - (d.mkt || 0); };
-const spendOk = (s, cost, extra) => s.freeze === s.day ? 'spending is on hold for the rest of today' : s.cash < cost + extra ? 'cash is too tight' : true;
+// while the overspend question waits for an answer (in your inbox or escalated), nothing more is spent
+const budgetWait = s => s.inbox.some(i => i.k === 'budget') || s.asks.some(a => a.esc && a.it.k === 'budget');
+const spendOk = (s, cost, extra) => s.freeze === s.day ? 'spending is on hold for the rest of today' : budgetWait(s) ? 'the overspend is waiting for a decision' : s.cash < cost + extra ? 'cash is too tight' : true;
 function helper(s, r, tr) { // the nearest free, qualified person who is not you
   const m = me(s); tr = tr || (r.job ? r.job.trade : primary(r));
   return s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !(c.hurt > s.clock) && c.skills[tr] && c !== m)
@@ -1698,18 +1708,60 @@ Object.assign(REQ, {
     res(s, it, v, who) { if (v === 'hold') return who === 'You' ? 'You held ticket prices.' : ''; s.sf.price = v; mods(s); if (v === 'up') s.later.push({ day: s.day + 2, k: 'pricey' }); return v === 'up' ? `${Who(who, 'raised')} ticket prices by 10% for the rest of the season.` : `${Who(who, 'launched')} a family offer for the rest of the season.`; } },
 });
 
+/* ---------- escalation ----------
+   A request nobody answers in time does not quietly fall back on a default. It goes up to the computer in the seat above,
+   which decides after a while (longer the higher it goes), and until then whatever it is about waits: the ride stays shut,
+   the person waits, the part is not ordered. It counts as missed for your seat, and misses in a row count for more.
+   The chief executive has only the board above, which decides at once, picks what suits it, and trusts you less. */
+const ESC_DELAY = { sup: 10, mgr: 12, dir: 15, ceo: 20 }, INBOX_CAP = 3;
+const BOARD_PICK = { board: 'miss', press: 'quiet', sponsor: 'yes', supplier: 'yes', noise: 'ignore', pay: 'no', price: 'up' };
+// what the seat above decides for the requests the computer never answers when they are yours
+const ESC_PICK = { wo: () => 'no', stay: () => 'go', defect: s => s.stock.kit > 0 ? 'yes' : 'no',
+  part: (s, it) => { const j = (ride(s, it.rid) || {}).job; return s.pol.nopart === 'patch' && j && !j.lock && s.focus !== 'safety' ? 'patch' : s.pol.nopart === 'express' ? 'exp' : 'wait'; } };
+function above(s, x) { if (x === 'ceo') return 'board'; for (let i = RANK[x] + 1; i < LV.length; i++) if (filled(s, LV[i])) return LV[i]; return 'ceo'; }
+const seatWho = (s, x) => { const h = holder(s, x); return h.startsWith('The ') ? 'the' + h.slice(3) : `${h}, the ${SEATNAME[x].toLowerCase()}`; };
+const reqWhat = (s, it) => it.k === 'wo' ? `the work order for ${(ride(s, it.rid) || {}).short || 'a ride'}` : `${it.from}'s request`;
 function raise(s, k, o) {
   const Q = REQ[k], h = handler(s, Q.lvl), it = Object.assign({ id: ++s.rq, k, lvl: Q.lvl, h, at: s.clock }, o);
-  if (h === s.seat && (s.inbox.length < 5 || k === 'wo')) { s.inbox.push(it); fx(s, 'req', null); return it; }
+  if (h === s.seat) {
+    if (s.inbox.length < INBOX_CAP) { s.inbox.push(it); fx(s, 'req', null); return it; }
+    // the inbox is full: this one goes straight up. It is your miss only if you were sitting on something past half its time.
+    escalate(s, it, s.inbox.some(x => s.clock - x.at > (x.due - x.at) / 2) ? 'full' : 'busy'); return it;
+  }
   if (Q.ai !== false) settle(s, it, Q.pick(s, it), false, false);
   return null;
+}
+function onTime(s) { const sc = s.sc[s.seat]; sc.onTime++; sc.mrun = 0; sc.run = (sc.run || 0) + 1; if (sc.run % 5 === 0) { sc.bonus = (sc.bonus || 0) + 1; log(s, `${sc.run} answers on time in a row. People know they can count on you.`, 'good'); } }
+function miss(s) { const sc = s.sc[s.seat]; sc.missed++; sc.run = 0; sc.mrun = (sc.mrun || 0) + 1; sc.missW = (sc.missW || 0) + Math.min(3, 1 + .5 * (sc.mrun - 1)); }
+function escalate(s, it, why) { // why: 'late' ran out of time, 'full' inbox full while you sat on an old item, 'busy' inbox full (not a miss)
+  const sc = s.sc[s.seat], x = above(s, s.seat), Q = REQ[it.k], what = reqWhat(s, it);
+  if (why !== 'busy') miss(s);
+  sc.esc = (sc.esc || 0) + 1; s.d.esc = (s.d.esc || 0) + 1;
+  if (x === 'board') {
+    const dc = Math.min(9, 3 + 2 * ((sc.mrun || 1) - 1)), v = BOARD_PICK[it.k] || Q.def; let txt = '';
+    try { txt = Q.res(s, it, v, 'The board', true); } catch (e) { txt = ''; }
+    s.conf = clamp(s.conf - dc, 0, 100);
+    log(s, `${why === 'late' ? 'No answer from you in time' : 'Your desk was full'}: the board decided ${what} without you, and not the way you would have. Board confidence −${dc}.${txt ? ' ' + txt : ''}`, 'bad');
+    fx(s, 'warn', it.rid || null, 'Board decided'); return;
+  }
+  it.h = x; it.escTo = x; it.escAt = s.clock;
+  s.asks.push({ id: ++s.rq, esc: 1, it, x, at: s.clock, due: s.clock + ESC_DELAY[x] });
+  log(s, `${why === 'late' ? 'No answer from you in time' : 'Your inbox was full'}: ${what} was escalated to ${seatWho(s, x)}, who will decide in about ${ESC_DELAY[x]} minutes. Until then it waits.`, 'bad');
+  fx(s, 'warn', it.rid || null, 'Escalated');
+}
+function resolveEsc(s, a) { // the seat above makes the call it was handed
+  const it = a.it, Q = REQ[it.k], by = holder(s, a.x), what = reqWhat(s, it);
+  if (Q.stale && Q.stale(s, it)) { if (it.k === 'wo') { const r = ride(s, it.rid); if (r && r.job && r.job.wo === it.id) r.job.wo = 0; } log(s, `${by} looked at ${what}: it is no longer needed.`, 'info'); return; }
+  let v = Q.def; try { v = ESC_PICK[it.k] ? ESC_PICK[it.k](s, it) : Q.pick ? Q.pick(s, it) : Q.def; } catch (e) { v = Q.def; }
+  let txt = '', label = v; try { const o = Q.opts(s, it).find(o => o.v === v); if (o) label = o.b.toLowerCase(); } catch (e) { /* the options may no longer apply */ }
+  try { txt = Q.res(s, it, v, by, true); } catch (e) { txt = ''; }
+  log(s, txt || `${by} decided ${what}: ${label}.`, 'info');
 }
 function settle(s, it, v, mine, late) {
   const Q = REQ[it.k]; let txt = '';
   try { txt = Q.res(s, it, v, mine ? 'You' : holder(s, it.h), late); } catch (e) { txt = ''; }
-  if (mine) { const sc = s.sc[s.seat]; if (late) sc.missed++; else { sc.onTime++; sc[DTYPE[it.k] || 'op']++; const a = ALIGN[it.k] && ALIGN[it.k][v]; if (a) { if (a.includes(s.focus)) { sc.al++; s.d.al++; } else { sc.mis++; s.d.mis++; } } } }
-  if (late && it.k !== 'wo') txt = 'No answer from you in time. ' + (txt || 'Nothing was done.');
-  if (txt) log(s, txt, late ? 'bad' : 'info');
+  if (mine) { const sc = s.sc[s.seat]; onTime(s); sc[DTYPE[it.k] || 'op']++; const a = ALIGN[it.k] && ALIGN[it.k][v]; if (a) { if (a.includes(s.focus)) { sc.al++; s.d.al++; } else { sc.mis++; s.d.mis++; } } }
+  if (txt) log(s, txt, 'info');
 }
 function answer(s, id, v) { const i = s.inbox.findIndex(x => x.id === id); if (i < 0 || s.away > s.clock) return false;
   if (v === 'brief') { const b = s.inbox[i], Q = REQ[b.k]; if (!Q.info || b.brief) return false; b.brief = Q.info(s, b); b.due = Math.max(s.clock + 2, b.due - 6); s.sc[s.seat].brief++; return true; }
@@ -1774,8 +1826,8 @@ const setBudget = (s, d) => { s.budget = clamp(s.budget + d, 1000, 9000); return
 function requests(s) {
   const cd = (k, m) => { if ((s.cdq[k] || 0) > s.clock) return false; s.cdq[k] = s.clock + m; return true; };
   const m = me(s), from = () => onNow(s, 'sup') && s.seat !== 'sup' ? holder(s, 'sup') : 'The crew';
-  if (m && m.on && m.shift === 'early' && !m.once && m.target && s.clock === SHIFT.early[1] - 20)
-    raise(s, 'stay', { from: holder(s, handler(s, 'sup')), cost: otCost(m), due: SHIFT.early[1], txt: `Can you stay on to finish ${ride(s, m.target).short}? Your shift ends at 17:00.` });
+  if (m && m.on && m.shift === 'early' && !m.once && m.target && s.clock === SHIFT.early[1] - 25)
+    raise(s, 'stay', { from: holder(s, handler(s, 'sup')), cost: otCost(m), due: SHIFT.early[1] - 12, txt: `Can you stay on to finish ${ride(s, m.target).short}? Your shift ends at 17:00.` });
   for (const r of s.rides) {
     const j = r.job; if (!j || j.type !== 'fault') continue;
     const crew = s.crew.filter(c => c.target === r.id && c.on), age = s.clock - j.t0;
@@ -1796,9 +1848,9 @@ function requests(s) {
       j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
     }
   }
-  if (s.clock === SHIFT.early[1] - 15) {
+  if (s.clock === SHIFT.early[1] - 30) {
     const ts = s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && c.shift === 'early' && !c.once && c.target && c !== m);
-    if (ts.length) raise(s, 'hold', { tids: ts.map(t => t.id), cost: ts.reduce((a, t) => a + otCost(t), 0), from: ts.length === 1 ? ts[0].name : 'The early shift', due: SHIFT.early[1], txt: `${ts.map(t => t.name).join(' and ')} ${ts.length > 1 ? 'are' : 'is'} mid-job and finish${ts.length > 1 ? '' : 'es'} at 17:00. Keep ${ts.length > 1 ? 'them' : 'them'} on overtime?` });
+    if (ts.length) raise(s, 'hold', { tids: ts.map(t => t.id), cost: ts.reduce((a, t) => a + otCost(t), 0), from: ts.length === 1 ? ts[0].name : 'The early shift', due: SHIFT.early[1] - 15, txt: `${ts.map(t => t.name).join(' and ')} ${ts.length > 1 ? 'are' : 'is'} mid-job and finish${ts.length > 1 ? '' : 'es'} at 17:00. Keep ${ts.length > 1 ? 'them' : 'them'} on overtime?` });
   }
   if (s.seat === 'sup' && s.clock % 5 === 0 && cd('defect', 40)) {
     const t = s.crew.find(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && c.state === 'idle');
@@ -1962,9 +2014,9 @@ function step(s) {
   for (let i = s.inbox.length - 1; i >= 0; i--) { // requests go stale, or run out of time and the default happens
     const it = s.inbox[i], Q = REQ[it.k];
     if (Q.stale && Q.stale(s, it)) { s.inbox.splice(i, 1); if (it.k === 'wo') { const r = ride(s, it.rid), t = me(s); if (r && r.job && r.job.wo === it.id) r.job.wo = 0; if (t && t.target === it.rid) s.sc.tech.woOk++; } continue; }
-    if (s.clock >= it.due) { s.inbox.splice(i, 1); settle(s, it, Q.def, true, true); }
+    if (s.clock >= it.due) { s.inbox.splice(i, 1); escalate(s, it, 'late'); }
   }
-  for (let i = s.asks.length - 1; i >= 0; i--) if (s.clock >= s.asks[i].due) decideAsk(s, s.asks.splice(i, 1)[0]);
+  for (let i = s.asks.length - 1; i >= 0; i--) if (s.clock >= s.asks[i].due) { const a = s.asks.splice(i, 1)[0]; if (a.esc) resolveEsc(s, a); else decideAsk(s, a); }
   s.sc[s.seat].min++; s.d.seatMin[s.seat] = (s.d.seatMin[s.seat] || 0) + 1;
   // a service nobody is walking to or working on is called off and its kit goes back on the shelf
   for (const r of s.rides) if (r.job && r.job.type === 'service' && !s.crew.some(t => t.target === r.id)) dropJob(s, r);
@@ -1975,6 +2027,8 @@ function step(s) {
 }
 
 function endDay(s) {
+  for (const a of s.asks.filter(a => a.esc)) resolveEsc(s, a); // every escalation is decided before the park shuts
+  s.asks = s.asks.filter(a => !a.esc);
   s.crew = s.crew.filter(t => !t.agency);
   for (const t of s.crew.filter(t => !t.temp)) { spend(s, 'wages', wage(t)); if (t.shiftWas === 'full' && !isMgr(t) && !t.sick) spend(s, 'ot', otCost(t)); if (t.once) { t.shift = t.was || 'early'; t.once = false; t.was = null; } }
   spend(s, 'salaries', orgWages(s)); spend(s, 'overhead', Math.round(OVERHEAD * s.m.overhead));
@@ -2034,7 +2088,7 @@ function endDay(s) {
 // how well you did your own job, 0 to 1, in the seat you spent most of the season in
 function personal(s) {
   const seat = LV.slice().sort((a, b) => s.sc[b].min - s.sc[a].min)[0], c = s.sc[seat], days = Math.max(1, c.days), r01 = (a, b, dflt) => a + b ? a / (a + b) : dflt;
-  const req = r01(c.onTime, c.missed, .5), parts = [];
+  const req = r01(c.onTime + (c.bonus || 0), c.missW != null ? c.missW : c.missed, .5), parts = [];
   const add = (name, w, v) => { parts.push([name, w, clamp(v, 0, 1)]); };
   if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs finished', .35, c.jobs / segDays / 4); add('Cause found first time', .2, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .25, r01(c.lock, c.skip, .5)); add('Work orders answered', .2, r01(c.woOk, c.woLate, .5)); }
   else if (seat === 'sup') { const avg = c.respN ? c.resp / c.respN : 99; add('Response time', .35, (25 - avg) / 17); add('Fast responses', .25, c.respN ? (c.fast || 0) / c.respN : 0); add('Requests answered in time', .2, req); add('No guests left stuck', .2, 1 - c.stuck / 3); }
@@ -2133,7 +2187,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2178,7 +2232,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+d6a9853b', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+7a5815d4', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -3541,7 +3595,9 @@ function inboxHTML() {
     const note = it.lvl !== S.seat && it.lvl !== 'tech' ? `<small class="rqn">Normally the ${L.SEATNAME[it.lvl]}'s call. Nobody is in that post right now, so it comes to you.</small>` : '';
     return `<div data-key="rq-${it.id}" class="req${it.k === 'wo' ? ' wo' : ''}${hot ? ' hot' : ''}" role="group" aria-label="Request from ${esc(it.from)}"><div class="rqh"><span>${esc(it.from)}</span><span class="num">${left} min</span></div><small class="kind k-${kd}">${KIND[kd][0]} decision</small><p>${esc(it.txt)}</p>${brief}${hint}${note}<div class="rqo">${o.map(x => `<button type="button" class="cmd${x.go && (it.k === 'wo' || it.k === 'stay') ? ' go' : ''}"${S.away > S.clock ? ' disabled' : ''} data-a="ans" data-id="${it.id}" data-v="${x.v}" data-fk="rq-${it.id}-${x.v}"><b>${esc(x.b)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</button>`).join('')}</div><i style="width:${Math.round(f * 100)}%"></i></div>`;
   }).join('');
-  const sent = S.asks.map(a => { let t = ''; try { t = ASKTXT[a.k](a.o); } catch (e) { t = 'a decision'; } return `<div class="sent">You asked <b>${esc(lc(L.holder(S, a.x)))}</b> for ${esc(t)}. Answer in about ${Math.max(1, a.due - S.clock)} min.</div>`; }).join('');
+  const sent = S.asks.map(a => { const n = Math.max(1, a.due - S.clock);
+    if (a.esc) return `<div class="sent esc" data-key="esc-${a.id}"><b><span aria-hidden="true">⤴</span> Escalated to ${esc(lc(L.holder(S, a.x)))}</b>: ${esc(a.it.k === 'wo' ? 'your work order' : a.it.from + '\'s request')}${a.it.rid ? ' on ' + esc(L.ride(S, a.it.rid).short) : ''}. Waiting for their decision, about ${n} min.</div>`;
+    let t = ''; try { t = ASKTXT[a.k](a.o); } catch (e) { t = 'a decision'; } return `<div class="sent" data-key="ask-${a.id}">You asked <b>${esc(lc(L.holder(S, a.x)))}</b> for ${esc(t)}. Answer in about ${n} min.</div>`; }).join('');
   const away = S.away > S.clock ? `<div class="sent"><b>You are out of the office until ${fmtClock(S.away)}.</b> Requests wait for you, and their clocks keep running.</div>` : '';
   return cards || sent ? `<div class="inbox${away ? ' away' : ''}" aria-live="polite">${away}${cards}${items.length > 3 ? `<div class="more">${items.length - 3} more waiting</div>` : ''}${sent}</div>` : '';
 }
@@ -4533,7 +4589,8 @@ function drainFx(t) {
   S.fx.length = 0;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* no storage: the week simply does not carry over */ } }
-const saneSave = s => !!(s && s.v === 7 && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
+// an older save is brought up to date by the engine first (L.migrate), then checked
+const saneSave = s => !!(s && (L.migrate(s), s.v === L.SAVE_V) && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return saneSave(s) ? s : null; } catch (e) { return null; } }
 
 let last = 0, acc = 0, lastUI = 0, lastSave = 0, lastMini = 0;
