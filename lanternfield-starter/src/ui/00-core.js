@@ -15,7 +15,7 @@ const MGRDOES = {
   hr: 'Six applicants a night instead of three, half the hiring fee, training 30% cheaper, and morale holds up better.',
 };
 const MGRDEPT = { eng: 'Engineering', mat: 'Stores and purchasing', hr: 'People' };
-const STAT = { ok: ['Running', 'ok'], degraded: ['Half speed', 'warn'], down: ['Closed', 'bad'], service: ['Being serviced', 'work'], nopower: ['No power', 'bad'], unstaffed: ['No operator', 'dim'] };
+const STAT = { ok: ['Running', 'ok'], degraded: ['Half speed', 'warn'], down: ['Closed', 'bad'], service: ['Being serviced', 'work'], nopower: ['No power', 'bad'], unstaffed: ['No operator', 'dim'], signoff: ['Fixed, waiting to reopen', 'warn'], restart: ['Restarting', 'work'] };
 const SHIFTS = { early: 'Early 09 to 17', late: 'Late 14 to 22', full: 'Full day' };
 /* motion: 'auto' follows the device's reduced-motion setting; 'reduce' and 'full' override it.
    Kept in its own localStorage key, never in the saved game. `reduce` is read live everywhere. */

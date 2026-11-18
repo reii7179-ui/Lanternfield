@@ -114,7 +114,7 @@ function migrate(s) { // an older save brought up to date; anything new starts e
   if (s.v !== 7 && s.v !== 8) return s;
   for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0 }); }
   Object.assign(s, { big: s.big || [], boardQ: s.boardQ || [], bigN: s.bigN || 0, bigDay: s.bigDay != null ? s.bigDay : -9 });
-  for (const r of s.rides || []) Object.assign(r, { pc: r.pc || 0, mf: r.mf || 0, cf: r.cf || 0, hzm: r.hzm || 1 });
+  for (const r of s.rides || []) Object.assign(r, { pc: r.pc || 0, mf: r.mf || 0, cf: r.cf || 0, hzm: r.hzm || 1, so: r.so || null, restart: r.restart || 0, gb: r.gb || 0 });
   s.v = 8; return s;
 }
 const RANK = { tech: 0, sup: 1, mgr: 2, dir: 3, ceo: 4 };
@@ -327,15 +327,17 @@ const orgFee = s => Math.round(150 * s.m.fee);
 function hireOrg(s, id) { const p = ORGX[id]; if (!p || !planning(s) || (s.org[id] || 0) >= p[5] || s.cash < orgFee(s)) return false; spend(s, 'people', orgFee(s)); s.org[id] = (s.org[id] || 0) + 1; mods(s); return true; }
 function fireOrg(s, id) { if (!ORGX[id] || !planning(s) || !(s.org[id] > 0)) return false; s.org[id]--; s.cm = clamp(s.cm - 3, 0, 100); mods(s); return true; }
 
-function subDown(s, sb) { const j = sb.job; return !!(j && j.type === 'fault' && j.sev === 'major' && !(s.up.genny && s.clock < j.t0 + 90)); }
+function subDown(s, sb) { const j = sb.job; return !!sb.so || !!(j && j.type === 'fault' && j.sev === 'major' && !(s.up.genny && s.clock < j.t0 + 90)); }
 function status(s, r) {
   if (r.sub && subDown(s, ride(s, r.sub))) return 'nopower';
+  if (r.so) return 'signoff';
+  if (r.restart > s.clock) return 'restart';
   const j = r.job;
   if (j) { if (j.type === 'fault') return j.sev === 'major' ? 'down' : 'degraded'; if (j.started) return 'service'; }
   if (r.sub && !s.staffed.includes(r.id)) return 'unstaffed';
   return 'ok';
 }
-const AV = { ok: 1, degraded: .5, down: 0, service: 0, nopower: 0, unstaffed: 0 };
+const AV = { ok: 1, degraded: .5, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0 };
 
 /* world */
 function mkStaff(s, name, role, skills, shift, grade) {
@@ -468,6 +470,7 @@ function createFault(s, r, o) {
   const tpl = o.title ? [o.title, trade, null] : pick(s, pool);
   const sev = o.sev || (!r.sub || chance(s, r.health < 30 ? .75 : .55) ? 'major' : 'minor');
   if (r.job) dropJob(s, r);
+  if (r.so) { r.so = null; r.restart = 0; }
   if (!o.glitch && !o.lock) { if (trade === 'mech') r.mf = (r.mf || 0) + 1; else if (trade === 'ctrl') r.cf = (r.cf || 0) + 1; }
   r.job = { type: 'fault', title: tpl[0], trade, sev, work: Math.round(R(s, 38, 88) * (sev === 'minor' ? .7 : 1)), prog: 0, mode: 'full', lock: !!o.lock, part: tpl[2], ps: 'none', t0: s.clock };
   if (tpl[4]) { // what the technician sees, and three possible causes
@@ -492,10 +495,15 @@ function createFault(s, r, o) {
 const gentle = s => s.day === 1 && s.clock < 690;
 // luck control: when several things have just broken, the next breakdown is a little less likely (squalls are separate)
 const calm = s => { const n = s.rides.filter(r => r.job && r.job.type === 'fault' && !r.job.sq && s.clock - r.job.t0 < 60).length; return n <= 2 ? 1 : Math.max(.35, 1 - .2 * (n - 2)); }; // the first morning of a season: fewer breakdowns, nobody stuck
-function glitch(s, r) {
+function glitch(s, r, back) {
   const mix = Object.entries(r.mix); let roll = rnd(s), tr = mix[0][0]; for (const [t, w] of mix) { if ((roll -= w) <= 0) { tr = t; break; } }
   const [title, kind] = pick(s, GLITCH[tr]), K = GKIND[kind];
-  createFault(s, r, { title, trade: tr, sev: 'minor', glitch: kind });
+  if (!back && kind === 'reset' && chance(s, .5)) { // the ride operator resets it, and that is all it needed (for now)
+    r.restart = s.clock + 2; r.gb = chance(s, .35) ? s.clock + RI(s, 15, 40) : 0;
+    log(s, `${r.name}: ${title.toLowerCase()}. Operations reset it and it is running again.`, 'info'); fx(s, 'minor', r.id, 'Reset'); return;
+  }
+  createFault(s, r, { title: back ? title + ' (came back)' : title, trade: tr, sev: 'minor', glitch: kind });
+  if (kind === 'reset') log(s, back ? `${r.name}: it came back after Operations reset it. It is a job for the crew now.` : `${r.name}: Operations tried a reset and it would not clear. It is a job for the crew.`, 'info');
   Object.assign(r.job, { glitch: kind, work: RI(s, K[1][0], K[1][1]), esc: s.clock + K[2] + (kind === 'flicker' ? 0 : D(s).esc), par: s.clock + 45 }); r.health = Math.min(100, r.health + 5);
 }
 function dropJob(s, r) { // a job goes away without using its part
@@ -513,12 +521,14 @@ function assign(s, t, r, mode, ai) {
   if (!t.on) return `${t.name} is not on shift`;
   const tr = r.job ? r.job.trade : primary(r);
   if (!t.skills[tr]) return `${t.name} is not qualified for ${TRADES[tr].toLowerCase()} work`;
+  if (r.so) return `${r.short} is fixed and waiting to be signed back into service`;
   if (!r.job) {
     if (s.stock.kit < 1) return 'No service kits in stores';
     r.job = { type: 'service', trade: tr, work: SERVICE_WORK, prog: 0, started: false, part: 'kit', ps: 'none', t0: s.clock };
   }
   if (mode) setMode(s, r, mode);
-  rouse(s, t); release(t); t.post = null; t.target = r.id; t.state = 'walk';
+  if (!ai && s.seat === 'sup') { const held = s.rides.find(x => x !== r && ((x.job && (x.job.pads || []).includes(t.id)) || (x.so && x.so.pads.includes(t.id)))); if (held) { s.sc.sup.padPull = (s.sc.sup.padPull || 0) + 1; log(s, `${t.name}'s padlock is still on ${held.short}. It cannot reopen until they go back and take it off.`, 'bad'); } }
+  rouse(s, t); release(t); t.post = null; t.padRun = null; t.target = r.id; t.state = 'walk';
   if (!ai) { overHead(s); if (s.seat === 'sup') s.sc.sup.disp++; }
   if (r.job.type === 'fault' && !r.job.first) { r.job.first = s.clock; if (!ai && s.seat === 'sup') { s.sc.sup.resp += s.clock - r.job.t0; s.sc.sup.respN++; }
     if (!ai) r.job.me = 1; // for the playtest record: this one you sent yourself
@@ -559,7 +569,7 @@ function vouch(s, r) { // chief executive: goodwill vouchers so guests at a clos
   log(s, `Return vouchers handed out at ${r.name}. Guests in that queue will forgive the wait for the next hour.`, 'good'); fx(s, 'cash', r.id, 'Vouchers'); return true;
 }
 function orderService(s, r) { // director: a prevention service on a ride now, ahead of the supervisor's own rules
-  if (!r || s.phase !== 'day' || r.job || r.svcReq || status(s, r) === 'nopower' || s.stock.kit < 1) return false;
+  if (!r || s.phase !== 'day' || r.job || r.so || r.svcReq || status(s, r) === 'nopower' || s.stock.kit < 1) return false;
   r.svcReq = true; log(s, `Service ordered on ${r.name}. The supervisor will close it and send someone when a qualified person is free.`, 'event'); fx(s, 'ready', r.id, 'Service ordered'); return true;
 }
 function fastLane(s, r) { // director: sell fast-lane passes on one ride for an hour: it earns 40% more, queues jam sooner, and a breakdown in that hour costs goodwill
@@ -596,6 +606,180 @@ function callout(s, r) {
   log(s, `Contractor called out for ${r.name}. On site around ${fmtClock(t.arrive)}.`, 'event');
   return true;
 }
+/* ---------- reopening a fixed ride: who signs it back into service, and the padlocks ----------
+   A finished job no longer reopens the ride by itself. It waits, "fixed, waiting to reopen", until the right people have
+   signed and every padlock on it is off. Never more than two signatures, plus Operations accepting it back:
+   - a quick reset (a glitch): the technician reopens it with one tap after their reset;
+   - a normal repair or a planned service: the technician signs it fit to run after a test run, then Operations runs it
+     empty for a couple of minutes;
+   - a safety-critical part (restraints, brakes, safety relays and E-stops, a building's breaker) or any patch on a moving
+     ride: the technician signs, the supervisor countersigns, then Operations;
+   - red-tagged by the inspector: the technician signs and the manager countersigns, then the inspector comes back to
+     clear the tag 20-30 minutes after the countersign (sign quickly and the inspector is booked sooner);
+   - after an injury on the job: the director countersigns, once the incident review is done;
+   - a substation: the technician signs and the supervisor countersigns; then power comes back and its rides restart
+     one by one.
+   The chief executive never signs a reopen, and nobody countersigns their own work. A countersign is a check: the card
+   shows the write-up (cause found, parts, test run, patch or full repair, who did it) and the signer can send it back.
+   Signing a bad write-up shares the fault; sending back a good one costs time and a little morale.
+   Anyone who must sign and leaves it more than 10 minutes: it goes one seat up, counts as missed, and the ride waits. */
+const FACILITY = ['food', 'arcade', 'theater'];
+const SO_STEPS = { reset: ['fit'], normal: ['fit', 'ops'], safety: ['fit', 'sup', 'ops'], redtag: ['fit', 'mgr', 'insp'], injury: ['fit', 'review', 'dir', 'ops'], sub: ['fit', 'sup', 'power'] };
+const SO_NAME = { reset: 'Quick reset', normal: 'Repair', safety: 'Safety-critical', redtag: 'Red tag', injury: 'After an injury', sub: 'Substation' };
+const SO_SIGN = 10, SO_OPS = 2; // minutes to sign before it goes up a seat; Operations' empty run
+const SO_LAG = { tech: [1, 2], sup: [1, 3], mgr: [2, 5], dir: [3, 6] }; // how long a computer signer takes to get to it and check
+const safetyJob = (r, j) => j.type === 'fault' && (j.part === 'brake' || j.part === 'relay' || /lap bar|restraint|e-stop/i.test(j.title || '') || (j.part === 'breaker' && FACILITY.includes(r.kind)));
+function soKind(r, j, inj) {
+  if (!r.sub) return 'sub';
+  if (inj) return 'injury';
+  if (j.lock) return 'redtag';
+  if (safetyJob(r, j) || (j.type === 'fault' && j.mode === 'patch' && MOVING.includes(r.kind))) return 'safety';
+  return j.type === 'fault' && j.glitch ? 'reset' : 'normal';
+}
+// what the job sheet says. A technician who finds the cause writes it down; a rushed or inexperienced one sometimes does not.
+function writeUp(s, r, j, lead) {
+  const g = lead ? (lead.temp ? 2 : lead.skills[j.trade] || 1) : 2, mine = lead && s.seat === 'tech' && lead.id === s.me;
+  const cause = j.type === 'service' ? 'service' : j.glitch && !safetyJob(r, j) ? 'reset' : j.cause || (mine ? 'found' : chance(s, [0, .72, .9, .97][g] || .9) ? 'found' : 'none');
+  return { cause, part: j.type === 'service' ? 'kit' : j.mode === 'full' ? j.part : null, patch: j.type === 'fault' && j.mode === 'patch', test: null, who: lead ? lead.name : 'The crew', tid: lead ? lead.id : 0, grade: g };
+}
+const soBad = o => o.wr.cause === 'none' || o.wr.cause === 'guess' || o.wr.test === false || (o.wr.patch && o.safe);
+const soStep0 = o => o.steps[o.i];
+// the seat that must countersign: whoever holds it (an empty post passes it up), never the chief executive, never the worker
+function soSigner(s, lvl, o) {
+  let x = handler(s, lvl);
+  if (x === 'ceo') x = ['dir', 'mgr', 'sup'].filter(y => RANK[y] <= RANK[lvl] || lvl === 'dir').find(y => filled(s, y) || y === s.seat) || 'sup';
+  if (o.self && x === o.self) x = above(s, x) === 'ceo' ? (x === 'sup' ? 'mgr' : 'dir') : above(s, x); // the person who did the work never countersigns it
+  return x;
+}
+// what it earns an hour when it runs, for the board card and the map while it waits
+function hourly(s, r) {
+  if (!r.sub) return s.rides.filter(x => x.sub === r.id).reduce((a, x) => a + hourly(s, x), 0);
+  const att = attendance(Math.max(OPEN, s.clock)) * s.crowd * (s.m ? s.m.crowd : 1);
+  return Math.round(.8 * r.cap * (s.m ? s.m.cap : 1) * Math.min(1.25, att) * r.fare * .65 * 60 * (s.confMult || 1) * (s.m ? s.m.spend : 1) * (s.clock > LH ? 1.5 : 1));
+}
+function soStart(s, r, j, crew, mt) {
+  const inj = r.injAt === s.clock, k = soKind(r, j, inj), lead = staff(s, j.lead) || crew.find(t => !t.temp) || crew[0] || null;
+  // the people finishing take their own padlocks off as they go (you take yours off yourself); anyone who left earlier must come back
+  const pads = (j.pads || []).filter(id => { const t = staff(s, id); return t && t.on && !(crew.includes(t) && t !== mt); });
+  r.so = { k, steps: SO_STEPS[k], i: 0, at: s.clock, lag: 0, esc: 0, x: null, wr: writeUp(s, r, j, lead), lead: lead ? lead.id : 0, pads, safe: !!safetyJob(r, j), back: j.back || 0, by: {},
+    job: { type: j.type, title: j.title, trade: j.trade, lock: !!j.lock, mode: j.mode, part: j.part, glitch: j.glitch || null, sev: j.sev } };
+  if (j.self) r.so.self = j.self;
+  return r.so;
+}
+const soWhoNext = (s, r) => { const o = r.so, st = soStep0(o);
+  return st === 'fit' ? `${o.lead === s.me && s.seat === 'tech' ? 'you sign' : (staff(s, o.lead) || { name: 'the technician' }).name + ' signs'} it fit to run` : st === 'ops' ? 'Operations run it empty' : st === 'insp' ? 'the inspector clears the tag' : st === 'power' ? 'power is restored' : st === 'review' ? 'the incident review' : `${seatWho(s, o.x || soSigner(s, st, o))} countersigns`; };
+function soNext(s, r) {
+  const o = r.so; o.i++; o.at = s.clock; o.lag = 0; o.esc = 0; o.x = null; o.signedAt = 0;
+  if (o.i >= o.steps.length) return soOpen(s, r);
+  const st = soStep0(o);
+  if (st === 'insp') { o.inspAt = s.clock + RI(s, 20, 30); log(s, `${r.name}: countersigned. The inspector is booked for ${fmtClock(o.inspAt)} to clear the red tag.`, 'info'); }
+  if (st === 'sup' || st === 'mgr' || st === 'dir') o.x = soSigner(s, st, o);
+  if (o.x === s.seat) { fx(s, 'req', r.id, 'Sign to reopen'); log(s, `${r.name} is waiting for your countersign to reopen. Check the write-up on its card.`, 'event'); }
+}
+function soOpen(s, r) {
+  const o = r.so; r.so = null;
+  if (!r.sub) { // power back: the rides it feeds restart one by one
+    let k = 0; for (const x of s.rides.filter(x => x.sub === r.id)) x.restart = s.clock + 1 + 1.5 * k++;
+    log(s, `${r.name} is signed off and power is back. Its rides restart one by one.`, 'good'); fx(s, 'fix', r.id, 'Power back');
+  } else { log(s, `${r.name} is open again.`, 'good'); fx(s, 'fix', r.id, 'Reopened'); }
+  // what a weak job sheet costs later: no cause found leaves no history for the next fault, and no test run may mean it was not right
+  if (o.wr.cause === 'none' || o.wr.cause === 'guess') { r.nohist = 1; r.health = Math.min(r.health, 72); }
+  if (o.wr.test === false && chance(s, .35)) r.warnAt = s.clock + RI(s, 8, 25);
+  if (o.stamp) r.blame = { x: o.stamp, day: s.day, tid: o.wr.tid };
+}
+// a signer said yes
+function soSign(s, r, x, who) {
+  const o = r.so, st = soStep0(o); o.by[st] = who;
+  if (soBad(o)) o.stamp = x; // signed a weak write-up: shares the fault if it goes wrong
+  soNext(s, r);
+}
+// sent back: the job reopens for whoever did it, to find the cause, finish properly or run the test
+function soBack(s, r, who, x) {
+  const o = r.so, J = o.job, good = !soBad(o), w = staff(s, o.wr.tid);
+  r.so = null;
+  r.job = { type: 'fault', title: `${J.title || 'Service'} (sent back)`, trade: J.trade, sev: 'major', work: good ? 8 : 15, prog: 0, mode: 'full', lock: J.lock, part: o.wr.patch && o.safe ? J.part : null, ps: 'none', t0: s.clock, par: s.clock + 40, dx: 1, cause: 'found', back: (o.back || 0) + 1, pads: o.pads.slice(), lag: 2 };
+  if (good && w && !w.temp) w.morale = clamp(w.morale - 3, 0, 100);
+  if (x === s.seat) { const sc = s.sc[s.seat]; sc.csBack = (sc.csBack || 0) + 1; if (good) sc.csBackGood = (sc.csBackGood || 0) + 1; }
+  log(s, `${Who(who, 'sent')} ${r.short} back: ${good ? 'nothing was wrong with the job, so it costs time and ' + (w ? w.name + '\'s' : 'the crew\'s') + ' goodwill' : o.wr.cause !== 'found' && o.wr.cause !== 'service' && o.wr.cause !== 'reset' ? 'no cause on the job sheet' : o.wr.test === false ? 'no test run' : 'a patch on a safety-critical part'}. It goes back to the crew.`, good ? 'bad' : 'info');
+  fx(s, 'warn', r.id, 'Sent back');
+  if (w && w.on && !w.target && !w.temp && w.skills[J.trade] && !(s.seat === 'tech' && w.id === s.me)) assign(s, w, r, null, true);
+}
+// you were the signer and let it sit: it goes one seat up
+function soEsc(s, r) {
+  const o = r.so, x = above(s, s.seat) === 'board' ? 'dir' : above(s, s.seat);
+  miss(s); const sc = s.sc[s.seat]; sc.esc = (sc.esc || 0) + 1; sc.csMiss = (sc.csMiss || 0) + 1; s.d.esc = (s.d.esc || 0) + 1;
+  o.esc = 1; o.x = x; o.at = s.clock; o.lag = ESC_DELAY[x] || 10;
+  log(s, `No signature from you in ${SO_SIGN} minutes: ${r.name} was escalated to ${seatWho(s, x)}, who will get to it in about ${o.lag} minutes. It stays shut until then.`, 'bad');
+  fx(s, 'warn', r.id, 'Escalated');
+}
+function soStepAll(s) {
+  for (const r of s.rides) {
+    const o = r.so; if (!o) continue;
+    o.pads = o.pads.filter(id => { const t = staff(s, id); return t && t.on; }); // someone who has gone home took theirs off on the way out
+    const st = soStep0(o);
+    if (st === 'fit') {
+      const mine = s.seat === 'tech' && o.lead === s.me && !o.esc;
+      if (mine) { if (o.signedAt) { if (s.clock >= o.signedAt) soNext(s, r); } else if (s.clock >= o.at + SO_SIGN) soEsc(s, r); continue; }
+      if (!o.lag) o.lag = RI(s, ...SO_LAG.tech);
+      if (s.clock >= o.at + o.lag) { if (o.wr.test == null) o.wr.test = true; o.by.fit = o.esc ? holder(s, o.x) : (staff(s, o.lead) || { name: 'The crew' }).name; soNext(s, r); }
+      continue;
+    }
+    if (st === 'sup' || st === 'mgr' || st === 'dir') {
+      const x = o.x || (o.x = soSigner(s, st, o));
+      if (x === s.seat && !o.esc) { if (s.clock >= o.at + SO_SIGN) soEsc(s, r); continue; }
+      if (!o.lag) o.lag = RI(s, ...(SO_LAG[x] || SO_LAG.dir));
+      if (s.clock >= o.at + o.lag) { if (soBad(o) && chance(s, .75)) soBack(s, r, holder(s, x), x); else soSign(s, r, x, holder(s, x)); }
+      continue;
+    }
+    if (st === 'review') { // the incident review comes before the director's countersign
+      const x = o.x || (o.x = soSigner(s, 'dir', o));
+      if (x === s.seat && !o.esc) { if (s.clock >= o.at + SO_SIGN + 10) soEsc(s, r); continue; }
+      if (!o.lag) o.lag = 15;
+      if (s.clock >= o.at + o.lag) reviewDone(s, r, 'retrain', holder(s, x));
+      continue;
+    }
+    if (o.pads.length) continue; // nothing runs while anyone's padlock is still on the isolator
+    if (st === 'ops' && s.clock >= o.at + SO_OPS) soNext(s, r);
+    else if (st === 'insp' && s.clock >= o.inspAt) { log(s, `The inspector cleared the red tag on ${r.name}.`, 'good'); soNext(s, r); }
+    else if (st === 'power') soNext(s, r);
+  }
+}
+// the director's incident review: what changes after someone was hurt on this job
+const REVIEW = { retrain: ['Retrain', 'The crew go over the job again: the injured person is off 20 min more, alertness up'], stop: ['Stop that job for today', 'No patches for the rest of the day, alertness up a lot'], accept: ['Accept the risk', 'Nothing changes. If it happens again today, the board hears of it'] };
+function reviewDone(s, r, v, who) {
+  const o = r.so; if (!o || soStep0(o) !== 'review' || !REVIEW[v]) return false;
+  if (v === 'retrain') { s.comp = Math.max(0, s.comp - 25); const t = staff(s, o.wr.tid); if (t && t.hurt > s.clock) t.hurt += 20; }
+  else if (v === 'stop') { s.comp = Math.max(0, s.comp - 40); s.d.nopatch = 1; }
+  else s.d.accepted = (s.d.accepted || 0) + 1;
+  log(s, `${Who(who, 'reviewed')} the injury at ${r.short}: ${REVIEW[v][0].toLowerCase()}.`, 'info');
+  o.by.review = who; soNext(s, r); return true;
+}
+// --- your own actions
+function signFit(s, test) { // the technician: a test run, then "fit to run" (or sign it straight away, with no test run)
+  const t = me(s), r = t && s.rides.find(x => x.so && soStep0(x.so) === 'fit' && x.so.lead === t.id && !x.so.esc && !x.so.signedAt);
+  if (!r) return false;
+  if (Math.hypot(t.x - r.x, t.y - r.y) > 70) return 'Go back to the ride first';
+  const o = r.so; o.wr.test = !!test; o.signedAt = s.clock + (test ? 2 : 0); o.by.fit = 'You';
+  onTime(s); const sc = s.sc.tech; sc.fit = (sc.fit || 0) + 1; if (!test) sc.noTest = (sc.noTest || 0) + 1;
+  return true;
+}
+function padOff(s) { // the technician takes their own padlock off a finished job
+  const t = me(s), r = t && s.rides.find(x => x.so && x.so.pads.includes(t.id));
+  if (!r) return false;
+  if (Math.hypot(t.x - r.x, t.y - r.y) > 70) return 'Go back to the ride first';
+  r.so.pads = r.so.pads.filter(id => id !== t.id); s.sc.tech.padOff = (s.sc.tech.padOff || 0) + 1; return true;
+}
+function countersign(s, rid, v) { // you, as the countersigner: sign it back into service, or send it back
+  const r = ride(s, rid), o = r && r.so; if (!o || o.esc || (v !== 'sign' && v !== 'back')) return false;
+  const st = soStep0(o); if (st !== 'sup' && st !== 'mgr' && st !== 'dir') return false;
+  const x = o.x || (o.x = soSigner(s, st, o)); if (x !== s.seat) return false;
+  const sc = s.sc[s.seat], bad = soBad(o); onTime(s);
+  if (v === 'back') { soBack(s, r, 'You', x); return true; }
+  sc.csSign = (sc.csSign || 0) + 1; if (bad) sc.csStamp = (sc.csStamp || 0) + 1; else if (s.clock - o.at <= 3) sc.csFast = (sc.csFast || 0) + 1;
+  soSign(s, r, x, 'You'); return true;
+}
+function review(s, rid, v) { const r = ride(s, rid), o = r && r.so; if (!o || o.esc || soStep0(o) !== 'review' || (o.x || soSigner(s, 'dir', o)) !== s.seat) return false; onTime(s); return reviewDone(s, r, v, 'You'); }
+
 function complete(s, r) {
   const j = r.job, crew = s.crew.filter(t => t.target === r.id && t.on);
   if (j.type === 'fault') {
@@ -604,11 +788,10 @@ function complete(s, r) {
       else if (s.streak) breakStreak(s, `${r.short} took too long`); }
     else { r.health = Math.max(r.health, 35); r.patched = true; r.pc = (r.pc || 0) + 1; s.safety.patches++; s.d.patches++; if (j.part && j.ps !== 'none') s.stock[j.part]++; }
     s.d.fixed++; s.glow = Math.min(100, s.glow + 2);
-    log(s, `${r.name} is back${j.mode === 'patch' ? ' on a patch. It will not hold for long.' : '.'}`, 'good');
+    if (r.nohist && !j.back) r.nohist = 0; // a cause found and written down this time
     fx(s, 'fix', r.id, j.mode === 'patch' ? 'Patched' : 'Fixed');
   } else {
     r.health = 100; r.patched = false; s.used.kit++;
-    log(s, `${r.name} serviced and reopened at full health.`, 'good');
     fx(s, 'fix', r.id, 'Serviced');
   }
   r.warnAt = 0; r.q = 0; r.job = null;
@@ -617,8 +800,10 @@ function complete(s, r) {
   { const x = crew.find(t => !t.temp && !t.agency && (t.risk || 0) >= 1 && !(t.hurt > s.clock)); if (x) { const worn = (x.riskW || 0) > (x.riskC || 0); x.risk = x.riskW = x.riskC = 0; if (worn) hurt(s, x, r, x === mt, 'worn out after a long run of jobs with no break'); else hurt(s, x, r, x === mt); } }
   if (s.prio === r.id) s.prio = null;
   s.comp = Math.min(100, s.comp + 4);
+  const o = soStart(s, r, j, crew, mt);
+  log(s, `${r.name} is ${j.type === 'service' ? 'serviced' : 'fixed'}${j.mode === 'patch' ? ' on a patch, which will not hold for long' : ''}. Waiting to reopen: ${soWhoNext(s, r)}${o.pads.length ? ', once every padlock is off' : ''}.`, 'good');
   for (const t of crew) {
-    release(t); t.jobs++; t.day++;
+    if (t !== mt || !(o.lead === t.id || o.pads.includes(t.id))) release(t); t.jobs++; t.day++;
     if (!t.temp && t.skills[j.trade] === 1 && ++t.xp >= 5) { t.skills[j.trade] = 2; t.xp = 0; log(s, `${t.name} has earned tradesperson grade in ${TRADES[j.trade].toLowerCase()} work. Their wage goes up.`, 'good'); }
   }
 }
@@ -630,13 +815,17 @@ function techStep(s, t) {
   if (t.wake > s.clock) { t.state = 'wake'; return; }
   const sp = speed(s) * (t.sprint > s.clock ? 2 : 1), tire = n => { if (!t.temp && !t.agency) t.en = clamp(t.en - n, 0, 100); };
   if (!t.target) {
-    if (t.post) { t.state = 'walk'; tire(t.sprint > s.clock ? .35 : .1); if (moveTo(t, t.post.x, t.post.y, sp)) { t.post = null; t.state = 'idle'; } }
+    const mine0 = s.seat === 'tech' && t.id === s.me;
+    if (!t.post && !t.brk && !t.talk && !mine0) { const back = s.rides.find(x => x.so && x.so.pads.includes(t.id)); if (back) { t.post = { x: back.x + t.ox, y: back.y + t.oy }; t.padRun = back.id; } } // back to take a padlock off
+    if (t.post) { t.state = 'walk'; tire(t.sprint > s.clock ? .35 : .1); if (moveTo(t, t.post.x, t.post.y, sp)) { t.post = null; t.state = 'idle';
+      if (t.padRun) { const x = ride(s, t.padRun); if (x && x.so && x.so.pads.includes(t.id)) { x.so.pads = x.so.pads.filter(id => id !== t.id); log(s, `${t.name} came back and took their padlock off ${x.short}.`, 'info'); } t.padRun = null; } } }
     else if (t.talk) { t.state = 'talk'; tire(-.3); }
     else if (t.brk) { t.state = 'break'; tire(-2); if (t.risk) { t.risk *= .99; t.riskW = (t.riskW || 0) * .99; t.riskC = (t.riskC || 0) * .99; } if (t.en >= 100) { t.brk = false; t.state = 'idle'; fx(s, 'rest', null, t.name); } }
     else { t.state = 'idle'; tire(-.1); }
     return;
   }
   const r = ride(s, t.target), j = r && r.job;
+  if (!j && r && r.so && s.seat === 'tech' && t.id === s.me && ((r.so.lead === t.id && soStep0(r.so) === 'fit' && !r.so.esc) || r.so.pads.includes(t.id))) { t.state = 'signoff'; return; }
   if (!j || !t.skills[j.trade]) { release(t); return; }
   if (t.fetch) { t.state = 'walk'; if (moveTo(t, STORE.x, STORE.y + 22, sp)) { t.fetch = false; t.carry = true; } return; }
   if (!moveTo(t, r.x + t.ox, r.y + t.oy, sp)) { t.state = 'walk'; tire(t.sprint > s.clock ? .35 : .1); return; }
@@ -645,12 +834,14 @@ function techStep(s, t) {
   r.crew++;
   const mine = s.seat === 'tech' && t.id === s.me;
   if (mine) { // you lock the ride out, then work out what is wrong
-    if (!t.lk || t.lk.id !== r.id) { t.state = 'prep'; return; }
-    if (t.lk.until > s.clock) { t.state = 'lock'; return; }
+    if ((!t.lk || t.lk.id !== r.id) && !(j.pads || []).includes(t.id)) { t.state = 'prep'; return; }
+    if (t.lk && t.lk.id === r.id && t.lk.until > s.clock) { t.state = 'lock'; return; }
     if (j.type === 'fault' && !j.dx) { t.state = t.stall > s.clock ? 'check' : 'diag'; return; }
   }
   if (j.type === 'service') { if (j.ps !== 'onsite') { t.state = 'wait'; return; } j.started = true; }
   const cap = partReady(j) ? need(j) : .3 * j.work;
+  if (!mine && !(j.pads || []).includes(t.id)) (j.pads = j.pads || []).push(t.id); // everyone puts their own padlock on before touching it
+  if (!j.lead) j.lead = t.id;
   if (j.prog < cap) { j.prog += rate(s, t, j.trade) * (mine && j.ftf ? 1.25 : 1) * (s.prio === r.id ? 1.15 : 1); t.state = 'work'; j.dx = 1; tire(t.push > s.clock ? .9 : .55);
     if (!t.temp && !t.agency && !mine) { const w = t.en < 20 ? (20 - t.en) / 20 * .003 : 0, c = s.comp > 60 ? (s.comp - 60) / 40 * .001 : 0; t.riskW = (t.riskW || 0) + w; t.riskC = (t.riskC || 0) + c; t.risk = (t.risk || 0) + w + c; } }
   else t.state = 'wait';
@@ -1072,16 +1263,17 @@ function standBy(s) {
   s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && c !== m).forEach((c, i) => moveOrder(s, c, P.x + Math.cos(i * 1.9) * 46, P.y + Math.sin(i * 1.9) * 40, true));
 }
 // lockout and diagnosis: the technician's own decisions at the job
-function lockout(s, skip) { const t = me(s); if (!t || t.state !== 'prep' || !t.target) return false; t.lk = { id: t.target, until: skip ? 0 : s.clock + 2, skip: !!skip }; s.sc.tech[skip ? 'skip' : 'lock']++; return true; }
+function lockout(s, skip) { const t = me(s); if (!t || t.state !== 'prep' || !t.target) return false; t.lk = { id: t.target, until: skip ? 0 : s.clock + 2, skip: !!skip }; { const j = (ride(s, t.target) || {}).job; if (j && !skip && !(j.pads || []).includes(t.id)) (j.pads = j.pads || []).push(t.id); } s.sc.tech[skip ? 'skip' : 'lock']++; return true; }
+// a cause found by checking (the procedure, or ruling things out) goes on the job sheet as found; a lucky first guess does not
 function diagnose(s, i) {
   const t = me(s), r = t && t.target && ride(s, t.target), j = r && r.job;
   if (!j || !j.opts || !j.opts[i] || j.dx || t.state !== 'diag' || (j.out || []).includes(i) || (j.ruled || []).includes(i)) return false;
-  if (j.opts[i] === j.ans) { j.dx = 1; s.sc.tech.dx++; if (!j.out) { j.ftf = true; s.sc.tech.ftf++; fx(s, 'fix', r.id, 'Found it first time'); } else fx(s, 'ready', r.id, 'Found it'); return true; }
+  if (j.opts[i] === j.ans) { j.dx = 1; s.sc.tech.dx++; j.cause = j.proc || j.out || gutOk(s, t, j) ? 'found' : 'guess'; if (!j.out) { j.ftf = true; s.sc.tech.ftf++; fx(s, 'fix', r.id, 'Found it first time'); } else fx(s, 'ready', r.id, 'Found it'); return true; }
   (j.out = j.out || []).push(i); t.stall = s.clock + 6; fx(s, 'minor', r.id, 'Not that');
   log(s, `Not the ${j.opts[i].toLowerCase()}. Six minutes lost checking the wrong thing.`, 'bad'); return 'wrong';
 }
 function hurt(s, t, r, mine, why) {
-  t.hurt = s.clock + 30; s.d.inj = (s.d.inj || 0) + 1; const c = Math.round(800 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.conf = clamp(s.conf - (mine ? 3 : 2), 0, 100); s.safety.inj++; if (mine) s.sc.tech.hurt++; s.d.pressQ = `a technician hurt at ${r.name}`; s.comp = Math.max(0, s.comp - 40);
+  t.hurt = s.clock + 30; r.injAt = s.clock; s.d.inj = (s.d.inj || 0) + 1; const c = Math.round(800 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.conf = clamp(s.conf - (mine ? 3 : 2), 0, 100); s.safety.inj++; if (mine) s.sc.tech.hurt++; s.d.pressQ = `a technician hurt at ${r.name}`; s.comp = Math.max(0, s.comp - 40);
   log(s, why ? `${t.name} was hurt at ${r.short}: ${why}. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}.` : mine ? `You skipped the lockout and ${r.short} moved while your hands were in it. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}.` : `${t.name} was hurt finishing ${r.short}: a routine job, a shortcut, nobody watching. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}. Nobody had stopped the crew for a toolbox talk.`, 'bad'); fx(s, 'major', r.id, 'Injury');
 }
 // what a toolbox talk is about: [name, what it does]
@@ -1266,18 +1458,19 @@ function step(s) {
       if (lh) r.lh += av;
       s.d.upW += r.w * av; s.d.upT += r.w;
     }
-    const live = r.sub ? av > 0 : st !== 'down';
+    const live = r.sub ? av > 0 : st !== 'down' && st !== 'signoff';
     if (live) {
       r.health = Math.max(0, r.health - r.wear / 60 * M.wear * (has(s, 'eng') ? .75 : 1) * (r.sub ? (.4 + .6 * Math.min(1, att)) * (st === 'degraded' ? 1.3 : 1) : (s.heat ? 1.5 : 1)));
-      if (!r.job) {
-        if (r.warnAt) { if (s.clock >= r.warnAt) createFault(s, r); }
+      if (!r.job && !r.so) {
+        if (r.gb && s.clock >= r.gb) { r.gb = 0; glitch(s, r, true); }
+        else if (r.warnAt) { if (s.clock >= r.warnAt) createFault(s, r); }
         else {
           if (chance(s, hazard(s, r) * M.hazard * D(s).hz * calm(s) * (gentle(s) ? .25 : 1))) {
             if (s.up.sensors) { r.warnAt = s.clock + RI(s, 35, 50); log(s, `Monitoring: ${r.name} is running rough. It will fail around ${fmtClock(r.warnAt)} unless it is serviced.`, 'event'); fx(s, 'warn', r.id, 'Running rough'); }
             else createFault(s, r);
           } else if (r.sub && !gentle(s) && chance(s, GLITCH_RATE * D(s).gl * calm(s) * Math.min(1.2, att))) glitch(s, r);
         }
-      } else if (r.job.type === 'fault' && r.job.glitch === 'flicker' && !r.crew && r.job.esc && s.clock >= r.job.esc) {
+      } else if (!r.job) { /* fixed, waiting to be signed back into service */ } else if (r.job.type === 'fault' && r.job.glitch === 'flicker' && !r.crew && r.job.esc && s.clock >= r.job.esc) {
         dropJob(s, r); r.health = Math.max(0, r.health - 10); r.warnAt = s.clock + RI(s, 40, 55);
         log(s, `${r.name}: the fault cleared itself, for now. It will fail properly around ${fmtClock(r.warnAt)} unless someone services it.`, 'bad'); fx(s, 'warn', r.id, 'Will fail');
       } else if (r.job.type === 'fault' && r.job.sev === 'minor' && r.sub && !r.crew && r.job.esc && s.clock >= r.job.esc) {
@@ -1303,6 +1496,7 @@ function step(s) {
       else t.state = 'idle';
     }
   }
+  soStepAll(s);
   supStep(s);
   requests(s);
   for (let i = s.inbox.length - 1; i >= 0; i--) { // requests go stale, or run out of time and the default happens
@@ -1321,6 +1515,8 @@ function step(s) {
 }
 
 function endDay(s) {
+  for (const r of s.rides) if (r.so) { r.so = null; r.restart = 0; } // the night shift and the managers sign off whatever is still waiting
+  for (const r of s.rides) { r.gb = 0; r.restart = 0; }
   for (const a of s.asks.filter(a => a.esc)) resolveEsc(s, a); // every escalation is decided before the park shuts
   s.asks = s.asks.filter(a => !a.esc);
   s.crew = s.crew.filter(t => !t.agency);
@@ -1556,7 +1752,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);

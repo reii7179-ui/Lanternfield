@@ -78,6 +78,19 @@ module.exports = function makePlayers(L) {
     }
   }
 
+  function signOffs(s, o) { // a fixed ride waiting for this seat: the technician signs it fit to run and takes their padlock off;
+    // a countersigner reads the write-up after o.delay minutes and sends a weak one back; the director does the incident review
+    const m = L.me(s);
+    if (m && m.state === 'signoff') { L.signFit(s, true); L.padOff(s); }
+    if (m && !m.target && !m.post) { const r = s.rides.find(r => r.so && r.so.pads.includes(m.id)); if (r) { if (Math.hypot(m.x - r.x, m.y - r.y) < 60) L.padOff(s); else L.moveOrder(s, m, r.x + m.ox, r.y + m.oy); } }
+    for (const r of s.rides) {
+      const so = r.so; if (!so || so.esc || s.clock - so.at < (o.delay || 0)) continue;
+      const st = so.steps[so.i];
+      if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(s, st, so) === s.seat) L.countersign(s, r.id, L.soBad(so) ? 'back' : 'sign');
+      if (st === 'review' && L.soSigner(s, 'dir', so) === s.seat) L.review(s, r.id, 'retrain');
+    }
+  }
+
   function answerAll(s) { // the computer's own pick for every request
     for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; } L.answer(s, it.id, v); }
   }
@@ -124,6 +137,7 @@ module.exports = function makePlayers(L) {
       if (s.phase === 'plan') { if (o.plan) plan(s); if (o.inbox) desk(s); L.startDay(s); continue; }
       if (o.hands && (!o.every || s.clock % o.every === 0)) dispatch(s, o);
       if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) answerAll(s);
+      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) signOffs(s, o);
       seatPlay(s, o);
       L.step(s); s.fx.length = 0;
     }
@@ -151,5 +165,5 @@ module.exports = function makePlayers(L) {
     'ceo idle': { seat: 'ceo', about: 'Chief executive who does nothing at all' },
     'ceo active': { seat: 'ceo', plan: true, inbox: true, inboxEvery: 3, play: 'ceo', walk: true, rush: true, about: 'Vouchers, happy hour, briefings, rush jobs' },
   };
-  return { season, PLAYERS };
+  return { season, PLAYERS, plan, dispatch, answerAll, signOffs, seatPlay };
 };
