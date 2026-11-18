@@ -12,11 +12,20 @@ function ptClose() { // file today's numbers with the save
   (S.pt = S.pt || []).push({ day: S.reports.length, diff: S.diff || 'standard', seat: S.seat, faults: fs.length, react: fs.length ? +med(fs).toFixed(1) : null, fast: fs.length ? Math.round(PT.f.filter(x => x.fast).length / fs.length * 100) : null, reqs: qs.length, answer: qs.length ? +med(qs).toFixed(1) : null });
   PT.f = []; PT.q = []; PT.seen = {};
 }
-function ptHTML() {
-  const rows = S.pt || []; if (!rows.length) return '';
-  const all = rows.filter(r => r.react != null), sum = { season: S.reports.length, difficulty: S.diff || 'standard', grade: S.final && S.final.grade, total: S.final && S.final.total, days: rows };
-  return `<div class="sect"><h2 class="cap">Playtest record</h2><p class="note">How fast you reacted, in seconds of running clock. ${all.length ? `Median from a breakdown to your order: <b>${med(all.map(r => r.react))} s</b>; fast responses ${Math.round(all.reduce((a, r) => a + r.fast, 0) / all.length)}% of the time.` : 'You did not send anyone yourself this season.'} If you are testing the game for someone, copy this and send it to them.</p>
-<textarea class="pt" readonly aria-label="Playtest record">${esc(JSON.stringify(sum))}</textarea><div class="row"><button type="button" class="btn sm" data-a="ptcopy" data-fk="ptc">Copy the record</button></div></div>`;
+/* the record a tester sends back: every finished day, today so far, the build it came from and the kind of device */
+function ptRecord() {
+  const fs = PT.f.map(x => x.s), qs = PT.q.slice(), rec = { build: BUILD, finished: S.reports.length, difficulty: S.diff || 'standard', seat: S.seat, grade: S.final ? S.final.grade : null, total: S.final ? S.final.total : null, days: S.pt || [] };
+  if (S.phase === 'day' && (fs.length || qs.length)) rec.today = { day: S.day, faults: fs.length, react: fs.length ? +med(fs).toFixed(1) : null, fast: fs.length ? Math.round(PT.f.filter(x => x.fast).length / fs.length * 100) : null, reqs: qs.length, answer: qs.length ? +med(qs).toFixed(1) : null };
+  rec.device = { screen: innerWidth + 'x' + innerHeight, touch: !!ui.touch, motion: reduce ? 'reduced' : 'full', sound: snd.on };
+  return rec;
+}
+// mid: shown in How to play, any time in the season (on the end screen only once there is something to send)
+function ptHTML(mid) {
+  const rows = S.pt || [], rec = ptRecord(); if (!rows.length && !mid) return '';
+  const all = rows.filter(r => r.react != null), send = PLAYTEST ? 'Copy it and send it to whoever shared the game with you: it helps them tune it.' : 'If you are testing the game for someone, copy this and send it to them.';
+  const said = all.length ? `Median from a breakdown to your order: <b>${med(all.map(r => r.react))} s</b>; fast responses ${Math.round(all.reduce((a, r) => a + r.fast, 0) / all.length)}% of the time.` : rows.length ? 'You did not send anyone yourself so far.' : 'No finished days yet: each day is added at closing time, and today so far is included.';
+  return `<div class="sect"><h2 class="cap">Playtest record</h2><p class="note">How fast you reacted, in seconds of running clock. ${said} ${send}</p>
+<textarea class="pt" readonly aria-label="Playtest record">${esc(JSON.stringify(rec))}</textarea><div class="row"><button type="button" class="btn sm" data-a="ptcopy" data-fk="ptc">Copy the record</button></div></div>`;
 }
 function renderUI() {
   ui.units = ui.units.filter(id => L.staff(S, id));

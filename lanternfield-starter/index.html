@@ -123,6 +123,9 @@ body{background:#060a1e}
 .vol output{grid-area:val;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
 .vol input{grid-area:range;width:100%;accent-color:var(--lantern);min-height:28px}
 .vol input:disabled{opacity:.45}
+
+/* the playtest note on the title screen (playtest builds only) */
+.ptnote{max-width:62ch;border:1px solid var(--lantern);border-left-width:4px;border-radius:10px;padding:8px 12px;background:color-mix(in srgb,var(--lantern) 10%,transparent);font-size:14px}
 :root{
   /* Layout: the park is the board. Map in the middle, work orders left, the selected ride right, the team along the bottom, clock and accounts on top. The planning desk (team, stores, projects) opens over it. One world, one theme: a funfair going from afternoon into lantern-lit night. */
   --night:#0e1330;
@@ -2173,6 +2176,9 @@ function applyMotion() {
 function setMotion(v) { if (!(v in MOTIONS)) return; motion = v; try { localStorage.setItem(MOTION_KEY, v); } catch (e) { /* not remembered, still applied */ } applyMotion(); }
 applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
+/* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
+   from), and whether this is a playtest build (npm run package:itch) */
+const BUILD = '0.4.0+595957e1', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -4047,12 +4053,12 @@ function modalHTML() {
 }
 function dialogHTML() {
   if (ui.help) return `<div class="scrim" data-a="closehelp" data-self="1"><div class="dialog slim" role="dialog" aria-modal="true" aria-labelledby="h-t"><div class="rhead"><h3 id="h-t">How to play</h3><button type="button" class="x" data-a="closehelp" aria-label="Close">✕</button></div>${HOW}
-<p class="note">On the map: the inner ring round a ride is its health. A red countdown ring means guests are stuck, an amber one means the fault is about to get worse, and a blue one with ⚡ is the fast-response window. The small bar under a person is their energy. A letter badge is an open fault and its trade, a purple ? means the part is not in stores, P is a patch. Round tokens are tradespeople.</p><p class="note"><b>Mouse:</b> drag a box to select, Shift-click to add, right-click to send or move, right-drag or arrow keys to move the map, scroll to zoom. <b>Touch:</b> tap people on the right to select, tap a ride to send, tap the ground to move, drag the map, pinch to zoom. <b>Keys:</b> Space next alarm, 1 to 9 pick people, A all free crew, E send nearest, B break, R rush job, Q sprint, W push, S stop, C crowd-pleaser, P pause, F whole park.</p><div class="setrow"><div><b id="mo-l">Motion</b><small>Reduced turns off shaking, flashing, pulsing and drifting effects. Auto follows your device setting.</small></div><span class="seg3" role="group" aria-labelledby="mo-l">${Object.entries(MOTIONS).map(([v, l]) => `<button type="button" data-a="motion" data-v="${v}" data-fk="mo-${v}" aria-pressed="${motion === v}">${l}</button>`).join('')}</span></div>${soundSettingsHTML()}
+<p class="note">On the map: the inner ring round a ride is its health. A red countdown ring means guests are stuck, an amber one means the fault is about to get worse, and a blue one with ⚡ is the fast-response window. The small bar under a person is their energy. A letter badge is an open fault and its trade, a purple ? means the part is not in stores, P is a patch. Round tokens are tradespeople.</p><p class="note"><b>Mouse:</b> drag a box to select, Shift-click to add, right-click to send or move, right-drag or arrow keys to move the map, scroll to zoom. <b>Touch:</b> tap people on the right to select, tap a ride to send, tap the ground to move, drag the map, pinch to zoom. <b>Keys:</b> Space next alarm, 1 to 9 pick people, A all free crew, E send nearest, B break, R rush job, Q sprint, W push, S stop, C crowd-pleaser, P pause, F whole park.</p>${ptHTML(true)}<div class="setrow"><div><b id="mo-l">Motion</b><small>Reduced turns off shaking, flashing, pulsing and drifting effects. Auto follows your device setting.</small></div><span class="seg3" role="group" aria-labelledby="mo-l">${Object.entries(MOTIONS).map(([v, l]) => `<button type="button" data-a="motion" data-v="${v}" data-fk="mo-${v}" aria-pressed="${motion === v}">${l}</button>`).join('')}</span></div>${soundSettingsHTML()}
 <div class="row"><button type="button" class="btn go" data-a="closehelp" data-fk="ch">Back</button><button type="button" class="btn" data-a="restart">Start a new season</button></div></div></div>`;
   if (ui.title && ui.role) return roleHTML(ui.role);
   if (ui.title) { const fresh = !(S.reports.length || S.phase === 'day'), v = ui.pick || S.seat, me0 = L.staff(S, ui.pickMe || S.me);
     return `<div class="scrim soft"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="t-t">
-<h1 class="title" id="t-t">Keep Lanternfield lit</h1>
+<h1 class="title" id="t-t">Keep Lanternfield lit</h1>${PLAYTEST ? `<p class="ptnote"><b>Playtest build ${esc(BUILD)}.</b> Thanks for trying it! Play as much as you like, then open How to play (the button below, or <b>?</b> at the top while you play), press <b>Copy the record</b> and send it to whoever shared the game with you.</p>` : ''}
 <p class="lede" style="max-width:62ch">A seaside funfair in real time: twelve rides, a maintenance company and its whole chain of command, from the technician with the spanner to the chief executive. Pick a seat and find out what that job really involves.</p>
 ${fresh ? `<div class="sect" style="gap:6px"><h2 class="cap">Difficulty</h2><div class="diffs" role="radiogroup" aria-label="Difficulty">${Object.keys(L.DIFF).map(k => `<button type="button" role="radio" aria-checked="${(S.diff || 'standard') === k}" data-a="setdiff" data-v="${k}" data-fk="df-${k}">${L.DIFF[k].name}</button>`).join('')}</div><p class="note">${L.DIFF[S.diff || 'standard'].txt}</p></div><div class="sect"><h2 class="cap">Choose your seat</h2>${seatCards(v, 'pickseat')}${v === 'tech' ? whoPick(ui.pickMe || S.me) : ''}<p class="note">You can change seat at any time with the Seat button at the top. The computer plays everyone else.${coached('sup') ? '' : ' <b style="color:var(--lantern)">New here? Start as the Maintenance Supervisor. Every seat is coached the first time you play it.</b>'}</p></div>` : `<p class="note">You are in the ${ROLE[S.seat].title.toLowerCase()}'s seat. Change it any time with the Seat button at the top.</p>`}
 <div class="row tstart"><button type="button" class="btn go big" data-a="begin" data-fk="begin">${fresh ? `Start as ${v === 'tech' && me0 ? esc(me0.name) + ', ' + title(me0).toLowerCase() : ROLE[v].title}` : 'Carry on'}</button><button type="button" class="btn" data-a="role" data-v="${fresh ? v : S.seat}" data-fk="t-role">What does a ${ROLE[fresh ? v : S.seat].title.toLowerCase()} do?</button><button type="button" class="btn" data-a="help" data-fk="t-help">How to play</button>${fresh ? '' : '<button type="button" class="btn" data-a="restart">Start a new season</button>'}</div></div></div>`; }
@@ -4196,11 +4202,20 @@ function ptClose() { // file today's numbers with the save
   (S.pt = S.pt || []).push({ day: S.reports.length, diff: S.diff || 'standard', seat: S.seat, faults: fs.length, react: fs.length ? +med(fs).toFixed(1) : null, fast: fs.length ? Math.round(PT.f.filter(x => x.fast).length / fs.length * 100) : null, reqs: qs.length, answer: qs.length ? +med(qs).toFixed(1) : null });
   PT.f = []; PT.q = []; PT.seen = {};
 }
-function ptHTML() {
-  const rows = S.pt || []; if (!rows.length) return '';
-  const all = rows.filter(r => r.react != null), sum = { season: S.reports.length, difficulty: S.diff || 'standard', grade: S.final && S.final.grade, total: S.final && S.final.total, days: rows };
-  return `<div class="sect"><h2 class="cap">Playtest record</h2><p class="note">How fast you reacted, in seconds of running clock. ${all.length ? `Median from a breakdown to your order: <b>${med(all.map(r => r.react))} s</b>; fast responses ${Math.round(all.reduce((a, r) => a + r.fast, 0) / all.length)}% of the time.` : 'You did not send anyone yourself this season.'} If you are testing the game for someone, copy this and send it to them.</p>
-<textarea class="pt" readonly aria-label="Playtest record">${esc(JSON.stringify(sum))}</textarea><div class="row"><button type="button" class="btn sm" data-a="ptcopy" data-fk="ptc">Copy the record</button></div></div>`;
+/* the record a tester sends back: every finished day, today so far, the build it came from and the kind of device */
+function ptRecord() {
+  const fs = PT.f.map(x => x.s), qs = PT.q.slice(), rec = { build: BUILD, finished: S.reports.length, difficulty: S.diff || 'standard', seat: S.seat, grade: S.final ? S.final.grade : null, total: S.final ? S.final.total : null, days: S.pt || [] };
+  if (S.phase === 'day' && (fs.length || qs.length)) rec.today = { day: S.day, faults: fs.length, react: fs.length ? +med(fs).toFixed(1) : null, fast: fs.length ? Math.round(PT.f.filter(x => x.fast).length / fs.length * 100) : null, reqs: qs.length, answer: qs.length ? +med(qs).toFixed(1) : null };
+  rec.device = { screen: innerWidth + 'x' + innerHeight, touch: !!ui.touch, motion: reduce ? 'reduced' : 'full', sound: snd.on };
+  return rec;
+}
+// mid: shown in How to play, any time in the season (on the end screen only once there is something to send)
+function ptHTML(mid) {
+  const rows = S.pt || [], rec = ptRecord(); if (!rows.length && !mid) return '';
+  const all = rows.filter(r => r.react != null), send = PLAYTEST ? 'Copy it and send it to whoever shared the game with you: it helps them tune it.' : 'If you are testing the game for someone, copy this and send it to them.';
+  const said = all.length ? `Median from a breakdown to your order: <b>${med(all.map(r => r.react))} s</b>; fast responses ${Math.round(all.reduce((a, r) => a + r.fast, 0) / all.length)}% of the time.` : rows.length ? 'You did not send anyone yourself so far.' : 'No finished days yet: each day is added at closing time, and today so far is included.';
+  return `<div class="sect"><h2 class="cap">Playtest record</h2><p class="note">How fast you reacted, in seconds of running clock. ${said} ${send}</p>
+<textarea class="pt" readonly aria-label="Playtest record">${esc(JSON.stringify(rec))}</textarea><div class="row"><button type="button" class="btn sm" data-a="ptcopy" data-fk="ptc">Copy the record</button></div></div>`;
 }
 function renderUI() {
   ui.units = ui.units.filter(id => L.staff(S, id));
@@ -4277,7 +4292,11 @@ function act(a, d, el, ev) {
     case 'pickme': ui.pickMe = d.t; ui.pick = 'tech'; break;
     case 'takeseat': L.setSeat(S, d.v, d.v === 'tech' ? ui.pickMe || S.me : null); ui.coach = null; coachStart(); ui.seats = false; ui.role = null; ui.units = []; ui.sel = null; unhold(); SFX.send(); { const m = L.me(S); if (m && m.on) focus(m.x, m.y); } break;
     case 'ans': { const it = S.inbox.find(x => x.id === +d.id); if (L.answer(S, +d.id, d.v)) { SFX.send(); if (it && d.v !== 'brief') PT.q.push((S.clock - it.at) / (TPS0 * S.speed)); } break; }
-    case 'ptcopy': { const ta = document.querySelector('.pt'); if (ta) { ta.select(); try { (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => say('Copied', 'var(--jade)'), () => { document.execCommand && document.execCommand('copy'); say('Selected: press Ctrl+C or Cmd+C to copy', 'var(--sky)'); }); } catch (e) { say('Selected: press Ctrl+C or Cmd+C to copy', 'var(--sky)'); } } break; }
+    case 'ptcopy': { // the old copy command first: it works inside a frame on another site (as itch.io shows games), the newer one needs that page's permission
+      const ta = document.querySelector('.pt'); if (!ta) break; const hand = () => say('Selected: copy it with Ctrl+C, Cmd+C or a long press', 'var(--sky)');
+      ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* not supported */ }
+      if (ok) say('Copied', 'var(--jade)'); else if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => say('Copied', 'var(--jade)'), hand); else hand();
+      break; }
     case 'ask': { const r = L.ask(S, d.k, { rid: d.id, sku: d.sku, tr: d.tr, k: d.pk, id: d.oid }); if (r === true) { SFX.send(); say('Asked. The answer comes in a few minutes; it shows top left meanwhile.', 'var(--sky)'); } else say(r, /said yes/.test(r) ? 'var(--jade)' : 'var(--ember)'); break; }
     case 'lock': if (L.lockout(S, false)) SFX.send(); break;
     case 'skiplock': L.lockout(S, true); break;

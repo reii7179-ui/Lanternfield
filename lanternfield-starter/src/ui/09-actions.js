@@ -48,7 +48,11 @@ function act(a, d, el, ev) {
     case 'pickme': ui.pickMe = d.t; ui.pick = 'tech'; break;
     case 'takeseat': L.setSeat(S, d.v, d.v === 'tech' ? ui.pickMe || S.me : null); ui.coach = null; coachStart(); ui.seats = false; ui.role = null; ui.units = []; ui.sel = null; unhold(); SFX.send(); { const m = L.me(S); if (m && m.on) focus(m.x, m.y); } break;
     case 'ans': { const it = S.inbox.find(x => x.id === +d.id); if (L.answer(S, +d.id, d.v)) { SFX.send(); if (it && d.v !== 'brief') PT.q.push((S.clock - it.at) / (TPS0 * S.speed)); } break; }
-    case 'ptcopy': { const ta = document.querySelector('.pt'); if (ta) { ta.select(); try { (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => say('Copied', 'var(--jade)'), () => { document.execCommand && document.execCommand('copy'); say('Selected: press Ctrl+C or Cmd+C to copy', 'var(--sky)'); }); } catch (e) { say('Selected: press Ctrl+C or Cmd+C to copy', 'var(--sky)'); } } break; }
+    case 'ptcopy': { // the old copy command first: it works inside a frame on another site (as itch.io shows games), the newer one needs that page's permission
+      const ta = document.querySelector('.pt'); if (!ta) break; const hand = () => say('Selected: copy it with Ctrl+C, Cmd+C or a long press', 'var(--sky)');
+      ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* not supported */ }
+      if (ok) say('Copied', 'var(--jade)'); else if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => say('Copied', 'var(--jade)'), hand); else hand();
+      break; }
     case 'ask': { const r = L.ask(S, d.k, { rid: d.id, sku: d.sku, tr: d.tr, k: d.pk, id: d.oid }); if (r === true) { SFX.send(); say('Asked. The answer comes in a few minutes; it shows top left meanwhile.', 'var(--sky)'); } else say(r, /said yes/.test(r) ? 'var(--jade)' : 'var(--ember)'); break; }
     case 'lock': if (L.lockout(S, false)) SFX.send(); break;
     case 'skiplock': L.lockout(S, true); break;

@@ -73,3 +73,6 @@
 .vol output{grid-area:val;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
 .vol input{grid-area:range;width:100%;accent-color:var(--lantern);min-height:28px}
 .vol input:disabled{opacity:.45}
+
+/* the playtest note on the title screen (playtest builds only) */
+.ptnote{max-width:62ch;border:1px solid var(--lantern);border-left-width:4px;border-radius:10px;padding:8px 12px;background:color-mix(in srgb,var(--lantern) 10%,transparent);font-size:14px}

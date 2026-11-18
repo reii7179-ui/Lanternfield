@@ -31,6 +31,9 @@ function applyMotion() {
 function setMotion(v) { if (!(v in MOTIONS)) return; motion = v; try { localStorage.setItem(MOTION_KEY, v); } catch (e) { /* not remembered, still applied */ } applyMotion(); }
 applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
+/* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
+   from), and whether this is a playtest build (npm run package:itch) */
+const BUILD = '__BUILD__', PLAYTEST = '__PLAYTEST__' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });

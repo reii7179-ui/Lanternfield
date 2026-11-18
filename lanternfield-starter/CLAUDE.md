@@ -28,7 +28,13 @@ A real-time maintenance-management browser game. It ships as one self-contained 
 - Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys:
   - `kll-motion` (`auto`, `reduce` or `full`);
   - `kll-sound` (`{ on, master, sfx, amb, music }`). Sound is off until the player turns it on. The audio graph is built only then, after a click or key.
-- `design/`: art-direction mock-ups and their screenshot script. Not shipped.
+- **Playtest builds** (phase 7, see `PLAYTEST.md`): `npm run package:itch` builds with `--playtest` and zips `index.html` for itch.io in `dist/`.
+  - Every build carries a stamp, `BUILD` in the UI: the `package.json` version plus a short hash of `src/`. It depends only on the sources, so `build:check` stays stable.
+  - `PLAYTEST` is true only in playtest builds. It adds the note on the title screen.
+  - The playtest record (`08-playtest.js`) can be copied from How to play at any time, and from the end screen. It holds the stamp, the finished days, today so far and the kind of device. Never put anything personal in it.
+  - Copy uses `document.execCommand('copy')` first, because itch.io runs the game in a frame on another site, where the newer clipboard API is blocked.
+  - `npm run records -- file.txt` sums up the records testers send back. `npm run package:itch-images` makes the page's cover and screenshots.
+- `design/`: art-direction mock-ups, clips, profiles and the itch.io pictures. Not shipped.
 - `tests/` holds the engine and browser tests; see `tests/README.md`.
 
 ## Rules
@@ -55,7 +61,7 @@ A real-time maintenance-management browser game. It ships as one self-contained 
 
 ## Before calling a change done
 1. Run `npm run test:engine` (golden master and random-input test).
-2. Run `npm run test:browser` (smoke, layout, saves, perf, end screen, coach).
+2. Run `npm run test:browser` (smoke, layout, saves, motion, sound, perf, end screen, playtest, coach).
 3. Look at the screenshots in `tests/browser/out/` for whatever you changed.
 
 ## Working with the user

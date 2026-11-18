@@ -9,6 +9,7 @@
   - The **random-input test** catches crashes.
   - The **browser tests** cover layout, saves, coaching and performance.
 - `package.json`: short commands for running the tests.
+- `PLAYTEST.md`: how to put the game on itch.io for friends, and how to read the playtest records they send back.
 
 ## How to start
 1. Unzip this folder somewhere you'll keep it, for example `Documents/lanternfield`.
