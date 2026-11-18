@@ -21,7 +21,7 @@ const palA = n => ({
   beacon: '#fff0b0', smoke: '#eef0f6', hum: '#79c2ff',
 });
 const ZONES = [[40, 70, 330, 560], [330, 30, 400, 190], [360, 240, 300, 420], [650, 150, 330, 420]];
-const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed: 0 };
+const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0 }; // a state missing here would stop the ride's phase being a number
 const ART_SCALE = 1.2;
 const rideSt = r => ui.title ? 'ok' : L.status(S, r);
 const hashOf = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997; return h / 997; };
@@ -236,7 +236,7 @@ function rideFrame(r, n, st, idx) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.drawImage(base.c, 0, 0);
   g.setTransform(k, 0, 0, k, -SPR_BOX.x * k, -SPR_BOX.y * k);
   if (rock) { g.translate(0, -6); g.rotate(Math.sin((VIS.vt || 0) * 2.6 + ph * 6) * .035); g.translate(0, 6); } // stuck with guests on: it rocks
-  g.save(); g.scale(ART_SCALE, ART_SCALE); g.lineCap = 'round'; g.lineJoin = 'round'; g.globalAlpha = shown ? 1 : .7; ART[r.id].move(g, palOf(n), ph, RUNOF[st]); g.restore();
+  g.save(); g.scale(ART_SCALE, ART_SCALE); g.lineCap = 'round'; g.lineJoin = 'round'; g.globalAlpha = shown ? 1 : .7; ART[r.id].move(g, palOf(n), ph, RUNOF[st] || 0); g.restore();
   paintLights(g, ART_SCALE, n, on, st === 'degraded' ? .5 : 1);
   if (top) { g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(top.c, 0, 0); }
   f.key = key; f.ph = ph; f.k = k;

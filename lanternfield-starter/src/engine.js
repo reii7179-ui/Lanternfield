@@ -893,7 +893,7 @@ function supStep(s) { // whoever is running the shift sends people to work; with
     if (f.skills[j.trade]) assign(s, f, r, null, true); else moveOrder(s, f, r.x + f.ox, r.y + f.oy, true);
     sprint(s, f);
   }
-  if (supOn) for (const c of s.crew) if (c.state === 'wait' && c.target && !c.temp && c !== m) { const j = ride(s, c.target).job; if (j && j.type === 'fault' && j.ps === 'none' && s.stock[j.part] < 1) release(c); }
+  if (supOn) for (const c of s.crew) if (c.state === 'wait' && c.target && !c.temp && c !== m) { const j = ride(s, c.target).job; if (j && j.type === 'fault' && j.ps === 'none' && s.stock[j.part] < 1) { j.pads = (j.pads || []).filter(id => id !== c.id); release(c); } } // stood down to wait for the part: they take their own padlock off as they go
   const jobs = s.rides.filter(r => r.job && r.job.type === 'fault' && !r.job.wo && s.clock - r.job.t0 >= lagOf(r) && !s.crew.some(c => c.target === r.id)).sort((a, b) => (b.id === s.prio) - (a.id === s.prio) || ((!a.sub) - (!b.sub) ? (!b.sub) - (!a.sub) : (b.job.sev === 'major') - (a.job.sev === 'major') || b.w - a.w));
   for (const r of jobs) {
     const j = r.job;
