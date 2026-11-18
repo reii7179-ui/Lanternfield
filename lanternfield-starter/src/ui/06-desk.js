@@ -244,6 +244,15 @@ ${f.own ? `<div class="own"><div class="row" style="justify-content:space-betwee
 <div class="sect"><h2 class="cap">The seats you played</h2><div class="cards">${L.LV.filter(x => S.sc[x].min > 0).map(x => `<div class="scard"><h3>${ROLE[x].title}</h3>${kpiRows(x)}</div>`).join('')}</div></div>
 ${ptHTML()}<div class="row"><button type="button" class="btn go big" data-a="restart" data-fk="again">Run another season</button></div></div></div>`;
 }
+/* the big decisions of the season wait at the desk for whoever's limit they fall in */
+function bigHTML() {
+  const mine = b => b.x === S.seat || (b.x === 'board' && S.seat === 'ceo');
+  const rows = S.big.map(b => `<div class="bigd${mine(b) ? ' mine' : ''}" data-key="big-${b.id}"><div><b>${esc(b.t)}</b> <span class="num">${fmtMoney(b.cost)}</span><small>${esc(b.why)}</small>
+<small class="dim">${mine(b) ? (b.x === 'board' ? 'Over your $20,000 limit: propose it, and the board answers at the end of tomorrow. Undecided when the gates open, the board drops it.' : 'Yours to decide before you open the gates, or the board decides it, and trusts you less.') : `For ${esc(lc(L.holder(S, b.x === 'board' ? 'ceo' : b.x)))} to decide tonight.`}</small></div>
+${mine(b) && S.phase === 'plan' ? `<div class="row">${L.bigOpts(b).map(o => `<button type="button" class="btn${o.go ? ' go' : ''}" data-a="big" data-id="${b.id}" data-v="${o.v}" data-fk="big-${b.id}-${o.v}">${esc(o.b)}<small>${esc(o.sub)}</small></button>`).join('')}</div>` : ''}</div>`).join('');
+  const board = S.boardQ.map(b => `<div class="bigd" data-key="bq-${b.id}"><div><b>With the board: ${esc(b.t || 'your request')}</b> <span class="num">${fmtMoney(b.cost)}</span><small>It answers at the end of ${b.day <= S.day && S.phase === 'day' ? 'today' : b.day <= S.day ? 'the day' : 'tomorrow'}.</small></div></div>`).join('');
+  return rows || board ? `<div class="sect bigs"><h2 class="cap">Big decisions</h2>${rows}${board}</div>` : '';
+}
 function deskHTML() {
   const plan = S.phase === 'plan', tabs = (plan && S.reports.length ? [['report', 'Last night']] : []).concat([['company', 'Company'], ['team', 'Team'], ['stores', 'Stores']], plan ? [['projects', 'Projects']] : []);
   const tab = tabs.some(t => t[0] === ui.tab) ? ui.tab : tabs[0][0], fc = S.forecast, chips = [];
@@ -255,7 +264,7 @@ function deskHTML() {
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="d-t">
 <div class="row"><div style="flex:1;min-width:220px"><h2 id="d-t" style="font:400 26px/1.05 var(--display)">${plan ? 'Planning desk: ' + L.dow(upcoming()) : 'Desk'}</h2><p class="dim">${plan ? (may('roster') ? 'Set the roster, stock the shelves, then open the gates.' : 'See what your colleagues decided overnight, then open the gates.') : 'The clock is still running out there.'}</p>${plan && S.day === 1 && !S.reports.length && !coached(S.seat) ? '<p style="color:var(--lantern);font-weight:700">First season? Leave all this for now and open the gates. Your first day is coached, and tonight the coach shows you this desk.</p>' : ''}</div><button type="button" class="btn sm" data-a="seats" data-fk="d-seat">Seat: ${esc(ROLE[S.seat].title)}</button><span class="chip c-warn num" style="font-size:14px;padding:4px 10px">${fmtMoney(S.cash)} in the bank</span>${plan ? '' : '<button type="button" class="x" data-a="closedesk" aria-label="Close desk">✕</button>'}</div>
 ${chips.length ? `<div class="row">${chips.join('')}</div>` : ''}
-${deskCoachHTML()}<nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-a="tab" data-v="${k}" data-fk="tab-${k}" aria-selected="${k === tab}">${l}</button>`).join('')}</nav>
+${deskCoachHTML()}${bigHTML()}<nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-a="tab" data-v="${k}" data-fk="tab-${k}" aria-selected="${k === tab}">${l}</button>`).join('')}</nav>
 <div class="tabbody" data-key="tab-${tab}">${body}</div>
 <div class="row" style="position:sticky;bottom:-20px;background:var(--panel);padding:10px 0 2px;border-top:1px solid var(--line)">${plan ? `<button type="button" class="btn go big" data-a="go" data-fk="go">Open the gates for ${L.dow(upcoming())}</button>` : '<button type="button" class="btn go" data-a="closedesk" data-fk="cd">Back to the park</button>'}${now() < ui.msgUntil ? `<span style="color:${ui.msgc || 'var(--ember)'};font-weight:700">${esc(ui.msg)}</span>` : ''}</div></div></div>`;
 }

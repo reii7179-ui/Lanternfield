@@ -71,6 +71,13 @@ module.exports = function makePlayers(L) {
     }
   }
 
+  function desk(s) { // big decisions that wait at the desk for this seat: approve a fix the cash can carry, settle a claim if it can
+    for (const b of s.big.slice()) {
+      if (!(b.x === s.seat || (b.x === 'board' && s.seat === 'ceo'))) continue;
+      L.decideBig(s, b.id, b.k === 'claim' ? (s.cash > b.cost + 10000 ? 'settle' : 'contest') : L.worthIt(s, b) ? 'yes' : 'no', 'You');
+    }
+  }
+
   function answerAll(s) { // the computer's own pick for every request
     for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; } L.answer(s, it.id, v); }
   }
@@ -114,7 +121,7 @@ module.exports = function makePlayers(L) {
     if (o.seat) L.setSeat(s, o.seat);
     if (o.diff) L.setDiff(s, o.diff);
     while (!s.final) {
-      if (s.phase === 'plan') { if (o.plan) plan(s); L.startDay(s); continue; }
+      if (s.phase === 'plan') { if (o.plan) plan(s); if (o.inbox) desk(s); L.startDay(s); continue; }
       if (o.hands && (!o.every || s.clock % o.every === 0)) dispatch(s, o);
       if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) answerAll(s);
       seatPlay(s, o);

@@ -111,11 +111,15 @@ const LV = ['tech', 'sup', 'mgr', 'dir', 'ceo'];
 const SAVE_V = 8; // the saved game's version: bump it when the saved state changes, and teach migrate() the step up
 function migrate(s) { // an older save brought up to date; anything new starts empty
   if (!s || typeof s !== 'object' || !s.sc) return s;
-  if (s.v === 7) { for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0 }); } s.v = 8; }
-  return s;
+  if (s.v !== 7 && s.v !== 8) return s;
+  for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0 }); }
+  Object.assign(s, { big: s.big || [], boardQ: s.boardQ || [], bigN: s.bigN || 0, bigDay: s.bigDay != null ? s.bigDay : -9 });
+  for (const r of s.rides || []) Object.assign(r, { pc: r.pc || 0, mf: r.mf || 0, cf: r.cf || 0, hzm: r.hzm || 1 });
+  s.v = 8; return s;
 }
 const RANK = { tech: 0, sup: 1, mgr: 2, dir: 3, ceo: 4 };
-const LIMIT = { tech: 0, sup: 300, mgr: 1500, dir: 5000, ceo: 1e9 };
+const LIMIT = { tech: 0, sup: 300, mgr: 1500, dir: 5000, ceo: 20000 }; // above the chief executive's limit, only the board can say yes
+const band = c => c <= LIMIT.sup ? 'sup' : c <= LIMIT.mgr ? 'mgr' : c <= LIMIT.dir ? 'dir' : c <= LIMIT.ceo ? 'ceo' : 'board';
 const SEATNAME = { tech: 'Technician', sup: 'Maintenance Supervisor', mgr: 'Engineering Manager', dir: 'Operations Director', ceo: 'Chief Executive', board: 'The board' };
 const BOSS = { tech: 'sup', sup: 'mgr', mgr: 'dir', dir: 'ceo', ceo: 'board' };
 const COST = { callout: 600, cross: 900, advert: 150, meal: 300, advance: 8000 };
@@ -357,12 +361,13 @@ function newGame(seed) {
     up: {}, mult: { speed: 1, work: 1 }, qtol: 20, d: ledger(), pre: ledger(),
     pol: { auto: true, nopart: 'express', pm: 55 }, safety: { tags: 0, patches: 0, inj: 0 },
     conf: 60, confMult: 1, adv: 0, meal: false, fired: false,
+    big: [], boardQ: [], bigN: 0, bigDay: -9,
     org: { operator: 6, cleaner: 2 }, cm: 65, rnd: 0, enh: 0, m: null, staffed: [], itOut: false, consult: 0,
   };
   for (const k in SKU) { s.min[k] = 0; s.used[k] = 0; }
   const wsum = DEFS.reduce((t, d) => t + d[7] * d[8], 0);
   for (const [id, name, short, kind, x, y, sub, cap, fare, wear, via, mix] of DEFS)
-    s.rides.push({ id, name, short, kind, x, y, sub, cap, fare, wear, via, mix, w: cap * fare / wsum * 170, health: Math.round(R(s, 64, 95)), job: null, patched: false, warnAt: 0, q: 0, jam: false, crew: 0, lh: 0, earn: 0, rate: 0, ovh: 0 });
+    s.rides.push({ id, name, short, kind, x, y, sub, cap, fare, wear, via, mix, w: cap * fare / wsum * 170, health: Math.round(R(s, 64, 95)), job: null, patched: false, warnAt: 0, q: 0, jam: false, crew: 0, lh: 0, earn: 0, rate: 0, ovh: 0, pc: 0, mf: 0, cf: 0, hzm: 1 });
   ride(s, 'night').health = 46; ride(s, 'boats').health = 42; ride(s, 'esub').health = 70;
   for (const [n, role, sk, sh] of TEAM0) s.crew.push(mkStaff(s, n, role, sk && Object.assign({}, sk), sh));
   s.me = s.crew[0].id;
@@ -419,6 +424,7 @@ function startDay(s) {
     for (const t of s.crew) { t.tired = !isMgr(t) && t.worked && t.shiftWas === 'full'; }
     s.day++; s.closed = false; resetDay(s);
   }
+  bigLate(s);
   s.phase = 'day'; s.meal = false; s.confMult = s.conf >= 75 ? 1.1 : s.conf < 30 ? .9 : 1;
   for (const t of s.crew) { t.sick = !isMgr(t) && t.morale < 25 && chance(s, .35); if (t.sick) log(s, `${t.name} has called in sick. Morale is on the floor.`, 'bad'); }
   s.d = Object.assign(ledger(), s.pre, { patches: 0, faults: 0, fixed: 0, quick: 0, rescued: 0, lost: 0, glowSum: 0, n: 0, vip: null, insp: null, upW: 0, upT: 0, mkt: 0, seatMin: {}, conf0: s.conf, boardAt: 690 + RI(s, 0, 9) * 30, bq: 0, hq: 0, spin: 0, pressQ: '', pq2: 0, talked: [], al: 0, mis: 0 }); s.pre = ledger();
@@ -462,6 +468,7 @@ function createFault(s, r, o) {
   const tpl = o.title ? [o.title, trade, null] : pick(s, pool);
   const sev = o.sev || (!r.sub || chance(s, r.health < 30 ? .75 : .55) ? 'major' : 'minor');
   if (r.job) dropJob(s, r);
+  if (!o.glitch && !o.lock) { if (trade === 'mech') r.mf = (r.mf || 0) + 1; else if (trade === 'ctrl') r.cf = (r.cf || 0) + 1; }
   r.job = { type: 'fault', title: tpl[0], trade, sev, work: Math.round(R(s, 38, 88) * (sev === 'minor' ? .7 : 1)), prog: 0, mode: 'full', lock: !!o.lock, part: tpl[2], ps: 'none', t0: s.clock };
   if (tpl[4]) { // what the technician sees, and three possible causes
     const kin = FAULTS.filter(f => f !== tpl && f[3].includes(r.kind)), same = kin.filter(f => f[1] === trade), d = [];
@@ -595,7 +602,7 @@ function complete(s, r) {
     if (j.mode === 'full') { r.health = Math.max(r.health, Math.round(R(s, 82, 95))); r.patched = false; if (j.part) s.used[j.part]++;
       if (s.clock <= j.par) { if (s.seat === 'sup') s.sc.sup.quick++; s.streak++; s.best = Math.max(s.best, s.streak); s.d.quick++; const b = 60 * Math.min(s.streak, 6); s.cash += b; s.d.bonus += b; s.glow = Math.min(100, s.glow + 1); fx(s, 'cash', r.id, `Quick fix ×${s.streak} +$${b}`); }
       else if (s.streak) breakStreak(s, `${r.short} took too long`); }
-    else { r.health = Math.max(r.health, 35); r.patched = true; s.safety.patches++; s.d.patches++; if (j.part && j.ps !== 'none') s.stock[j.part]++; }
+    else { r.health = Math.max(r.health, 35); r.patched = true; r.pc = (r.pc || 0) + 1; s.safety.patches++; s.d.patches++; if (j.part && j.ps !== 'none') s.stock[j.part]++; }
     s.d.fixed++; s.glow = Math.min(100, s.glow + 2);
     log(s, `${r.name} is back${j.mode === 'patch' ? ' on a patch. It will not hold for long.' : '.'}`, 'good');
     fx(s, 'fix', r.id, j.mode === 'patch' ? 'Patched' : 'Fixed');
@@ -698,7 +705,7 @@ function supStep(s) { // whoever is running the shift sends people to work; with
     const j = r.job;
     if (supOn && j.mode === 'full' && j.part && j.ps === 'none' && s.stock[j.part] < 1) {
       if (P.nopart === 'patch' && !j.lock && s.focus !== 'safety') j.mode = 'patch';
-      else { if (P.nopart === 'express' && !incoming(s, j.part) && s.freeze !== s.day && !budgetWait(s)) order(s, j.part, 'exp'); if (j.prog >= .3 * j.work) continue; }
+      else { if (P.nopart === 'express' && !incoming(s, j.part) && s.freeze !== s.day && !budgetWait(s) && price(s, j.part, 'exp') <= LIMIT.sup) order(s, j.part, 'exp'); if (j.prog >= .3 * j.work) continue; }
     }
     const f = free(j.trade).filter(c => !(j.skip || []).includes(c.id)); if (!f.length) continue;
     if (supOn) f.sort((a, b) => (b.skills[j.trade] * 60 - dist(b, r) / 6) - (a.skills[j.trade] * 60 - dist(a, r) / 6));
@@ -805,6 +812,8 @@ const ASK = {
     run(s) { holdOver(s, me(s)); }, yes: () => 'stay on until 22:00 on overtime' },
   service: { min: 'sup', check(s, o) { const r = ride(s, o.rid); if (!r || r.job) return 'it already has a job open'; if (s.stock.kit < 1) return 'there are no service kits in stores'; return helper(s, r) ? true : 'nobody else is free, so service it yourself when you can'; },
     run(s, o) { const r = ride(s, o.rid), h = helper(s, r); o.name = h.name; assign(s, h, r, null, true); s.sc.tech.reports++; }, yes: (s, o) => `${o.name} will service ${ride(s, o.rid).short}` },
+  ot: { min: 'mgr', cost: (s, o) => o.cost || 0, check(s, o, c) { if (!Array.isArray(o.tids) || !o.tids.some(id => staff(s, id))) return 'there is nobody to keep on'; if (s.clock >= SHIFT.early[1] - 1) return 'the early shift has already gone home'; if (s.focus === 'cost' && c > 600) return 'costs come first today'; return spendOk(s, c, 1000); },
+    run(s, o) { o.names = o.tids.map(id => staff(s, id)).filter(t => t && holdOver(s, t)).map(t => t.name); }, yes: (s, o) => `${(o.names || []).join(' and ') || 'nobody'} can stay on until 22:00` },
   crowd: { min: 'dir', cost: () => 250, check(s, o, c) { if (s.clock < s.cdC) return 'there was one recently'; return spendOk(s, c, 1000); }, run(s) { crowdPleaser(s); }, yes: () => 'buskers and ice cream are on the midway' },
   // at the planning desk
   hire: { min: 'mgr', cost: s => hireFee(s), check(s, o, c) { if (bestCand(s, o.tr) < 0) return 'there is nobody suitable on tonight\'s list'; if (s.crew.length >= 14) return 'the crew is big enough for now'; return spendOk(s, c, 4000); },
@@ -817,20 +826,28 @@ function decider(s, min, cost) { // the lowest seat above yours that can say yes
   let layers = 0;
   const empty = [];
   for (let i = Math.max(RANK[s.seat] + 1, RANK[min]); i < LV.length; i++) { const x = LV[i]; layers++; if (LIMIT[x] >= cost && filled(s, x)) return { x, layers, empty }; if (LIMIT[x] >= cost && x !== 'sup') empty.push(x); }
-  return { x: 'ceo', layers: Math.max(1, layers), empty };
+  return { x: cost > LIMIT.ceo ? 'board' : 'ceo', layers: Math.max(1, layers), empty };
 }
 function ask(s, k, o) {
   const A = ASK[k]; if (!A) return 'Unknown request';
   o = Object.assign({}, o);
   const cost = A.cost ? A.cost(s, o) : 0, d = decider(s, A.min, cost);
   if (s.asks.some(a => a.k === k && a.o.rid === o.rid && a.o.sku === o.sku && a.o.k === o.k && a.o.tr === o.tr && a.o.id === o.id)) return 'Already asked. Waiting for an answer.';
-  const it = { id: ++s.rq, k, o, x: d.x, cost, at: s.clock, due: s.clock + 2 + 3 * d.layers, empty: d.empty };
+  const it = { id: ++s.rq, k, o, x: d.x, cost, at: s.clock, due: d.x === 'board' ? CLOSE : s.clock + ESC_DELAY[d.x], empty: d.empty };
   s.sc[s.seat].asks++;
+  if (d.x === 'board') { it.day = s.phase === 'day' ? s.day : s.day + 1; s.boardQ.push(it); log(s, `That needs the board: it answers at the end of ${it.day === s.day ? 'today' : 'tomorrow'}.`, 'info'); return true; }
   if (s.phase !== 'day') return decideAsk(s, it);
   s.asks.push(it); return true;
 }
+// a boss turns down spending the day cannot afford, unless the ride really matters today
+function weakAsk(s, it) {
+  if (!it.cost || s.phase !== 'day') return '';
+  const r = it.o && it.o.rid && ride(s, it.o.rid), key = r && (s.prio === r.id || (r.job && (r.job.rescue || (r.job.sev === 'major' && r.w >= 7))));
+  if (maintSpend(s) + it.cost > s.budget * .9 && !key) return `the budget is nearly spent and ${r ? r.short + ' is' : 'this is'} not a priority today`;
+  return '';
+}
 function decideAsk(s, it) {
-  const A = ASK[it.k], who = holder(s, it.x), why = A.check(s, it.o, it.cost);
+  const A = ASK[it.k], who = holder(s, it.x), why = weakAsk(s, it) || A.check(s, it.o, it.cost);
   const via = it.empty && it.empty.length ? ` (the ${it.empty.map(x => SEATNAME[x]).join(' and ')} post${it.empty.length > 1 ? 's are' : ' is'} empty, so it went up to them)` : '';
   if (why !== true) { const t = `${who} said no${via}: ${why}.`; log(s, t, 'bad'); return t; }
   A.run(s, it.o, it.cost); const t = `${who} said yes${via}: ${A.yes(s, it.o)}.`; log(s, t, 'good'); fx(s, 'ready', it.o.rid || null, 'Approved');
@@ -863,7 +880,16 @@ const REQ = {
   hold: { lvl: 'sup', def: 'go', stale: s => s.clock >= SHIFT.early[1],
     opts: (s, it) => [OPT('yes', 'Keep them on', fmtMoney(it.cost) + ' overtime', true), OPT('go', 'Let them go', 'Jobs wait for the late shift')],
     pick: (s, it) => s.focus !== 'cost' && s.cash > 2000 && it.tids.some(id => { const t = staff(s, id), r = t && t.target && ride(s, t.target); return r && r.job && r.job.type === 'fault'; }) ? 'yes' : 'go',
-    res(s, it, v, who) { if (v !== 'yes') return ''; const n = it.tids.map(id => staff(s, id)).filter(t => t && holdOver(s, t)); return n.length ? `${Who(who, 'kept')} ${n.map(t => t.name).join(' and ')} on overtime to finish.` : ''; } },
+    res(s, it, v, who) { if (v !== 'yes') return '';
+      if (it.cost > LIMIT.sup && RANK[it.h] < RANK.mgr) { // over the supervisor's limit: the manager countersigns, and until then nobody stays
+        if (who === 'You') { ask(s, 'ot', { tids: it.tids, cost: it.cost }); const a = s.asks[s.asks.length - 1]; return a && a.k === 'ot' ? `Overtime for ${it.tids.length > 1 ? 'them' : 'them'} is ${fmtMoney(it.cost)}, over your ${fmtMoney(LIMIT.sup)}: waiting for ${seatWho(s, a.x)}, about ${a.due - s.clock} min.` : ''; }
+        if (handler(s, 'mgr') === s.seat) { raise(s, 'otsign', { tids: it.tids, cost: it.cost, cs: 1, from: who, due: Math.min(s.clock + 15, SHIFT.early[1] - 2), txt: `${who} wants to keep ${it.tids.map(id => (staff(s, id) || {}).name).filter(Boolean).join(' and ')} on overtime to finish their jobs: ${fmtMoney(it.cost)}, over the supervisor's limit. Countersign?` }); return ''; }
+      }
+      const n = it.tids.map(id => staff(s, id)).filter(t => t && holdOver(s, t)); return n.length ? `${Who(who, 'kept')} ${n.map(t => t.name).join(' and ')} on overtime to finish.` : ''; } },
+  otsign: { lvl: 'mgr', def: 'no', stale: s => s.clock >= SHIFT.early[1],
+    opts: (s, it) => [OPT('yes', 'Countersign', fmtMoney(it.cost) + ' overtime', true), OPT('no', 'Refuse', 'They go home at 17:00, jobs wait')],
+    pick: (s, it) => ASK.ot.check(s, it, it.cost) === true && !weakAsk(s, { cost: it.cost, o: {} }) ? 'yes' : 'no',
+    res(s, it, v, who) { if (v !== 'yes') return who === 'You' ? '' : `${who} refused the overtime.`; const n = it.tids.map(id => staff(s, id)).filter(t => t && holdOver(s, t)); return n.length ? `${Who(who, 'countersigned')} overtime for ${n.map(t => t.name).join(' and ')}.` : ''; } },
   defect: { lvl: 'sup', ai: false, def: 'no', stale: (s, it) => { const r = ride(s, it.rid), t = staff(s, it.tid); return !r || !!r.job || !t || !t.on || !!t.target; },
     opts: () => [OPT('yes', 'Service it', 'Uses a kit, closed about 45 min', true), OPT('no', 'Not now')],
     res(s, it, v) { if (v !== 'yes') return ''; const r = ride(s, it.rid), t = staff(s, it.tid); return assign(s, t, r, null, true) === true ? `${t.name} is servicing ${r.short}.` : ''; } },
@@ -873,11 +899,11 @@ const REQ = {
   // up to the manager
   callout: { lvl: 'mgr', def: 'no', stale: (s, it) => { const r = ride(s, it.rid); return !r || !r.job || r.job.type !== 'fault' || s.crew.some(c => c.target === it.rid); },
     opts: (s, it) => [OPT('yes', 'Call a contractor', fmtMoney(it.cost) + ' plus parts, here in 45 min', true), OPT('no', 'Wait for our crew')],
-    pick: (s, it) => ASK.callout.check(s, { rid: it.rid }, it.cost) === true ? 'yes' : 'no',
+    pick: (s, it) => ASK.callout.check(s, { rid: it.rid }, it.cost) === true && !weakAsk(s, { cost: it.cost, o: { rid: it.rid } }) ? 'yes' : 'no',
     res(s, it, v, who) { const r = ride(s, it.rid); if (v !== 'yes' || !callout(s, r)) return ''; return who === 'You' ? '' : `${who} approved a contractor for ${r.short}.`; } },
   express: { lvl: 'mgr', def: 'wait', stale: (s, it) => { const j = (ride(s, it.rid) || {}).job; return !j || j.type !== 'fault' || j.mode !== 'full' || j.part !== it.sku || s.stock[it.sku] > 0 || incoming(s, it.sku); },
     opts(s, it) { const j = ride(s, it.rid).job, o = [it.cost > LIMIT[it.h] ? OPT('up', 'Pass it up', `Over your ${fmtMoney(LIMIT[it.h])} limit`, true) : OPT('yes', 'Approve', `${fmtMoney(it.cost)}, in by ${fmtClock(expressEta(s))}`, true)]; if (!j.lock) o.push(OPT('patch', 'Patch instead')); o.push(OPT('wait', 'Wait for stock')); return o; },
-    pick: (s, it) => ASK.express.check(s, { sku: it.sku }, it.cost) === true ? 'yes' : !ride(s, it.rid).job.lock && s.focus !== 'safety' && s.forecast.memo !== 'nopatch' ? 'patch' : 'wait',
+    pick: (s, it) => ASK.express.check(s, { sku: it.sku }, it.cost) === true && !weakAsk(s, { cost: it.cost, o: { rid: it.rid } }) ? 'yes' : !ride(s, it.rid).job.lock && s.focus !== 'safety' && s.forecast.memo !== 'nopatch' ? 'patch' : 'wait',
     res(s, it, v, who) { const r = ride(s, it.rid);
       if (v === 'yes') { if (order(s, it.sku, 'exp') !== true) return ''; return `${Who(who, 'approved')} an express ${SKU[it.sku][0].toLowerCase()} for ${r.short}.`; }
       if (v === 'up') { ask(s, 'express', { rid: r.id, sku: it.sku }); return `You passed the express order for ${r.short} up to ${holder(s, BOSS[s.seat])}.`; }
@@ -894,7 +920,7 @@ const REQ = {
     res(s, it, v, who) { if (v === 'hold') { s.freeze = s.day; return `${Who(who, 'put')} maintenance spending on hold for the rest of the day: no contractors or express parts.`; } return `${Who(who, 'approved')} the overspend.`; } },
   bigexp: { lvl: 'dir', def: 'no', stale: (s, it) => REQ.express.stale(s, it),
     opts(s, it) { const o = [OPT('yes', 'Approve', `${fmtMoney(it.cost)}, in by ${fmtClock(expressEta(s))}`, true)]; if (!ride(s, it.rid).job.lock) o.push(OPT('patch', 'Patch instead')); o.push(OPT('no', 'Refuse', 'Wait for the standard delivery')); return o; },
-    pick: (s, it) => s.focus === 'uptime' && spendOk(s, it.cost, 5000) === true ? 'yes' : 'no',
+    pick: (s, it) => s.focus === 'uptime' && spendOk(s, it.cost, 5000) === true && !weakAsk(s, { cost: it.cost, o: { rid: it.rid } }) ? 'yes' : 'no',
     res(s, it, v, who) { if (v === 'no') { ride(s, it.rid).job.eq = 1; return ''; } return REQ.express.res(s, it, v, who); } },
   heat: { lvl: 'dir', def: 'no', opts: () => [OPT('yes', 'Approve', '$900, a third fewer electrical faults today', true), OPT('no', 'Refuse')], pick: s => s.cash > 6000 ? 'yes' : 'no',
     res(s, it, v, who) { if (v !== 'yes' || s.cash < 900) return ''; spend(s, 'contract', 900); s.cool = true; return `${Who(who, 'approved')} portable cooling for the substations.`; } },
@@ -915,7 +941,7 @@ const REQ = {
 /* ---------- three kinds of decision ----------
    Operational: daily, guided by procedure and experience, at the front line. Tactical: middle management turning the direction into action.
    Strategic: executive, long-term, high stakes, touching staff, guests, suppliers and neighbours at once. */
-const DTYPE = { wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
+const DTYPE = { otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
 const STRATEGY = { uptime: ['The park that never stops', 'Guests spend 3% more. Managers lean towards paying to keep rides open.'], cost: ['Lean and profitable', 'Overheads 5% lower. Managers lean towards waiting and saving.'], safety: ['The safest park on the coast', 'Fines 40% smaller. Managers lean towards services and no patches.'] };
 // which choices pull with which priority; a call that pulls against today's priority is wasted effort
 const ALIGN = {
@@ -946,6 +972,7 @@ function toolbox(s, who, n) { s.comp = Math.max(0, s.comp - n); s.cdT = s.clock 
 const LATER = {
   council(s) { if (chance(s, .6)) { const c = Math.round(4000 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.conf = clamp(s.conf - 6, 0, 100); s.glow = Math.max(0, s.glow - 4); log(s, `The council acted on the neighbours' noise complaint you set aside: a ${fmtMoney(c)} penalty and a story in the paper. Board confidence −6.`, 'bad'); } else log(s, 'The neighbours\' noise complaint went no further. This time.', 'info'); },
   resent(s) { const t = s.crew.filter(c => c.role === 'tech' && !c.temp).sort((a, b) => baseWage(b) - baseWage(a))[0]; if (t && chance(s, .5)) { for (const c of s.crew) if (!isMgr(c) && !c.temp) c.morale = clamp(c.morale - 8, 0, 100); log(s, `${t.name} has been offered more money by the pier down the coast and is telling everyone. The refused pay rise still stings: crew morale −8.`, 'bad'); } },
+  claim(s) { if (chance(s, .6)) { const c = Math.round(14000 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.glow = Math.max(0, s.glow - 6); s.conf = clamp(s.conf - 5, 0, 100); log(s, `The contested injury claim went against you: ${fmtMoney(c)} and a story in the paper. Board confidence −5.`, 'bad'); } else log(s, 'The contested injury claim was dropped.', 'good'); },
   pricey(s) { log(s, 'Guests have noticed the higher prices. The takings are up, and so are the grumbles at the gate.', 'info'); },
   latevan(s) { log(s, 'The exclusive supplier\'s van is slower than the old courier, as the stores team warned. Parts are cheaper all the same.', 'info'); },
 };
@@ -1053,7 +1080,7 @@ function diagnose(s, i) {
   log(s, `Not the ${j.opts[i].toLowerCase()}. Six minutes lost checking the wrong thing.`, 'bad'); return 'wrong';
 }
 function hurt(s, t, r, mine, why) {
-  t.hurt = s.clock + 30; const c = Math.round(800 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.conf = clamp(s.conf - (mine ? 3 : 2), 0, 100); s.safety.inj++; if (mine) s.sc.tech.hurt++; s.d.pressQ = `a technician hurt at ${r.name}`; s.comp = Math.max(0, s.comp - 40);
+  t.hurt = s.clock + 30; s.d.inj = (s.d.inj || 0) + 1; const c = Math.round(800 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.conf = clamp(s.conf - (mine ? 3 : 2), 0, 100); s.safety.inj++; if (mine) s.sc.tech.hurt++; s.d.pressQ = `a technician hurt at ${r.name}`; s.comp = Math.max(0, s.comp - 40);
   log(s, why ? `${t.name} was hurt at ${r.short}: ${why}. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}.` : mine ? `You skipped the lockout and ${r.short} moved while your hands were in it. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}.` : `${t.name} was hurt finishing ${r.short}: a routine job, a shortcut, nobody watching. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}. Nobody had stopped the crew for a toolbox talk.`, 'bad'); fx(s, 'major', r.id, 'Injury');
 }
 // what a toolbox talk is about: [name, what it does]
@@ -1106,12 +1133,12 @@ function requests(s) {
       j.pq = 1; const t = crew.find(c => c.state === 'wait' && c !== m);
       raise(s, 'part', { rid: r.id, sku: j.part, from: t.name, due: s.clock + 15, txt: `No ${SKU[j.part][0].toLowerCase()} in stores for ${r.short}. What do you want me to do?` });
     }
-    if (short && !j.eq && age >= 8 && s.seat !== 'sup' && s.phase === 'day' && expressEta(s) < CLOSE - 10) {
-      j.eq = 1; const c = price(s, j.part, 'exp');
-      raise(s, c > LIMIT.mgr ? 'bigexp' : 'express', { rid: r.id, sku: j.part, cost: c, from: c > LIMIT.mgr ? holder(s, 'mgr') : from(), due: s.clock + 15, txt: `${r.short} needs a ${SKU[j.part][0].toLowerCase()} and stores have none. Express one for ${fmtMoney(c)}?` });
+    if (short && !j.eq && age >= 8 && s.seat !== 'sup' && s.phase === 'day' && expressEta(s) < CLOSE - 10 && price(s, j.part, 'exp') > LIMIT.sup) {
+      j.eq = 1; const c = price(s, j.part, 'exp'); // over the supervisor's $300: it needs a countersign from the band it falls in
+      raise(s, c > LIMIT.mgr ? 'bigexp' : 'express', { rid: r.id, sku: j.part, cost: c, cs: 1, from: c > LIMIT.mgr ? holder(s, 'mgr') : from(), due: s.clock + 15, txt: `${r.short} needs a ${SKU[j.part][0].toLowerCase()} and stores have none. Express one for ${fmtMoney(c)}? It stays on hold until someone countersigns.` });
     }
     if (!j.coq && j.sev === 'major' && !crew.length && s.seat !== 'sup' && age >= (handler(s, 'mgr') === s.seat ? 10 : 25) && !s.crew.some(c => c.temp && c.target === r.id) && !s.crew.some(c => c.role === 'tech' && c.on && !c.temp && !c.target && c.skills[j.trade])) {
-      j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
+      j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), cs: 1, from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
     }
   }
   if (s.clock === SHIFT.early[1] - 30) {
@@ -1193,7 +1220,7 @@ function aiNight(s) {
   return notes;
 }
 
-function hazard(s, r) { return HZ * (.00045 + .012 * Math.pow(Math.max(0, 75 - r.health) / 75, 2)) * (1 + .06 * (s.day - 1)) * (r.patched ? 2.2 : 1) * (r.sub ? 1 : .4) * (s.heat && r.mix.elec >= .4 ? (s.cool ? 1.15 : 1.4) : 1); }
+function hazard(s, r) { return (r.hzm || 1) * HZ * (.00045 + .012 * Math.pow(Math.max(0, 75 - r.health) / 75, 2)) * (1 + .06 * (s.day - 1)) * (r.patched ? 2.2 : 1) * (r.sub ? 1 : .4) * (s.heat && r.mix.elec >= .4 ? (s.cool ? 1.15 : 1.4) : 1); }
 function step(s) {
   if (s.phase !== 'day') return;
   s.clock++;
@@ -1323,6 +1350,7 @@ function endDay(s) {
   Object.assign(rep, { seat: major, seatMin: sm, spend: d.wages + d.ot + d.parts + d.contract - (d.mkt || 0), budget: s.budget, focus: s.focus, al: d.al, mis: d.mis, strategy: s.strategy, comp: Math.round(s.comp) });
   sc.days++; sc.upSum += up; if (major === 'mgr' || major === 'dir') sc.budOk += rep.spend <= s.budget ? 1 : 0;
   if (major === 'ceo') { sc.netSum += rep.net; sc.confD = (sc.confD || 0) + Math.round(s.conf - d.conf0); }
+  boardDecides(s); bigCheck(s);
   s.inbox = []; s.asks = []; s.freeze = 0;
   s.reports.push(rep); s.total += rep.n;
   s.phase = 'plan'; s.closed = true; s.paused = true;
@@ -1347,7 +1375,7 @@ function endDay(s) {
   if (s.day >= DAYS) { s.final = review(s); return; }
   mods(s);
   s.forecast = rollDay(s, s.day + 1); s.cands = rollCands(s);
-  rep.ai = aiNight(s); mods(s);
+  rep.ai = aiNight(s); bigOvernight(s); mods(s);
   // the storeman tops stock back up to your minimum levels on the overnight order
   if (has(s, 'store')) { let n = 0; for (const k in SKU) { const want = Math.max(s.min[k], s.rides.filter(r => r.job && r.job.part === k && r.job.ps === 'none' && (r.job.type !== 'fault' || r.job.mode === 'full')).length); let have = s.stock[k] + s.inbound.filter(o => o.sku === k).length; while (have < want && order(s, k, 'std') === true) { have++; n++; } } if (n) log(s, `Stores placed the overnight order: ${n} item${n > 1 ? 's' : ''} to reach your minimum levels.`); }
 }
@@ -1378,6 +1406,80 @@ function review(s) { // the board's end-of-season review
   const company = pts.up + pts.net + pts.lit + pts.safe + pts.conf, own = personal(s), total = Math.round(company * .8 + own.p * 20);
   const grade = s.fired ? 'D' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 55 ? 'C' : 'D';
   return { up, net, tax, auditFee, lit: s.total, pts, company: Math.round(company), own, total, grade, diff: s.diff || 'standard', fired: s.fired, broke: !!s.broke, conf: Math.round(s.conf), tags: s.safety.tags, patches: s.safety.patches, inj: s.safety.inj || 0, heads: headcount(s), perfect: s.reports.filter(r => r.n === N_RIDES).length };
+}
+
+/* ---------- big decisions, at the desk between days ----------
+   Rare, and caused by what happened before: a ride patched again and again, a gearbox, slewing ring or hydraulic cylinder
+   behind repeated failures, a controller that keeps crashing, a ride two overhauls could not save, a claim after an injury.
+   They wait at the planning desk for whoever's limit they fall in: the chief executive from $5,000 to $20,000, the board
+   above that (proposed by the chief executive, answered at the end of the next day). Left undecided when the gates open,
+   they go to the board, which picks the cautious no and trusts you less. Declining a fix leaves the cause in place. */
+const WORSE = 1.25, worthIt = (s, b) => DAYS - s.day >= 5 && s.cash >= b.cost + 12000; // a fix pays back only with enough season left
+const WORN = { coaster: 'gearbox', water: 'hydraulic cylinder', tower: 'hydraulic cylinder', wheel: 'slewing ring', gondola: 'slewing ring', carousel: 'slewing ring' };
+const BIG = {
+  // the cause is real from the moment it is found: the ride fails a quarter more often until it is put right (WORSE)
+  major: { t: r => `Major overhaul of ${r.name}`, why: r => `Patched ${r.pc} times this season, and it keeps coming back. Until it is done it fails more often.`, cost: () => 5500, fix(s, r) { r.health = 100; r.patched = false; r.hzm = (r.hzm || 1) / WORSE * .85; }, left(s, r) { r.pc = 0; } },
+  worn: { t: r => `Replace the worn ${WORN[r.kind]} on ${r.name}`, why: r => `${r.mf} mechanical failures this season trace back to it. Until it is replaced it fails more often.`, cost: r => r.kind === 'coaster' ? 8500 : 6000, fix(s, r) { r.health = 100; r.hzm = (r.hzm || 1) / WORSE * .8; }, left(s, r) { r.mf = 0; } },
+  ctrl: { t: r => `Control system upgrade on ${r.name}`, why: r => `${r.cf} control faults this season: the controller is past its best, and it will keep crashing.`, cost: () => 7500, fix(s, r) { r.hzm = (r.hzm || 1) / WORSE * .9; }, left(s, r) { r.cf = 0; } },
+  refurb: { t: r => `Full refurbishment of ${r.name}`, why: r => `Two overhauls have not saved it: health ${Math.round(r.health)}%, and it fails more often every week.`, cost: () => 24000, fix(s, r) { r.health = 100; r.ovh = 0; r.hzm = .75; }, left() { /* it stays as it is */ } },
+  claim: { t: () => 'Injury claim', why: () => 'The technician hurt on site has made a claim. Settle now, or contest it: about a 60% chance it costs more later, and the paper hears of it.', cost: () => 5000 },
+};
+function bigCheck(s) { // at close: at most one new big decision, spaced out, a few a season
+  const cand = [];
+  if (s.d.inj && !s.big.some(b => b.k === 'claim') && (s.claims || 0) < 2) cand.push(['claim', null]);
+  if (s.day - s.bigDay >= 3 && s.bigN < 4) for (const r of s.rides) {
+    if (s.big.some(b => b.rid === r.id) || s.boardQ.some(b => b.rid === r.id)) continue;
+    if ((r.pc || 0) >= 3) cand.push(['major', r]);
+    else if (WORN[r.kind] && (r.mf || 0) >= 6) cand.push(['worn', r]);
+    else if ((r.cf || 0) >= 4) cand.push(['ctrl', r]);
+    else if (r.ovh >= 2 && r.health < 50) cand.push(['refurb', r]);
+  }
+  const c = cand[0]; if (!c) return;
+  const [k, r] = c, B = BIG[k], cost = B.cost(r);
+  const b = { id: ++s.rq, k, rid: r ? r.id : null, cost, x: band(cost), day: s.day, t: B.t(r), why: B.why(r) };
+  if (r) { r.hzm = (r.hzm || 1) * WORSE; if (k === 'major') r.pc = 0; else if (k === 'worn') r.mf = 0; else if (k === 'ctrl') r.cf = 0; }
+  s.big.push(b); if (k === 'claim') s.claims = (s.claims || 0) + 1; else { s.bigN++; s.bigDay = s.day; }
+  log(s, `For the desk: ${b.t}, ${fmtMoney(cost)}. ${b.x === 'board' ? 'Over the chief executive\'s limit, so it goes to the board.' : 'It needs the chief executive.'}`, 'event');
+}
+const bigOpts = b => b.k === 'claim' ? [OPT('settle', 'Settle', fmtMoney(b.cost) + ' now', true), OPT('contest', 'Contest it', 'Free now; may cost more later')] : b.x === 'board' ? [OPT('yes', 'Propose to the board', `It answers at the end of tomorrow`, true), OPT('no', 'Drop it')] : [OPT('yes', 'Approve', fmtMoney(b.cost) + ', done overnight', true), OPT('no', 'Decline', 'The cause stays')];
+function decideBig(s, id, v, who) { // who: 'You', the computer in the seat, or 'The board'
+  const i = s.big.findIndex(b => b.id === id); if (i < 0) return false;
+  const b = s.big[i], r = b.rid && ride(s, b.rid), B = BIG[b.k], mine = who === 'You';
+  if (mine && (!planning(s) || !(b.x === s.seat || (b.x === 'board' && s.seat === 'ceo')))) return false;
+  s.big.splice(i, 1);
+  if (mine) onTime(s);
+  if (b.k === 'claim') {
+    if (v === 'settle' && s.cash >= b.cost) { spend(s, 'people', b.cost); log(s, `${Who(who, 'settled')} the injury claim for ${fmtMoney(b.cost)}.`, 'info'); }
+    else { s.later.push({ day: s.day + 2, k: 'claim' }); log(s, `${Who(who, 'contested')} the injury claim. The lawyers will know in a couple of days.`, 'info'); }
+    return true;
+  }
+  if (v === 'yes' && b.x === 'board' && who !== 'The board') { b.day = s.phase === 'day' ? s.day : s.day + 1; s.boardQ.push(b); log(s, `${Who(who, 'proposed')} ${b.t.toLowerCase()} to the board. It answers at the end of ${b.day === s.day ? 'today' : 'tomorrow'}.`, 'info'); return true; }
+  if (v === 'yes' && s.cash >= b.cost) { spend(s, 'capex', b.cost); B.fix(s, r); log(s, `${Who(who, 'approved')} ${b.t.toLowerCase()} for ${fmtMoney(b.cost)}. The work is done overnight.`, 'good'); return true; }
+  B.left(s, r);
+  log(s, `${who === 'The board' ? 'The board said no to' : Who(who, 'declined')} ${b.t.toLowerCase()}. ${r.short} will keep failing more often than it should.`, who === 'You' ? 'info' : 'bad'); return true;
+}
+function boardDecides(s) { // at close: the board answers what was put to it for today
+  for (const b of s.boardQ.filter(b => b.day <= s.day)) {
+    s.boardQ.splice(s.boardQ.indexOf(b), 1);
+    const yes = s.conf >= 55 && s.cash >= b.cost + 10000;
+    if (b.k && BIG[b.k]) { const r = b.rid && ride(s, b.rid); if (yes) { spend(s, 'capex', b.cost); BIG[b.k].fix(s, r); log(s, `The board approved ${b.t.toLowerCase()} (${fmtMoney(b.cost)}). The work is done overnight.`, 'good'); } else { BIG[b.k].left(s, r); log(s, `The board turned down ${b.t.toLowerCase()}: ${s.conf < 55 ? 'it does not have the confidence in you' : 'the cash is not there'}.`, 'bad'); } }
+    else if (ASK[b.k]) { if (yes && ASK[b.k].check(s, b.o, b.cost) === true) { ASK[b.k].run(s, b.o, b.cost); log(s, `The board said yes: ${ASK[b.k].yes(s, b.o)}.`, 'good'); } else log(s, 'The board said no to your request.', 'bad'); }
+  }
+}
+function bigOvernight(s) { // the computer chief executive decides what is in its limit; a board item it proposes if the cash is there
+  for (const b of s.big.slice()) {
+    if (b.x === s.seat || (b.x === 'board' && s.seat === 'ceo')) continue;
+    const who = holder(s, 'ceo');
+    if (b.k === 'claim') decideBig(s, b.id, s.cash > b.cost + 10000 ? 'settle' : 'contest', who);
+    else decideBig(s, b.id, worthIt(s, b) ? 'yes' : 'no', who);
+  }
+}
+function bigLate(s) { // the gates open with your big decisions still on the desk: the board takes them
+  for (const b of s.big.filter(b => b.x === s.seat || (b.x === 'board' && s.seat === 'ceo'))) {
+    miss(s); s.sc[s.seat].esc = (s.sc[s.seat].esc || 0) + 1; s.conf = clamp(s.conf - 3, 0, 100);
+    log(s, `You opened the gates with ${b.t.toLowerCase()} still on your desk. The board decided it for you. Board confidence −3.`, 'bad');
+    decideBig(s, b.id, b.k === 'claim' ? 'contest' : 'no', 'The board');
+  }
 }
 
 /* stores */
@@ -1453,7 +1555,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);
