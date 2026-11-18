@@ -136,8 +136,10 @@ function drawGround(n, now, tint) {
   if (!G.k || G.fonts !== fontsReady() || (ch0 > .02 && (now - G.built > 200 || ch0 > .3))) { sceneOf(); G.k = k; G.built = now; G.fonts = fontsReady(); G.dayK = G.nightK = 0; }
   const need = n < 1 ? ['day'] : []; if (n > 0) need.push('night');
   for (const w of need) if (G[w + 'K'] !== G.k) { groundLayer(w, G.k); G[w + 'K'] = G.k; }
-  const nq = Math.round(n * 48) / 48, ta = tint ? Math.round(tint[1] * 64) / 64 : 0, key = [G.k, nq, tint ? tint[0] : '', ta, G.dayK, G.nightK].join('|'), C = groundNow;
-  if (C.key !== key) {
+  const nq = Math.round(n * 48) / 48, ta = tint ? Math.round(tint[1] * 30) / 30 : 0, key = [G.k, nq, tint ? tint[0] : '', ta, G.dayK, G.nightK].join('|'), C = groundNow;
+  const layersKey = [G.k, G.dayK, G.nightK].join('|');
+  if (C.key !== key && (!C.c || C.layers !== layersKey || now - (C.at || 0) > 600)) { // light changes recompose at most every 0.6 s (a squall's tint ramps in many small steps)
+    C.at = now; C.layers = layersKey;
     const lay = G[need[0]], c = C.c || (C.c = document.createElement('canvas')); if (c.width !== lay.width || c.height !== lay.height) { c.width = lay.width; c.height = lay.height; }
     const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
     if (nq < 1) g.drawImage(G.day, 0, 0); if (nq > 0) { g.globalAlpha = nq < 1 ? nq : 1; g.drawImage(G.night, 0, 0); g.globalAlpha = 1; }
@@ -316,6 +318,7 @@ function draw(now, frac) {
   const t = now / 1000, clock = ui.title ? 1290 : S.clock, n = nightOf(clock), day = S.phase === 'day', op = ctx.globalCompositeOperation;
   // the living park moves with the park clock: still when paused, faster at 2x; the title screen idles at 1x
   const dt = VIS.last ? Math.min(.1, Math.max(0, (now - VIS.last) / 1000)) : 0, pm = VIS.run ? dt * TPS * S.speed : ui.title ? dt * TPS : 0, w = weatherNow();
+  qualityTick(dt * 1000);
   VIS.last = now; if (pm > 0) VIS.vt = (VIS.vt || 0) + dt;
   // hard caps on everything that can pile up (a long squall, a fast season at 2x): the oldest go first
   for (const [arr, cap] of [[lanterns, 160], [pops, 24], [pings, 24], [FEEL.bursts, 24]]) if (arr.length > cap) arr.splice(0, arr.length - cap);
@@ -336,6 +339,7 @@ function draw(now, frac) {
   frameNo++; spriteBudget = 4; S.rides.forEach((r, i) => drawRide(r, n, rideSt(r), i));
   for (const r of S.rides) staticFault(r, rideSt(r), t);
   drawParts();
+  drawWeather(w, VIS.vt || 0); // rain and wind under the game's information: names, rings, badges and people stay crisp in a squall
 
   const names = []; mapLabels.length = 0; for (const r of S.rides) rideInfo(r, t, rideSt(r), names); for (const f of names) f();
   drawBursts(now);
@@ -349,8 +353,8 @@ function draw(now, frac) {
     ctx.globalCompositeOperation = 'lighter'; glowOn(ctx, x, y, 30, '#ffb347', .7 * al); ctx.globalCompositeOperation = op;
     ctx.fillStyle = rgba('#ffd27a', al); ctx.beginPath(); ctx.roundRect(x - 5, y - 7, 10, 13, 3); ctx.fill(); ctx.fillStyle = rgba('#b4553f', al); ctx.fillRect(x - 3, y - 9, 6, 2.5); ctx.fillRect(x - 3, y + 6, 6, 2); ctx.fillStyle = rgba('#fff4d6', al * .9); ctx.fillRect(x - 2, y - 3, 4, 6);
   }
-  drawWeather(w, VIS.vt || 0);
   ctx.restore();
   if (sh) { ox -= sh[0]; oy -= sh[1]; }
+  drawEdgeFlash(now);
   if (ui.box) { const b = ui.box; ctx.fillStyle = 'rgba(121,194,255,.12)'; ctx.strokeStyle = '#79c2ff'; ctx.lineWidth = 1.5; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); }
 }

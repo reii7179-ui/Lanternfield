@@ -82,7 +82,7 @@ const prev = {};
 function routeTo(r) { const n = L.NODES[r.via], j = () => (Math.random() - .5) * 14, pts = [[L.NODES.P.x + j(), L.NODES.P.y + j()]]; if (r.via !== 'P') pts.push([n.x + j(), n.y + j()]); pts.push([r.x + j() * 1.6, r.y + 26 + j()]); return pts; }
 function pickRide() { const open = S.rides.filter(r => r.sub && L.AV[L.status(S, r)] > 0); if (!open.length) return null; let t = Math.random() * open.reduce((a, r) => a + r.cap, 0); for (const r of open) if ((t -= r.cap) <= 0) return r; return open[0]; }
 function stepGuests(dm) {
-  const want = reduce ? 0 : Math.round(150 * Math.min(1.3, S.att));
+  const want = reduce ? 0 : Math.round(150 * Math.min(1.3, S.att) * (.6 + .4 * QUAL.q)); // a struggling device draws a thinner crowd (adaptive quality)
   if (guests.length < want && Math.random() < .5) { const r = pickRide(); if (r) guests.push({ x: L.GATE.x + (Math.random() - .5) * 20, y: L.GATE.y, path: routeTo(r), i: 0, ride: r.id, wait: 0, sp: 34 + Math.random() * 16, sad: false }); }
   for (let k = guests.length - 1; k >= 0; k--) {
     const g = guests[k];

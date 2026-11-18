@@ -46,9 +46,12 @@ const { launch, openGame, gameErrors, report } = require('./lib.js');
     await page.waitForTimeout(400);
     if (!(await page.evaluate(() => !document.querySelector('#modal .dialog [data-a="closehelp"]')))) problems.push(`${tag}: the closed dialog never went away`);
     // feedback (phase 4), driven through the engine's own event queue: a breakdown flashes the edge (not with reduced motion)
-    await page.evaluate(() => { LFUI.state.fx.push({ k: 'major', id: 'wheel', txt: 'Breakdown' }); });
-    await page.waitForTimeout(250);
-    const flash = await page.evaluate(() => { const e = document.querySelector('.edgeflash'); return e ? e.getAnimations().length : 0; });
+    // (the event is handled on the next park minute; a real breakdown in the last 1.2 s may hold the flash back, so watch for 2 s)
+    const flash = await page.evaluate(() => new Promise(res => {
+      LFUI.state.fx.push({ k: 'major', id: 'wheel', txt: 'Breakdown' }); const t0 = performance.now(); let seen = false;
+      const f = () => { seen = seen || LFUI.feel().flash; if (performance.now() - t0 < 2000 && !seen) { if (performance.now() - t0 > 1300 && !LFUI.state.fx.length) LFUI.state.fx.push({ k: 'major', id: 'wheel', txt: 'Breakdown' }); requestAnimationFrame(f); } else res(seen); };
+      requestAnimationFrame(f);
+    }));
     if (calm && flash) problems.push(`${tag}: a breakdown flashed the screen`);
     if (!calm && !flash) problems.push(`${tag}: a breakdown did not flash the edge of the map`);
     // the streak meter: pips and heat follow the streak; a lost streak cracks (not with reduced motion)

@@ -43,11 +43,14 @@ A real-time maintenance-management browser game. It ships as one self-contained 
   - keyboard controls (listed in How to play);
   - touch support;
   - colour is never the only signal;
-  - everything readable at 390px wide.
+  - everything readable at 390px wide (the layout test covers 16 sizes, from 360×640 to 2560×1440, and fails if ride names overlap on the map).
 - **Old saves must keep loading.** If the saved state changes, migrate it.
 - **Performance target:** 60 fps at 2× speed on a mid-range phone. The test is the phone budget in `tests/browser/perf.js`: a busy afternoon on a 390×844 phone with a 3× screen and the processor slowed 4×. It must take no more main-thread time per frame than the game did before the visual work, which is kept as `tests/browser/baseline/before-visuals.html`. Squalls (rain) and Lantern Hour (lights) are the heaviest moments; check them too when you add effects.
   - Keep the map's caches working: anything that doesn't change every frame belongs in a cached layer or sprite.
   - Panels over the map use hard edges, not big soft `box-shadow`s, which measurably slowed the phone.
+  - Adaptive quality (`QUAL` in `03c-life.js`): when frames stay slower than about 38 fps, rain, wind, smoke, sparks, sparkles and the guest crowd thin out in steps, and they come back when frames are quick again. Never thin anything that carries game information.
+  - Caps: particles (`PMAX`), lanterns, pops, pings and bursts. At most four ride images repaint per frame (`spriteBudget`). The composed ground recomposes at most every 0.6 s for light changes.
+  - `design/profile.js` profiles the heaviest moments (busy afternoon, squall, dusk, closing) on a mid and a low phone against the original game. Run it after adding effects.
 - **The tests find things through hooks.** These include `window.LF` and `window.LFUI`, the `data-a` button names, and element ids such as `#rail`, `#board`, `#selp`, `#obj`, `#coach` and `#map`. If you rename any of them, update `tests/browser/` in the same change.
 
 ## Before calling a change done

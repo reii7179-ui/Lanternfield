@@ -39,8 +39,6 @@
 
 /* ---------- feedback (phase 4): a breakdown is felt, streaks build, the night and the season get their moment ---------- */
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-/* a major breakdown: a red glow round the edge of the map for a moment (animated from JS, never with reduced motion) */
-.edgeflash{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,70,50,0) 45%,rgba(255,70,50,.62) 100%)}
 /* the streak: six pips up to the bonus cap, warmer as it builds */
 .spips{display:flex;gap:2px;margin-top:2px}
 .spips i{flex:1;height:3px;border-radius:2px;background:var(--raise);transition:background-color .25s}

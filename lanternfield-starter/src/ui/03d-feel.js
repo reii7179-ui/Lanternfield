@@ -18,10 +18,14 @@ function burst(r, col, grow, dur, w) { if (!reduce) FEEL.bursts.push({ x: r.x, y
 function sparkle(r, cols, n, speed, kind) {
   for (let i = 0; i < n; i++) { const a = Math.random() * TAU, v = speed * (.45 + Math.random() * .7); emit(kind, r.x + Math.cos(a) * 14, r.y - 12 + Math.sin(a) * 10, Math.cos(a) * v, Math.sin(a) * v - 30, .7 + Math.random() * .5, kind === 'coin' ? 2.6 : 2, cols[i % cols.length]); }
 }
-function edgeFlash() { // a red glow round the edge of the map, in and out in under half a second
-  let el = FEEL.flash;
-  if (!el) { el = FEEL.flash = document.createElement('div'); el.className = 'edgeflash'; el.setAttribute('aria-hidden', 'true'); $('app').insertBefore(el, $('top')); }
-  el.animate([{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 0 }], { duration: 440, easing: 'ease-out' });
+function edgeFlash() { FEEL.flashT = performance.now(); } // a red glow round the edge of the map, in and out in under half a second
+// drawn on the map as four bands along the edges: cheaper than a full-screen overlay the browser has to blend every frame
+function drawEdgeFlash(now) {
+  const k = (now - (FEEL.flashT || -1e9)) / 440; if (k < 0 || k >= 1 || reduce) return;
+  const a = k < .2 ? k / .2 : 1 - (k - .2) / .8, d = Math.min(cw, ch) * .16, red = x => `rgba(255,70,50,${x})`;
+  for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, 0, d, 0, 0, cw, d], [0, ch, 0, ch - d, 0, ch - d, cw, d], [0, 0, d, 0, 0, 0, d, ch], [cw, 0, cw - d, 0, cw - d, 0, d, ch]]) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, red(.55 * a)); g.addColorStop(1, red(0)); ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
+  }
 }
 // where the map is pushed this frame by a shake: a few quick, shrinking jolts over 0.3 s
 function shakeNow(now) {

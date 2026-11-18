@@ -6,9 +6,9 @@
 const fs = require('fs'), path = require('path');
 const { launch, openGame } = require('../tests/browser/lib.js');
 const ROOT = path.join(__dirname, '..'), RUNS = +(process.argv[2] || 2);
-const BUILDS = { before: path.join(ROOT, 'tests/browser/baseline/before-visuals.html'), now: path.join(ROOT, 'index.html') };
-const PHONES = { mid: { width: 390, height: 844, dpr: 3, cpu: 4 }, low: { width: 360, height: 640, dpr: 2, cpu: 6 } };
-const MOMENTS = { afternoon: 'day', squall: 'squall', dusk: 1100, closing: 1310 };
+const BUILDS = process.env.FILES ? Object.fromEntries(process.env.FILES.split(',').map(f => [path.basename(f, '.html'), path.resolve(f)])) : { before: path.join(ROOT, 'tests/browser/baseline/before-visuals.html'), now: path.join(ROOT, 'index.html') };
+const PHONES = Object.fromEntries(Object.entries({ mid: { width: 390, height: 844, dpr: 3, cpu: 4 }, low: { width: 360, height: 640, dpr: 2, cpu: 6 } }).filter(([k]) => !process.env.PHONES || process.env.PHONES.split(',').includes(k)));
+const MOMENTS = Object.fromEntries(Object.entries({ afternoon: 'day', squall: 'squall', dusk: 1100, closing: 1310 }).filter(([k]) => !process.env.MOMENTS || process.env.MOMENTS.split(',').includes(k)));
 const players = fs.readFileSync(path.join(ROOT, 'tests/engine/players.js'), 'utf8').replace('return { season, PLAYERS };', 'return { season, PLAYERS, plan, dispatch, answerAll, seatPlay };').replace("'use strict';", '').replace('module.exports = function makePlayers(L)', 'window.__makePlayers = function makePlayers(L)');
 async function one(file, phone, moment) {
   const browser = await launch(), { page } = await openGame(browser, { width: phone.width, height: phone.height, dpr: phone.dpr, touch: true, file });
@@ -40,6 +40,6 @@ async function one(file, phone, moment) {
     for (let i = 0; i < RUNS; i++) for (const [bn, file] of Object.entries(BUILDS)) (res[bn] = res[bn] || []).push(await one(file, phone, moment));
     const med = (a, k) => a.map(x => x[k]).sort((x, y) => x - y)[Math.floor(a.length / 2)];
     for (const bn of Object.keys(BUILDS)) rows.push([pn, mn, bn, med(res[bn], 'avg'), med(res[bn], 'p95'), med(res[bn], 'over50'), med(res[bn], 'main')]);
-    console.log(rows.slice(-2).map(r => `${r[0].padEnd(4)} ${r[1].padEnd(10)} ${r[2].padEnd(7)} fps ${(1000 / r[3]).toFixed(1).padStart(5)}  avg ${r[3].toFixed(1).padStart(5)} ms  slowest 5% ${r[4].toFixed(1).padStart(5)} ms  stutters ${String(r[5]).padStart(3)}  main ${r[6].toFixed(1).padStart(5)} ms`).join('\n'));
+    console.log(rows.slice(-Object.keys(BUILDS).length).map(r => `${r[0].padEnd(4)} ${r[1].padEnd(10)} ${r[2].padEnd(7)} fps ${(1000 / r[3]).toFixed(1).padStart(5)}  avg ${r[3].toFixed(1).padStart(5)} ms  slowest 5% ${r[4].toFixed(1).padStart(5)} ms  stutters ${String(r[5]).padStart(3)}  main ${r[6].toFixed(1).padStart(5)} ms`).join('\n'));
   }
 })().catch(e => { console.error(e); process.exit(1); });

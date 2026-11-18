@@ -6,7 +6,18 @@
 const VIS = { run: false, ride: {}, crew: {}, lit: {}, last: 0 };
 const RIDE_SPEED = { tide: .09, night: .11, mine: .07, light: .045, boats: .025, flume: .05, carou: .035, gond: .02, wheel: .012, arcade: .2, food: .12, play: .1, wsub: .1, esub: .1 }; // turns per park minute at full speed
 const PMAX = 260, parts = []; // the particle pool, capped
-function emit(k, x, y, vx, vy, life, size, col) { if (reduce || parts.length >= PMAX) return; parts.push({ k, x, y, vx, vy, t: 0, life, size, col }); }
+/* adaptive quality: on a device that cannot keep up (frames slower than about 38 fps for a second and a half) the
+   decoration thins out in steps: fewer rain drops, smoke puffs, sparks and guests. When frames are quick again for a
+   while it comes back. Rings, badges, people, status words and everything else that tells you about the game never change. */
+const QUAL = { q: 1, ema: 16.7, slow: 0, fast: 0 };
+function qualityTick(ms) {
+  if (!(ms > 0) || ms > 250 || document.hidden) return;
+  QUAL.ema += (ms - QUAL.ema) * .06;
+  if (QUAL.ema > 26) { QUAL.slow += ms; QUAL.fast = 0; if (QUAL.slow > 1500 && QUAL.q > .4) { QUAL.q = Math.max(.4, QUAL.q - .2); QUAL.slow = 0; } }
+  else if (QUAL.ema < 19) { QUAL.fast += ms; QUAL.slow = 0; if (QUAL.fast > 6000 && QUAL.q < 1) { QUAL.q = Math.min(1, QUAL.q + .2); QUAL.fast = 0; } }
+  else QUAL.slow = QUAL.fast = 0;
+}
+function emit(k, x, y, vx, vy, life, size, col) { if (reduce || parts.length >= PMAX * QUAL.q || Math.random() > QUAL.q) return; parts.push({ k, x, y, vx, vy, t: 0, life, size, col }); }
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 // squalls, from the engine's waves: wind builds for half an hour before one hits, then rain for about half an hour
@@ -30,11 +41,11 @@ function lifeStep(dt, pm, n, wx) {
     if (reduce || !pm) continue;
     // a broken ride: smoke for mechanical faults, sparks for electrical ones (a control fault flashes a lamp instead)
     if (j && j.type === 'fault' && (st === 'down' || st === 'degraded')) {
-      v.puff += dt * (st === 'down' ? 7 : 2.5);
+      v.puff += dt * (st === 'down' ? 4.5 : 1.5); // a squall can close several rides at once: keep the smoke light
       while (v.puff >= 1) {
         v.puff--;
         if (j.trade === 'mech') emit('smoke', r.x + rnd(-14, 14), r.y - rnd(8, 26), rnd(-3, 3) + wx * 20, rnd(-22, -12), rnd(1.8, 2.8), rnd(3, 5), n > .5 ? '#7f84a8' : '#c9ccd8');
-        else if (j.trade === 'elec') for (let i = 0; i < 4; i++) emit('spark', r.x + rnd(-10, 10), r.y - rnd(10, 24), rnd(-45, 45), rnd(-55, -10), rnd(.25, .5), 1.2, Math.random() < .5 ? '#fff4c2' : '#ffd25a');
+        else if (j.trade === 'elec') for (let i = 0; i < 3; i++) emit('spark', r.x + rnd(-10, 10), r.y - rnd(10, 24), rnd(-45, 45), rnd(-55, -10), rnd(.25, .5), 1.2, Math.random() < .5 ? '#fff4c2' : '#ffd25a');
       }
     }
     // a lantern goes up the moment a ride earns it at Lantern Hour
@@ -58,17 +69,17 @@ function drawWeather(w, t, dt) {
   if (reduce || (!w.rain && w.wind < .2)) return;
   const x0 = -ox / sc, y0 = -oy / sc, vw = cw / sc, vh = ch / sc, gust = w.wind * (1 + .3 * Math.sin(t * 1.7));
   if (w.rain > 0) {
-    const nDrops = Math.round(200 * w.rain * Math.min(1.6, vw * vh / 6e5)), len = 15, dx = gust * 7;
+    const nDrops = Math.round(70 * QUAL.q * w.rain * Math.min(1.3, vw * vh / 6e5)), len = 20, dx = gust * 8; // enough to read as rain: in a squall every stroke costs on a phone
     ctx.beginPath();
     for (let i = 0; i < nDrops; i++) { // each drop falls on its own track, so no state is needed
       const s = (i * 9301 + 49297) % 233280 / 233280, u = (i * 4271 + 1237) % 99991 / 99991, f = ((t * (1.6 + s)) + u) % 1;
       const x = x0 + ((s * vw + f * dx * 40) % vw), y = y0 + f * (vh + 40) - 20; ctx.moveTo(x, y); ctx.lineTo(x + dx, y + len);
     }
-    ctx.strokeStyle = 'rgba(214,230,255,.6)'; ctx.lineWidth = 1.6 / Math.min(1, sc); ctx.stroke();
+    ctx.strokeStyle = 'rgba(214,230,255,.62)'; ctx.lineWidth = 1.9 / Math.min(1, sc); ctx.stroke();
   }
   if (w.wind > .2) {
     ctx.beginPath();
-    for (let i = 0; i < 14; i++) { const s = (i * 7919) % 101 / 101, f = (t * (.25 + s * .2) * (.6 + gust) + s) % 1, x = x0 - 120 + f * (vw + 240), y = y0 + ((i * 0.618) % 1) * vh; ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 40, y - 4, x + 90, y + 2); }
+    for (let i = 0, nw = Math.round(8 * QUAL.q); i < nw; i++) { const s = (i * 7919) % 101 / 101, f = (t * (.25 + s * .2) * (.6 + gust) + s) % 1, x = x0 - 120 + f * (vw + 240), y = y0 + ((i * 0.618) % 1) * vh; ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 40, y - 4, x + 90, y + 2); }
     ctx.strokeStyle = `rgba(230,240,255,${.12 + .15 * w.wind})`; ctx.lineWidth = 1.2 / sc; ctx.stroke();
   }
 }
