@@ -18,7 +18,7 @@ async function runSeat(browser, seat) {
   await page.click('[data-a=go]'); await page.waitForTimeout(400);
   await page.evaluate(() => LFUI.act('speed', { v: 2 }));
   const info = () => page.evaluate(() => { const c = LFUI.ui.coach; return { clock: LFUI.state.clock, i: c ? c.i : null, at: c ? c.at : null, txt: document.getElementById('coach').innerText.replace(/\s+/g, ' '), waiting: document.getElementById('b-pause').textContent === 'Waiting', unit: LFUI.ui.coachUnit, ride: LFUI.ui.coachRide, btn: !!document.querySelector('#coach [data-a=coachnext]') }; });
-  const seen = new Set(); let held = 0; const t0 = Date.now(), limit = DESK ? 240e3 : 120e3;
+  const seen = new Set(); let held = 0; const t0 = Date.now(), limit = DESK ? 300e3 : 180e3; // the morning before the gates, and the active-seat lessons, make the coached day longer
   while (Date.now() - t0 < limit) {
     const s = await info();
     if (s.i === null && !DESK) break;
@@ -35,7 +35,7 @@ async function runSeat(browser, seat) {
       } else if (seat === 'mgr' && /rush job/i.test(s.txt) && s.ride) { await page.click(`#board [data-id="${s.ride}"]`, { timeout: 1500 }); await page.keyboard.press('r'); }
       else if (seat === 'tech' && s.at !== null) {
         let did = false;
-        for (const q of ['#obj [data-a=ans][data-v=go]', '[data-a=lock]', '[data-a=dx]']) { const l = page.locator(q); if (await l.count()) { await l.first().click({ timeout: 1500 }); did = true; break; } }
+        for (const q of ['#obj [data-a=ans][data-v=go]', '[data-a=lock]', '[data-a=dx]', '[data-a=fit][data-v=test]', '[data-a=padoff]']) { const l = page.locator(q); if (await l.count()) { await l.first().click({ timeout: 1500 }); did = true; break; } }
         if (!did && s.btn) await page.click('#coach [data-a=coachnext]', { timeout: 1500 });
       } else if (s.btn) await page.click('#coach [data-a=coachnext]', { timeout: 1500 });
       else if (/request|decision for you/i.test(s.txt)) { const l = page.locator('#obj [data-a=ans]:not([disabled])'); if (await l.count()) await l.first().click({ timeout: 1500 }); }

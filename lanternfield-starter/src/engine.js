@@ -1346,6 +1346,10 @@ const REQ = {
     pick: () => 'std',
     res(s, it, v, who) { if (v !== 'std') { s.cdq.reorder = s.clock + 120; return ''; } let n = 0; for (const [k, m] of lowStock(s)) for (let i = 0; i < m; i++) if (order(s, k, 'std') === true) n++;
       return n ? `${Who(who, 'approved')} the stores reorder: ${n} item${n > 1 ? 's' : ''}, in tomorrow morning.` : ''; } },
+  rules: { lvl: 'mgr', def: 'keep', ai: false,
+    opts: s => polAligned(s) ? [OPT('keep', 'Confirm the rules', `They fit today's priority: ${FOCUS[s.focus].toLowerCase()}`, true)] : [OPT('align', 'Align the rules', `To today's priority: ${FOCUS[s.focus].toLowerCase()}`, true), OPT('keep', 'Keep them', 'The crew work against the priority today')],
+    pick: s => polAligned(s) ? 'keep' : 'align',
+    res(s, it, v, who) { if (v === 'align') { alignRules(s); return `${Who(who, 'set')} the supervisor's rules to today's priority: ${FOCUS[s.focus].toLowerCase()}.`; } return who === 'You' ? '' : `${who} confirmed the supervisor's rules.`; } },
   svcplan: { lvl: 'mgr', def: 'any', stale: s => s.phase !== 'day',
     opts: s => [OPT('worst', 'The three in worst shape', planFor(s, 'worst').map(r => r.short).join(', ') || 'none needed', true), OPT('busy', 'The busiest three', planFor(s, 'busy').map(r => r.short).join(', ') || 'none needed'), OPT('none', 'No planned services', 'All hands for breakdowns tomorrow')],
     pick: () => 'worst',
@@ -1418,7 +1422,7 @@ const REQ = {
 /* ---------- three kinds of decision ----------
    Operational: daily, guided by procedure and experience, at the front line. Tactical: middle management turning the direction into action.
    Strategic: executive, long-term, high stakes, touching staff, guests, suppliers and neighbours at once. */
-const DTYPE = { push: 'op', regulator: 'str', boardq: 'str', morning: 'tac', dispute: 'tac', cover: 'tac', reorder: 'tac', svcplan: 'tac', sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
+const DTYPE = { rules: 'tac', push: 'op', regulator: 'str', boardq: 'str', morning: 'tac', dispute: 'tac', cover: 'tac', reorder: 'tac', svcplan: 'tac', sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
 const STRATEGY = { uptime: ['The park that never stops', 'Guests spend 3% more. Managers lean towards paying to keep rides open.'], cost: ['Lean and profitable', 'Overheads 5% lower. Managers lean towards waiting and saving.'], safety: ['The safest park on the coast', 'Fines 40% smaller. Managers lean towards services and no patches.'] };
 // which choices pull with which priority; a call that pulls against today's priority is wasted effort
 const ALIGN = {
@@ -1429,6 +1433,8 @@ const ALIGN = {
   budget: { ok: ['uptime', 'safety'], hold: ['cost'] },
   heat: { yes: ['uptime', 'safety'], no: ['cost'] },
 };
+// the manager's morning meeting with the supervisor: set the rules they work to so they pull with the day's priority
+function alignRules(s) { const P = s.pol; if (s.focus === 'uptime') P.nopart = 'express'; else { if (P.nopart === 'express' || (s.focus === 'safety' && P.nopart === 'patch')) P.nopart = 'wait'; if (s.focus === 'safety' && +P.pm < 55) P.pm = 55; } }
 const polAligned = s => { const P = s.pol; return s.focus === 'uptime' ? P.nopart === 'express' : s.focus === 'cost' ? P.nopart !== 'express' : P.nopart !== 'patch' && +P.pm >= 55; };
 function setStrategy(s, k) {
   if (!STRATEGY[k] || s.phase !== 'plan' || k === s.strategy) return false;
@@ -1517,7 +1523,7 @@ function escalate(s, it, why) { // why: 'late' ran out of time, 'full' inbox ful
     const dc = Math.min(9, 3 + 2 * ((sc.mrun || 1) - 1)), v = BOARD_PICK[it.k] || Q.def; let txt = '';
     try { txt = Q.res(s, it, v, 'The board', true); } catch (e) { txt = ''; }
     s.conf = clamp(s.conf - dc, 0, 100);
-    log(s, `${why === 'late' ? 'No answer from you in time' : 'Your desk was full'}: the board decided ${what} without you, and not the way you would have. Board confidence −${dc}.${txt ? ' ' + txt : ''}`, 'bad');
+    log(s, `${why === 'late' ? 'No answer from you in time' : 'Your desk was full'}: ${what} was escalated to the board, which decided without you, and not the way you would have. Board confidence −${dc}.${txt ? ' ' + txt : ''}`, 'bad');
     fx(s, 'warn', it.rid || null, 'Board decided'); return;
   }
   it.h = x; it.escTo = x; it.escAt = s.clock;
@@ -1637,6 +1643,7 @@ function requests(s) {
       j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), cs: 1, from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
     }
   }
+  if (s.clock === PRE + 5 && handler(s, 'mgr') === s.seat) raise(s, 'rules', { from: holder(s, 'sup'), due: OPEN, txt: polAligned(s) ? `Morning meeting. Today's priority is ${FOCUS[s.focus].toLowerCase()}, and the rules I work to fit it. Confirm them?` : `Morning meeting. Today's priority is ${FOCUS[s.focus].toLowerCase()}, but the rules I work to pull against it. Align them?` });
   if (s.clock === PRE + 3) { const y = s.reports[s.reports.length - 1]; // the director's morning review: yesterday's numbers, today's priority
     raise(s, 'morning', { from: 'The morning review', due: OPEN, txt: y ? `Yesterday: uptime ${Math.round(y.up * 100)}%, ${y.faults} faults, ${fmtMoney(y.net)} net, maintenance spend ${fmtMoney(y.spend)} against a budget of ${fmtMoney(y.budget)}. Today's priority?` : 'The first day of the season. Set today\'s priority for the managers before the gates open.' }); }
   if (s.clock >= 660 && s.clock <= 960 && s.clock % 20 === 0 && !s.d.dispQ) { // Operations against Engineering: a worn ride, the afternoon peak coming

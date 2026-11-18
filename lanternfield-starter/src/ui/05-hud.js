@@ -84,12 +84,14 @@ const SEATTIP = {
   dir: () => 'Set the priority and the budget here; managers work to them. On a bad day, bring in agency crew or make a breakdown a rush job (R). Disputes and big spends come to your inbox, top left.',
   ceo: () => 'The board, the press and anything nobody below you can decide come to your inbox, top left. When a big ride closes, goodwill vouchers stop it hurting the glow, and a rush job (R) gets it fixed first. Empty posts push more work up to you: fill them at the desk.',
 };
+// the seeded style of the person above you this season
+const bossNote = () => { const bx = L.above(S, S.seat), st = bx !== 'board' && S.styles && S.styles[bx]; return st ? `<p class="note boss"><b>Your boss, ${esc(lc(L.holder(S, bx)))}: ${esc(L.STYLE[st][0].toLowerCase())}.</b> ${esc(L.STYLE[st][1])}.</p>` : ''; };
 function selPark() {
   const x = S.seat === 'tech' ? 'sup' : S.seat, R0 = ROLE[S.seat], day = S.phase === 'day', faults = S.rides.filter(r => r.job && r.job.type === 'fault').length, free = S.crew.filter(c => c.on && c.role === 'tech' && !c.target).length;
   const boss = S.seat === 'ceo' ? 'the board' : lc(L.holder(S, L.BOSS[S.seat]));
   const hd = shead(`<span class="av" style="--c:var(--lantern)" aria-hidden="true">${R0.short[0]}</span>`, `You: ${R0.title}`, `${R0.lvl} · answers to ${esc(boss)}`, false);
   let info = '', cm = '';
-  { const bx = L.above(S, S.seat === 'tech' ? 'tech' : S.seat), st = bx !== 'board' && S.styles && S.styles[bx]; if (st) info += `<p class="note boss"><b>Your boss, ${esc(lc(L.holder(S, bx)))}: ${esc(L.STYLE[st][0].toLowerCase())}.</b> ${esc(L.STYLE[st][1])}.</p>`; } // learn to work with them
+  info += bossNote(); // learn to work with them
   const up = day && S.d.upT ? S.d.upW / S.d.upT : null, chip = (t, c) => `<span class="chip c-${c}">${t}</span>`;
   if (day) {
     const row = [];
@@ -153,6 +155,7 @@ function selOther(c) { // a colleague, seen from the technician's seat
 function selMe(c) { // you, the technician
   const day = S.phase === 'day', r = c.target && L.ride(S, c.target), j = r && r.job, busy = ['prep', 'lock', 'diag', 'check', 'hurt'].includes(c.state);
   let info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span><span class="chip c-${c.morale >= 55 ? 'ok' : c.morale >= 30 ? 'warn' : 'bad'}">Morale ${Math.round(c.morale)}</span><span class="chip c-${S.comp < 45 ? 'ok' : S.comp < 60 ? 'warn' : 'bad'}">Alertness ${100 - Math.round(S.comp)}</span></div><div class="row sk">${skillsHTML(c)}</div>`, cm = '';
+  if (!day || !c.target) info += bossNote(); // between jobs: who you work for this season
   if (!day) info += '<p class="note">Between days the managers plan. Look at the desk to see what they decided last night.</p>';
   else if (!c.on) info += `<div class="warnbox c-dim">${c.sick ? 'You are off sick today.' : S.clock < L.SHIFT[c.shift][0] ? `Your shift starts at ${fmtClock(L.SHIFT[c.shift][0])}. Watch, or speed up the clock.` : 'Your shift is over. Watch the park, speed up the clock, or take another seat for the evening.'}</div>`;
   else if (c.state === 'hurt') info += `<div class="warnbox c-bad"><b>Hurt.</b> First aid, back in ${c.hurt - S.clock} min.</div>`;

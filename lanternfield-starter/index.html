@@ -2118,6 +2118,10 @@ const REQ = {
     pick: () => 'std',
     res(s, it, v, who) { if (v !== 'std') { s.cdq.reorder = s.clock + 120; return ''; } let n = 0; for (const [k, m] of lowStock(s)) for (let i = 0; i < m; i++) if (order(s, k, 'std') === true) n++;
       return n ? `${Who(who, 'approved')} the stores reorder: ${n} item${n > 1 ? 's' : ''}, in tomorrow morning.` : ''; } },
+  rules: { lvl: 'mgr', def: 'keep', ai: false,
+    opts: s => polAligned(s) ? [OPT('keep', 'Confirm the rules', `They fit today's priority: ${FOCUS[s.focus].toLowerCase()}`, true)] : [OPT('align', 'Align the rules', `To today's priority: ${FOCUS[s.focus].toLowerCase()}`, true), OPT('keep', 'Keep them', 'The crew work against the priority today')],
+    pick: s => polAligned(s) ? 'keep' : 'align',
+    res(s, it, v, who) { if (v === 'align') { alignRules(s); return `${Who(who, 'set')} the supervisor's rules to today's priority: ${FOCUS[s.focus].toLowerCase()}.`; } return who === 'You' ? '' : `${who} confirmed the supervisor's rules.`; } },
   svcplan: { lvl: 'mgr', def: 'any', stale: s => s.phase !== 'day',
     opts: s => [OPT('worst', 'The three in worst shape', planFor(s, 'worst').map(r => r.short).join(', ') || 'none needed', true), OPT('busy', 'The busiest three', planFor(s, 'busy').map(r => r.short).join(', ') || 'none needed'), OPT('none', 'No planned services', 'All hands for breakdowns tomorrow')],
     pick: () => 'worst',
@@ -2190,7 +2194,7 @@ const REQ = {
 /* ---------- three kinds of decision ----------
    Operational: daily, guided by procedure and experience, at the front line. Tactical: middle management turning the direction into action.
    Strategic: executive, long-term, high stakes, touching staff, guests, suppliers and neighbours at once. */
-const DTYPE = { push: 'op', regulator: 'str', boardq: 'str', morning: 'tac', dispute: 'tac', cover: 'tac', reorder: 'tac', svcplan: 'tac', sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
+const DTYPE = { rules: 'tac', push: 'op', regulator: 'str', boardq: 'str', morning: 'tac', dispute: 'tac', cover: 'tac', reorder: 'tac', svcplan: 'tac', sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
 const STRATEGY = { uptime: ['The park that never stops', 'Guests spend 3% more. Managers lean towards paying to keep rides open.'], cost: ['Lean and profitable', 'Overheads 5% lower. Managers lean towards waiting and saving.'], safety: ['The safest park on the coast', 'Fines 40% smaller. Managers lean towards services and no patches.'] };
 // which choices pull with which priority; a call that pulls against today's priority is wasted effort
 const ALIGN = {
@@ -2201,6 +2205,8 @@ const ALIGN = {
   budget: { ok: ['uptime', 'safety'], hold: ['cost'] },
   heat: { yes: ['uptime', 'safety'], no: ['cost'] },
 };
+// the manager's morning meeting with the supervisor: set the rules they work to so they pull with the day's priority
+function alignRules(s) { const P = s.pol; if (s.focus === 'uptime') P.nopart = 'express'; else { if (P.nopart === 'express' || (s.focus === 'safety' && P.nopart === 'patch')) P.nopart = 'wait'; if (s.focus === 'safety' && +P.pm < 55) P.pm = 55; } }
 const polAligned = s => { const P = s.pol; return s.focus === 'uptime' ? P.nopart === 'express' : s.focus === 'cost' ? P.nopart !== 'express' : P.nopart !== 'patch' && +P.pm >= 55; };
 function setStrategy(s, k) {
   if (!STRATEGY[k] || s.phase !== 'plan' || k === s.strategy) return false;
@@ -2289,7 +2295,7 @@ function escalate(s, it, why) { // why: 'late' ran out of time, 'full' inbox ful
     const dc = Math.min(9, 3 + 2 * ((sc.mrun || 1) - 1)), v = BOARD_PICK[it.k] || Q.def; let txt = '';
     try { txt = Q.res(s, it, v, 'The board', true); } catch (e) { txt = ''; }
     s.conf = clamp(s.conf - dc, 0, 100);
-    log(s, `${why === 'late' ? 'No answer from you in time' : 'Your desk was full'}: the board decided ${what} without you, and not the way you would have. Board confidence −${dc}.${txt ? ' ' + txt : ''}`, 'bad');
+    log(s, `${why === 'late' ? 'No answer from you in time' : 'Your desk was full'}: ${what} was escalated to the board, which decided without you, and not the way you would have. Board confidence −${dc}.${txt ? ' ' + txt : ''}`, 'bad');
     fx(s, 'warn', it.rid || null, 'Board decided'); return;
   }
   it.h = x; it.escTo = x; it.escAt = s.clock;
@@ -2409,6 +2415,7 @@ function requests(s) {
       j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), cs: 1, from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
     }
   }
+  if (s.clock === PRE + 5 && handler(s, 'mgr') === s.seat) raise(s, 'rules', { from: holder(s, 'sup'), due: OPEN, txt: polAligned(s) ? `Morning meeting. Today's priority is ${FOCUS[s.focus].toLowerCase()}, and the rules I work to fit it. Confirm them?` : `Morning meeting. Today's priority is ${FOCUS[s.focus].toLowerCase()}, but the rules I work to pull against it. Align them?` });
   if (s.clock === PRE + 3) { const y = s.reports[s.reports.length - 1]; // the director's morning review: yesterday's numbers, today's priority
     raise(s, 'morning', { from: 'The morning review', due: OPEN, txt: y ? `Yesterday: uptime ${Math.round(y.up * 100)}%, ${y.faults} faults, ${fmtMoney(y.net)} net, maintenance spend ${fmtMoney(y.spend)} against a budget of ${fmtMoney(y.budget)}. Today's priority?` : 'The first day of the season. Set today\'s priority for the managers before the gates open.' }); }
   if (s.clock >= 660 && s.clock <= 960 && s.clock % 20 === 0 && !s.d.dispQ) { // Operations against Engineering: a worn ride, the afternoon peak coming
@@ -2917,7 +2924,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+0c7a4ae7', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+617f635f', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -4357,12 +4364,14 @@ const SEATTIP = {
   dir: () => 'Set the priority and the budget here; managers work to them. On a bad day, bring in agency crew or make a breakdown a rush job (R). Disputes and big spends come to your inbox, top left.',
   ceo: () => 'The board, the press and anything nobody below you can decide come to your inbox, top left. When a big ride closes, goodwill vouchers stop it hurting the glow, and a rush job (R) gets it fixed first. Empty posts push more work up to you: fill them at the desk.',
 };
+// the seeded style of the person above you this season
+const bossNote = () => { const bx = L.above(S, S.seat), st = bx !== 'board' && S.styles && S.styles[bx]; return st ? `<p class="note boss"><b>Your boss, ${esc(lc(L.holder(S, bx)))}: ${esc(L.STYLE[st][0].toLowerCase())}.</b> ${esc(L.STYLE[st][1])}.</p>` : ''; };
 function selPark() {
   const x = S.seat === 'tech' ? 'sup' : S.seat, R0 = ROLE[S.seat], day = S.phase === 'day', faults = S.rides.filter(r => r.job && r.job.type === 'fault').length, free = S.crew.filter(c => c.on && c.role === 'tech' && !c.target).length;
   const boss = S.seat === 'ceo' ? 'the board' : lc(L.holder(S, L.BOSS[S.seat]));
   const hd = shead(`<span class="av" style="--c:var(--lantern)" aria-hidden="true">${R0.short[0]}</span>`, `You: ${R0.title}`, `${R0.lvl} · answers to ${esc(boss)}`, false);
   let info = '', cm = '';
-  { const bx = L.above(S, S.seat === 'tech' ? 'tech' : S.seat), st = bx !== 'board' && S.styles && S.styles[bx]; if (st) info += `<p class="note boss"><b>Your boss, ${esc(lc(L.holder(S, bx)))}: ${esc(L.STYLE[st][0].toLowerCase())}.</b> ${esc(L.STYLE[st][1])}.</p>`; } // learn to work with them
+  info += bossNote(); // learn to work with them
   const up = day && S.d.upT ? S.d.upW / S.d.upT : null, chip = (t, c) => `<span class="chip c-${c}">${t}</span>`;
   if (day) {
     const row = [];
@@ -4426,6 +4435,7 @@ function selOther(c) { // a colleague, seen from the technician's seat
 function selMe(c) { // you, the technician
   const day = S.phase === 'day', r = c.target && L.ride(S, c.target), j = r && r.job, busy = ['prep', 'lock', 'diag', 'check', 'hurt'].includes(c.state);
   let info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span><span class="chip c-${c.morale >= 55 ? 'ok' : c.morale >= 30 ? 'warn' : 'bad'}">Morale ${Math.round(c.morale)}</span><span class="chip c-${S.comp < 45 ? 'ok' : S.comp < 60 ? 'warn' : 'bad'}">Alertness ${100 - Math.round(S.comp)}</span></div><div class="row sk">${skillsHTML(c)}</div>`, cm = '';
+  if (!day || !c.target) info += bossNote(); // between jobs: who you work for this season
   if (!day) info += '<p class="note">Between days the managers plan. Look at the desk to see what they decided last night.</p>';
   else if (!c.on) info += `<div class="warnbox c-dim">${c.sick ? 'You are off sick today.' : S.clock < L.SHIFT[c.shift][0] ? `Your shift starts at ${fmtClock(L.SHIFT[c.shift][0])}. Watch, or speed up the clock.` : 'Your shift is over. Watch the park, speed up the clock, or take another seat for the evening.'}</div>`;
   else if (c.state === 'hurt') info += `<div class="warnbox c-bad"><b>Hurt.</b> First aid, back in ${c.hurt - S.clock} min.</div>`;
@@ -4730,6 +4740,14 @@ ${S.phase === 'day' && S.gates ? '<p class="note" style="color:var(--lantern)">T
 <p class="note">The priority steers every manager: with uptime first they pay for express parts and contractors, with costs first they wait for stock, with safety first nobody patches. The maintenance budget covers crew wages, overtime, parts and contractors, and the Engineering Manager is judged against it.</p></div>`;
 }
 const KC = { ok: 'jade', warn: 'lantern', bad: 'ember', dim: 'ink' };
+// the mistakes on each seat card, as the end screen counts them
+const MISTAKES = {
+  tech: [['skip', 'Lockouts skipped'], ['guess', 'Causes guessed, not checked'], ['quiet', 'Long jobs gone quiet on'], ['gaveIn', 'Gave in to a push to cut a corner']],
+  sup: [['took', 'Jobs you took on yourself'], ['wrong', 'Wrong person on a safety-critical job'], ['otYes', 'Overtime requests you said yes to'], ['padPull', 'People pulled off with their padlock on']],
+  mgr: [['budIgnored', 'Spending approved over budget, not a priority'], ['oneTrade', 'Days one person carried a whole trade']],
+  dir: [['prio', 'Priority changed after the gates opened'], ['overOk', 'Overspends approved'], ['vipLate', 'Disputes settled after the VIP arrived']],
+  ceo: [['spin', 'Times you told the board what it wanted to hear'], ['empty', 'Key-post days left empty'], ['floor', 'Times you ran the shift from the boardroom']],
+};
 function seatKPIs(x) {
   const c = S.sc[x], pct = (a, b) => b ? Math.round(a / b * 100) : null, P = v => v == null ? '·' : v + '%';
   const rate = (v, good, ok, low) => v == null ? 'dim' : (low ? v <= good : v >= good) ? 'ok' : (low ? v <= ok : v >= ok) ? 'warn' : 'bad';
@@ -4741,7 +4759,10 @@ function seatKPIs(x) {
   if (x === 'mgr' || x === 'dir') { const b = pct(c.budOk, c.days); out.push(['Days on budget', P(b), rate(b, 70, 40)]); }
   if (x === 'mgr' && c.days) { const m = Math.round(c.moraleSum / c.days); out.push(['Crew morale at closing', m, rate(m, 55, 35)]); }
   if (x === 'ceo' && c.days) out.push(['Profit on your days', fmtMoney(c.netSum), c.netSum >= 0 ? 'ok' : 'bad'], ['Board confidence change', ((c.confD || 0) > 0 ? '+' : '') + (c.confD || 0), (c.confD || 0) >= 0 ? 'ok' : 'bad']);
-  out.push(['Requests answered in time', P(dec), rate(dec, 85, 60)]);
+  out.push(['Requests answered in time', P(dec), rate(dec, 85, 60)], ['On time / missed / escalated', `${c.onTime} / ${c.missed} / ${c.esc || 0}`, c.missed ? (c.missed > 5 ? 'bad' : 'warn') : 'ok']);
+  if (x === 'tech') out.push(['Daily checks done / missed', `${c.chk || 0} / ${c.chkMiss || 0}`, c.chkMiss ? 'warn' : 'ok'], ['Signed fit to run / without a test run', `${c.fit || 0} / ${c.noTest || 0}`, c.noTest ? 'warn' : 'ok']);
+  if (x === 'sup' || x === 'mgr' || x === 'dir') out.push(['Countersigns: signed / sent back / missed', `${c.csSign || 0} / ${c.csBack || 0} / ${c.csMiss || 0}`, c.csMiss || c.csStamp ? 'warn' : 'ok']);
+  for (const [k, label] of MISTAKES[x] || []) { const n = c[k] || 0; out.push([label, n, n ? (n > 3 ? 'bad' : 'warn') : 'ok']); }
   out.push(['Decisions: operational / tactical / strategic', `${c.op} / ${c.tac} / ${c.str}`, 'dim']);
   if (x === 'tech') out.push(['Procedures checked', c.proc || 0, 'dim']);
   if (x === 'sup' || x === 'mgr' || x === 'dir') { const a = pct(c.al, c.al + c.mis); out.push(['Calls in line with the priority', P(a), rate(a, 80, 55)]); }
@@ -4852,7 +4873,7 @@ function finalHTML() {
   let kk = 0; const kpi = (n, v, max, txt) => `<div class="kpi" style="--k:${kk++}"><span>${n}<br><span class="dim">${txt}</span></span><div class="bar c-${v / max >= .8 ? 'ok' : v / max >= .5 ? 'warn' : 'bad'}"><span style="width:${Math.round(v / Math.max(1e-9, max) * 100)}%"></span></div><b class="num" style="text-align:right">${Math.round(v)} / ${max}</b></div>`;
   return `<div class="scrim soft final"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="f-t">
 <div class="row" style="gap:24px;align-items:flex-end"><div class="grade" aria-hidden="true">${f.grade}</div><div style="flex:1;min-width:220px"><h2 class="title" id="f-t" style="font-size:clamp(28px,5vw,44px)">${verdict}</h2><p class="lede">${f.broke ? 'The overdraft passed $20,000 and the bank called it in.' : f.fired ? 'Their confidence in you ran out before the season did.' : `<span class="cnt" aria-hidden="true" style="--to:${f.total};--dur:1.3s;--delay:.55s;--ease:cubic-bezier(.2,.8,.3,1)"></span><span class="sr">${f.total}</span> points out of 100. You ended with ` + f.heads + ' people on the payroll.'}</p><p class="note">${L.DIFF[f.diff || 'standard'].name} difficulty.</p></div></div>
-${f.own ? `<div class="own"><div class="row" style="justify-content:space-between"><b>How the score is made</b><span class="num">Company ${f.company} × 80% + your own work ${Math.round(f.own.p * 20)} / 20 = ${f.total}</span></div><p class="note">Your own work is judged in the seat you spent most of the season in: ${ROLE[f.own.seat].title.toLowerCase()}.</p><div class="sect" style="gap:8px">${f.own.parts.map(([n, w, v]) => kpi(n, v * w * 20, Math.round(w * 20), Math.round(v * 100) + '%')).join('')}</div></div>` : ''}
+${f.own ? `<div class="own"><div class="row" style="justify-content:space-between"><b>How the score is made</b><span class="num">Company ${f.company} × 80% + your own work ${Math.round(f.own.p * 20)} / 20 = ${f.total}</span></div><p class="note">Your own work is judged in the seat you spent most of the season in: ${ROLE[f.own.seat].title.toLowerCase()}.${f.own.mist > 0 ? ` Mistakes on the seat card cost you ${(f.own.mist * 20).toFixed(1)} of the 20 (counted under The seats you played).` : ''}</p><div class="sect" style="gap:8px">${f.own.parts.map(([n, w, v]) => kpi(n, v * w * 20, Math.round(w * 20), Math.round(v * 100) + '%')).join('')}</div></div>` : ''}
 <div class="sect" style="gap:12px">${kpi('Uptime', f.pts.up, 20, Math.round(f.up * 100) + '% across the season')}${kpi('Profit after tax', f.pts.net, 30, fmtMoney(f.net) + ' after ' + fmtMoney(f.tax) + ' tax and a ' + fmtMoney(f.auditFee) + ' audit')}${kpi('Lanterns', f.pts.lit, 20, f.lit + ' of ' + L.N_RIDES * L.DAYS)}${kpi('Safety', f.pts.safe, 15, f.patches + ' patches, ' + f.tags + ' red tags')}${kpi('Board confidence', f.pts.conf, 15, f.conf + ' out of 100')}</div>
 <div class="days" style="grid-template-columns:repeat(${S.reports.length},minmax(0,1fr))">${S.reports.map(r => `<div><b>${r.n}</b><span style="height:${r.n / L.N_RIDES * 100}%"></span>${L.dow(r.day).slice(0, 2)}</div>`).join('')}</div>
 <p class="note">The company score (out of 100) is above. Grades: A from 85, B from 70, C from 55. Full company marks need 95% uptime, ${fmtMoney(100000)} profit after tax, 160 lanterns, no patches and a confident board.</p>
@@ -4929,10 +4950,17 @@ const CR = () => ui.coach && ui.coach.rid && L.ride(S, ui.coach.rid);
 const openFault = (skipTrade) => S.rides.filter(r => r.job && r.job.type === 'fault' && !sentTo(r.id) && techOn(r.job.trade).length && r.job.trade !== skipTrade).sort((a, b) => a.job.t0 - b.job.t0)[0];
 const gapNow = () => { // a trade with nobody on shift right now, and someone off shift who could be called in
   for (const tr of Object.keys(L.TRADES)) { if (techOn(tr).length) continue; const c = S.crew.find(c => c.role === 'tech' && !c.on && !c.temp && !c.agency && !c.sick && !c.inAt && c.skills[tr] && c.shift !== 'full'); if (c) return { tr, c }; } return null; };
+const signWait = x => S.rides.find(r => r.so && !r.so.esc && ['sup', 'mgr', 'dir'].includes(r.so.steps[r.so.i]) && L.soSigner(S, r.so.steps[r.so.i], r.so) === x);
+const SEATWORD = { sup: 'the supervisor', mgr: 'the manager', dir: 'the director', ceo: 'the chief executive', board: 'the board' };
+const bossLine = x => { const b = L.above(S, x), st = b !== 'board' && L.styleOf(S, b); return st ? `Your boss this season, ${SEATWORD[b]}, is a ${L.STYLE[st][0].toLowerCase()}: ${L.STYLE[st][1].charAt(0).toLowerCase() + L.STYLE[st][1].slice(1)}. It is on your seat card.` : ''; };
+const traitLine = () => { const t = S.crew.find(c => c.role === 'tech' && !c.temp && c.traits && c.traits.length); return t ? `Everyone has a trait or two, on their card. ${esc(t.name)}: ${L.TRAIT[t.traits[0]][0].toLowerCase()}. ${L.TRAIT[t.traits[0]][1]}.` : 'Everyone has a trait or two, on their card.'; };
+const ESCTXT = () => { const x = L.above(S, S.seat); return `Answer before its timer runs out, or it is escalated to ${SEATWORD[x]}, who decides ${x === 'board' ? 'at the end of the day, always choosing the worse option' : `in about ${L.ESC_DELAY[x]} minutes while it waits`}, and it counts as missed.`; };
 const TOPICTXT = 'Pick the topic: Safety when crew alertness (on your card) is low, Wellbeing when people are tired, Pace before a busy spell. Each topic has its own cooldown.';
 const COACHES = {
   sup: [
     { hold: true, btn: 'Show me', text: () => 'You run the maintenance shift. Rides wear out and break, and your job is to send the right person, fast. I will walk you through it. While I am asking you to do something, the clock waits.' },
+    { hold: true, wait: 10, when: () => S.inbox.some(i => i.k === 'sheet'), done: () => !S.inbox.some(i => i.k === 'sheet'), el: '#obj [data-a=ans][data-v=sign]',
+      text: () => `First, the morning. The crew are walking their daily checks, and this request, top left, is the check sheet. Sign it and the gates open at 09:00; a ride not checked by then stays shut until it is. Every request has a timer. ${ESCTXT()}` },
     { hold: true, when: () => openFault(), pick: () => openFault().id, ride: () => ui.coach.rid, unit: () => { const r = CR(); return r && r.job && (techOn(r.job.trade)[0] || {}).id; },
       done: () => { const r = CR(); return !r || !r.job || sentTo(r.id) || selUnits().some(c => c.skills[r.job.trade]); },
       text: () => { const r = CR(), tr = r && r.job ? r.job.trade : 'mech', m = techOn(tr)[0]; return `${esc(r ? r.name : 'A ride')} has a fault. The letter badge is the trade: ${tr[0].toUpperCase()} means ${L.TRADES[tr].toLowerCase()}. An amber ring is its timer: if nobody comes, it gets worse. First select ${m ? esc(m.name) : 'someone qualified'}: ${tapOr('tap', 'click')} them in the column on the right${m && !ui.touch ? `, or press ${keyOf(m)}` : ''}.`; } },
@@ -4942,45 +4970,57 @@ const COACHES = {
     { hold: true, wait: 180, when: () => { const f = CR(); return openFault(f && f.job ? f.job.trade : (ui.coach.tr || '')); }, pick: () => { const f = CR(); return openFault(f && f.job ? f.job.trade : (ui.coach.tr || '')).id; },
       ride: () => ui.coach.rid, unit: () => { const r = CR(); return r && r.job && (techOn(r.job.trade)[0] || {}).id; }, done: () => { const r = CR(); return !r || !r.job || sentTo(r.id); },
       text: () => { const r = CR(), tr = r && r.job ? r.job.trade : 'elec', e = techOn(tr)[0]; return `${esc(r ? r.name : 'A ride')}: ${tr[0].toUpperCase()} means ${L.TRADES[tr].toLowerCase()}. Only someone with that trade can fix it. Select ${e ? esc(e.name) : 'them'}${e && !ui.touch ? ` (press ${keyOf(e)})` : ''} and send them.`; } },
-    { wait: 240, when: () => S.inbox.length > 0, until: 25, done: () => !S.inbox.length, text: () => 'A request has landed top left, with a timer. Answer before it runs out, or the cautious default happens. Each one is labelled operational, tactical or strategic.' },
+    { wait: 240, when: () => S.inbox.length > 0, until: 25, done: () => !S.inbox.length, text: () => `A request has landed top left, with a timer. ${ESCTXT()} Each one is labelled operational, tactical or strategic.` },
     { when: () => S.clock >= 640 || S.crew.some(c => c.on && c.role === 'tech' && L.enOf(c) < 75), until: 40, done: () => S.crew.some(c => c.brk),
       unit: () => (S.crew.filter(c => c.on && c.role === 'tech' && !c.temp && !c.agency).sort((a, b) => L.enOf(a) - L.enOf(b))[0] || {}).id,
-      text: () => `The small bar beside each person is their energy. Work drains it, and a tired tech works slower and can get hurt. In a quiet spell, select the most tired person and ${tapOr('tap Break', 'press B')}: a break refills energy far faster than standing about.` },
+      text: () => `The small bar beside each person is their energy. Work drains it, and a tired tech works slower and can get hurt. In a quiet spell, select the most tired person and ${tapOr('tap Break', 'press B')}: a break refills energy far faster than standing about. Someone worn right out shows an alert: they need a break within 20 minutes.` },
+    { wait: 150, when: () => signWait('sup'), pick: () => signWait('sup').id, ride: () => ui.coach.rid, until: 12, done: () => { const r = CR(); return !r || !r.so || r.so.esc || r.so.steps[r.so.i] !== 'sup'; }, el: '#board [data-a=signopen]',
+      text: () => `${esc((CR() || {}).name || 'A ride')} is fixed, but safety-critical work needs a second signature before it reopens. ${tapOr('Tap', 'Click')} Sign to reopen on its card, read the job sheet, then Sign, or Send back a weak one (no cause written down, no test run). Leave it ${L.SO_SIGN} minutes and it goes to the manager.` },
+    { btn: 'Next', when: () => S.gates, text: () => `About people. Everyone who works on a ride puts their own padlock on it, and it cannot reopen until every lock is off: pull someone away mid-job and the ride stays shut. ${traitLine()} ${bossLine('sup')}` },
     { wait: 300, when: () => S.clock < 1200 && gapNow(), pick: () => { const g = gapNow(); ui.coach.cid = g.c.id; ui.coach.tr = g.tr; return null; }, unit: () => ui.coach.cid, until: 30, done: () => { const c = L.staff(S, ui.coach.cid); return !c || c.on || !!c.inAt; },
       text: () => { const c = L.staff(S, ui.coach.cid), tr = ui.coach.tr; return `Nobody on shift can do ${L.TRADES[tr || 'ctrl'].toLowerCase()} work right now${c ? `, and ${esc(c.name)} is not in until ${fmtClock(L.SHIFT[c.shift][0])}` : ''}. If a fault in that trade comes, call ${c ? esc(c.name) : 'them'} in: ${tapOr('tap', 'click')} them on the right, then Call in now. Overtime costs money; a closed ride costs more.`; } },
-    { hold: true, btn: 'Got it', wait: 600, when: () => S.waves.some(w => w.warned && !w.hit), done: () => S.waves.some(w => w.hit) || S.crew.some(c => c.post && Math.hypot(c.post.x - L.NODES.P.x, c.post.y - L.NODES.P.y) < 140),
+    { hold: true, btn: 'Got it', wait: 240, when: () => S.waves.some(w => w.warned && !w.hit), done: () => S.waves.some(w => w.hit) || S.crew.some(c => c.post && Math.hypot(c.post.x - L.NODES.P.x, c.post.y - L.NODES.P.y) < 140),
       text: () => `A squall hits at ${fmtClock((S.waves.find(w => !w.hit) || {}).at || 750)} and will break about two rides at once. Get ahead of it: ${tapOr('tap Select free crew on your card', 'press A to select every free person')}, then ${tapOr('tap', 'right-click')} the middle of the park so they are close to everything.` },
-    { when: () => S.comp >= 25 && !S.talk, until: 40, done: () => !!S.talk, el: '#selp [data-a=walk]:not([disabled])', text: () => `Crew alertness (on your card) falls through a routine day, and that is when people get hurt. A toolbox talk stops everyone free for 8 minutes. ${TOPICTXT}` },
+    { wait: 120, when: () => S.comp >= 25 && !S.talk, until: 40, done: () => !!S.talk, el: '#selp [data-a=walk]:not([disabled])', text: () => `Crew alertness (on your card) falls through a routine day, and that is when people get hurt. A toolbox talk stops everyone free for 8 minutes. ${TOPICTXT}` },
     { btn: 'Done', until: 30, text: () => 'That is the job. Rides that run through Lantern Hour at 21:00 send up a lantern. After 14 days the board grades the company, and your own work counts too. When you feel quick enough, try 2×.' },
   ],
   tech: [
     { hold: true, btn: 'Show me', text: () => { const m = L.me(S); return `You are ${m ? esc(m.name) : 'a technician'}${m ? ', ' + esc(title(m).toLowerCase()) : ''}. The supervisor sends you work orders; you do the job with your own hands, step by step. While I ask you to do something, the clock waits.`; } },
-    { hold: true, when: () => S.inbox.some(i => i.k === 'wo'), done: () => !S.inbox.some(i => i.k === 'wo') || !!(L.me(S) || {}).target, el: '#obj [data-a=ans][data-v=go]', text: () => 'A work order has landed top left. Tap On my way to take it, or Can\'t now if you are busy and someone else gets it.' },
+    { wait: 15, when: () => !S.gates && L.myChecks(S).length > 0, until: 25, done: () => !L.myChecks(S).length || S.gates, el: '[data-a=dcheck]',
+      text: () => `Before the gates open at 09:00, every ride gets its daily check. ${L.myChecks(S).length} ${L.myChecks(S).length > 1 ? 'are' : 'is'} on your sheet: walk to each and tap Daily check. A ride not checked stays shut, and checks left past 09:10 go to the supervisor and count as missed.` },
+    { hold: true, when: () => S.inbox.some(i => i.k === 'wo'), done: () => !S.inbox.some(i => i.k === 'wo') || !!(L.me(S) || {}).target, el: '#obj [data-a=ans][data-v=go]', text: () => 'A work order has landed top left. Tap On my way to take it, or Can\'t now if you are busy and someone else gets it. Leave it, and it goes back to the supervisor and counts as missed.' },
     { when: () => { const m = L.me(S); return m && m.target; }, until: 60, done: () => { const m = L.me(S); return !m || ['prep', 'lock', 'diag', 'check', 'work', 'wait'].includes(m.state); }, text: () => 'On your way. The faster you get there, the sooner the ride reopens. Sprint (Q) doubles your speed for a while, with a cooldown.' },
     { hold: true, when: () => (L.me(S) || {}).state === 'prep', done: () => { const m = L.me(S) || {}; return m.state !== 'prep' || !!(m.lk && m.lk.id === m.target); }, el: '[data-a=lock]', text: () => 'Lock it out first: your own padlock on the isolator, so nobody can start the ride with your hands in it. Tap Lock out and tag. Skipping is quicker, and that is how people get hurt.' },
     { hold: true, wait: 60, when: () => (L.me(S) || {}).state === 'diag', done: () => { const m = L.me(S) || {}, j = m.target && (L.ride(S, m.target) || {}).job; return !['diag', 'check'].includes(m.state) || !j || !!j.dx || !!(j.out && j.out.length); }, el: '[data-a=dx]', text: () => 'Find the cause: read the symptoms and pick the most likely one. A wrong guess costs six minutes. Your gut feeling is right most of the time; the procedure button tells you for sure, slowly.' },
-    { btn: 'Done', until: 40, text: () => 'Once it is fixed you are free. Pick up jobs in your trade from your card, service tired rides when it is quiet, and take a break (B) when your energy bar is low. Your own work counts towards the grade.' },
+    { hold: true, wait: 200, when: () => (L.me(S) || {}).state === 'signoff', done: () => (L.me(S) || {}).state !== 'signoff', el: '[data-a=fit][data-v=test]',
+      text: () => 'Fixed. Now the part that keeps people safe: a test run, then sign it fit to run, and take your own padlock off. The ride cannot reopen while your lock is on, and a sheet with no cause or no test run gets sent back.' },
+    { wait: 60, when: () => S.inbox.some(i => i.k === 'push'), until: 8, done: () => !S.inbox.some(i => i.k === 'push'), text: () => 'Someone is pushing you to cut a corner. Refusing costs two minutes. Giving in saves them, but it is your hands and your name on the sheet: it counts against you and against the safety record.' },
+    { btn: 'Done', until: 40, text: () => `Once it is fixed you are free. Pick up jobs in your trade from your card, service tired rides when it is quiet, and take a break (B) when your energy bar is low. ${traitLine()} ${bossLine('tech')}` },
   ],
   mgr: [
     { hold: true, btn: 'Show me', text: () => 'You are the Engineering Manager. The supervisor runs the shift; you run the department: people, budget, parts, and the rules the supervisor works to.' },
     { hold: true, btn: 'Got it', when: () => S.rides.some(r => r.job && r.job.type === 'fault' && !sentTo(r.id)), pick: () => S.rides.filter(r => r.job && r.job.type === 'fault' && !sentTo(r.id)).sort((a, b) => b.w - a.w)[0].id, ride: () => ui.coach.rid, done: () => !!S.prio, el: '#selp [data-a=rush]',
       text: () => `The supervisor takes a few minutes to react. When a breakdown matters (a big ride, a substation, the VIP ride), select it and press R, or tap Rush job on its card: everyone who can help goes now, and works faster. Try it on ${esc((CR() || {}).name || 'the ride')}.` },
     { btn: 'Next', el: '#rail .t-sup', text: () => 'Your rules steer the supervisor: what to do when a part is missing, and when to service tired rides. Tap the supervisor on the right to see and change them.' },
-    { wait: 120, when: () => S.inbox.length > 0, until: 25, done: () => !S.inbox.length, text: () => 'Requests land top left with a timer. Answer before it runs out, or the cautious default happens. Empty posts above and below you change who asks what.' },
+    { wait: 120, when: () => S.inbox.length > 0, until: 25, done: () => !S.inbox.length, text: () => `Requests land top left with a timer: cover for someone sick, stores reorders, overtime and spending over the supervisor's $300, tomorrow's planned services. ${ESCTXT()} Once the day is over budget, spend only on a closed ride.` },
+    { wait: 150, when: () => signWait('mgr'), pick: () => signWait('mgr').id, ride: () => ui.coach.rid, until: 12, done: () => { const r = CR(); return !r || !r.so || r.so.esc || r.so.steps[r.so.i] !== 'mgr'; }, el: '#board [data-a=signopen]',
+      text: () => `${esc((CR() || {}).name || 'A ride')} was red-tagged, and it needs your countersign before the inspector can clear it. ${tapOr('Tap', 'Click')} Sign to reopen on its card, read the job sheet, then Sign or Send back.` },
     { btn: 'Next', el: '#selp [data-a=walk]', text: () => 'Walking the floor lifts morale and alertness, but you are away from your desk for 20 minutes and requests wait. Go when your inbox is empty.' },
-    { btn: 'Done', until: 30, text: () => 'At night the planning desk is yours: rosters, hiring, training and minimum stock. Keep every trade covered on both shifts.' },
+    { btn: 'Done', until: 30, text: () => `At night the planning desk is yours: rosters, hiring, training and minimum stock. Keep every trade covered on both shifts: one person carrying a whole trade wears them down. ${bossLine('mgr')}` },
   ],
   dir: [
     { hold: true, btn: 'Show me', text: () => 'You are the Operations Director: the day\'s priority, the budget, and the bigger calls when things go wrong.' },
-    { btn: 'Next', el: '#selp [data-a=setfocus]', text: () => 'Set today\'s priority on your card. The managers work to it, and the board checks it against the company strategy (Company tab). The budget buttons cap maintenance spending.' },
+    { hold: true, wait: 10, when: () => S.inbox.some(i => i.k === 'morning'), done: () => !S.inbox.some(i => i.k === 'morning'), el: '#obj [data-a=ans]',
+      text: () => `The morning review, top left: yesterday's numbers, and this request sets today's priority before the gates open. ${ESCTXT()}` },
+    { btn: 'Next', el: '#selp [data-a=setfocus]', text: () => 'You can change the priority on your card, and the managers work to it; the board checks it against the company strategy (Company tab). Change it after the gates and the crew lose an hour replanning. The budget buttons cap maintenance spending.' },
     { btn: 'Next', el: '#selp [data-a=agency]', text: () => 'On a bad day, bring in agency crew: two technicians for three hours. Select a worn ride and Order a service before it breaks. A fast lane earns more from a healthy ride, but a breakdown then costs goodwill.' },
-    { btn: 'Done', until: 40, text: () => 'Any breakdown can be a rush job (R): everyone who can help goes now. Requests and big spends land top left. Your own score is uptime, budget and staying on strategy.' },
+    { btn: 'Done', until: 40, text: () => `Any breakdown can be a rush job (R): everyone who can help goes now. Requests, disputes between Operations and Engineering, spending up to $5,000 and the review after an injury land top left. Your own score is uptime, budget and staying on strategy. ${bossLine('dir')}` },
   ],
   ceo: [
     { hold: true, btn: 'Show me', text: () => 'You are the Chief Executive. The board, the press, and anything nobody below you can decide comes to your inbox, top left.' },
-    { btn: 'Next', el: '#selp [data-a=happy]', text: () => 'Your levers: when a big ride closes, select it for goodwill vouchers. Happy hour brings guests in when the park is healthy (not when it is not). Brief the chair when the day is going well. R makes any breakdown a rush job.' },
-    { wait: 120, when: () => S.inbox.length > 0, until: 30, done: () => !S.inbox.length, text: () => 'A decision for you, top left. Strategic ones last all season and their results arrive days later.' },
-    { btn: 'Done', until: 40, text: () => 'At night you set the strategy and fill posts across the company (Company tab). Empty posts push their work up to you. Your own score is profit and the board\'s confidence.' },
+    { btn: 'Next', el: '#selp [data-a=happy]', text: () => 'Your levers: when a big ride has been shut a while, select it for goodwill vouchers. Happy hour brings guests in when the park is healthy (not when it is not). Brief the chair when the day is going well. Stay off the floor: rush jobs and orders to the crew from you undercut the director and managers, and count against you.' },
+    { wait: 120, when: () => S.inbox.length > 0, until: 30, done: () => !S.inbox.length, text: () => 'A decision for you, top left: the board\'s target for today, its question, the regulator, the press. Strategic ones last all season and their results arrive days later. Miss one and the board decides: always the worse option, and its confidence falls.' },
+    { btn: 'Done', until: 40, text: () => 'At night you set the strategy and fill posts across the company (Company tab). Empty key posts push their work up to you, and count against you. Spending from $5,000 to $20,000 is yours; above that, you can only propose it to the board. Your own score is profit and the board\'s confidence.' },
   ],
 };
 const curStep = () => { const C = ui.coach; return C && (COACHES[C.seat] || [])[C.i]; };
