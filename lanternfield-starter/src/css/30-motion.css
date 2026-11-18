@@ -36,3 +36,34 @@
 .as,.unit,.cmd,.mini,.speed button,.alert,.req,.stat b{transition:background-color .2s,border-color .2s,color .25s,box-shadow .2s,opacity .2s}
 .cmd:active,.mini:active{transition-duration:.05s}
 .stat b{display:inline-block} /* so the streak can pop */
+
+/* ---------- feedback (phase 4): a breakdown is felt, streaks build, the night and the season get their moment ---------- */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* a major breakdown: a red glow round the edge of the map for a moment (animated from JS, never with reduced motion) */
+.edgeflash{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,70,50,0) 45%,rgba(255,70,50,.62) 100%)}
+/* the streak: six pips up to the bonus cap, warmer as it builds */
+.spips{display:flex;gap:2px;margin-top:2px}
+.spips i{flex:1;height:3px;border-radius:2px;background:var(--raise);transition:background-color .25s}
+.spips i.on{background:var(--lantern)}
+.stat.heat1 b{color:#ffd27a}
+.stat.heat2 b{color:#ffb347;text-shadow:0 0 8px rgba(255,179,71,.55)}
+.stat.heat3 b{color:#ff9a5a;text-shadow:0 0 12px rgba(255,140,60,.8)}
+.stat.heat3 .spips i.on{background:#ff8f3d}
+.stat.heat3{border-color:rgba(255,143,61,.6)}
+/* numbers counted by CSS: a registered whole-number property runs from 0 to --to; the number itself is in .sr for screen readers */
+@property --n{syntax:'<integer>';inherits:false;initial-value:0}
+@keyframes lf-count{from{--n:0}to{--n:var(--to)}}
+.cnt{--n:var(--to);counter-reset:lfn var(--n);animation:lf-count var(--dur,1s) var(--ease,linear) var(--delay,0s) both}
+.cnt::before{content:counter(lfn)}
+/* the night's report: each lantern that went up lights in turn, in time with the count, then the headline */
+@keyframes lf-light{0%{filter:grayscale(1) brightness(.45);transform:translateY(5px)}55%{filter:brightness(1.6) drop-shadow(0 0 8px #ffb347);transform:translateY(-4px)}100%{filter:none;transform:none}}
+.lant.lit{animation:lf-light .55s cubic-bezier(.2,.8,.3,1) calc(300ms + var(--i,0) * 140ms) both}
+.rephead{animation:lf-rise .4s ease-out var(--delay,0s) both}
+@keyframes lf-glow{0%,100%{filter:none}50%{filter:drop-shadow(0 0 10px #ffd27a) brightness(1.25)}}
+.lrow.all .lant.lit svg{animation:lf-glow .9s ease-in-out calc(500ms + var(--n,12) * 140ms) 2}
+/* the season: the grade stamps down, the score counts up, the bars fill one after another */
+@keyframes lf-stamp{0%{opacity:0;transform:scale(2.6) rotate(-10deg)}65%{opacity:1;transform:scale(.9) rotate(2deg)}100%{opacity:1;transform:none}}
+@keyframes lf-fill{from{transform:scaleX(0)}to{transform:none}}
+.final .grade{animation:lf-stamp .5s cubic-bezier(.2,.8,.3,1) .25s both;text-shadow:0 0 30px rgba(255,179,71,.45)}
+.final .kpi .bar span{transform-origin:left;animation:lf-fill .7s cubic-bezier(.2,.8,.3,1) calc(.6s + var(--k,0) * 110ms) both}
+.scrim.final{background:linear-gradient(rgba(7,9,26,.12),rgba(7,9,26,.85) 45%)}

@@ -86,6 +86,37 @@ body{background:#060a1e}
 .as,.unit,.cmd,.mini,.speed button,.alert,.req,.stat b{transition:background-color .2s,border-color .2s,color .25s,box-shadow .2s,opacity .2s}
 .cmd:active,.mini:active{transition-duration:.05s}
 .stat b{display:inline-block} /* so the streak can pop */
+
+/* ---------- feedback (phase 4): a breakdown is felt, streaks build, the night and the season get their moment ---------- */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* a major breakdown: a red glow round the edge of the map for a moment (animated from JS, never with reduced motion) */
+.edgeflash{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,70,50,0) 45%,rgba(255,70,50,.62) 100%)}
+/* the streak: six pips up to the bonus cap, warmer as it builds */
+.spips{display:flex;gap:2px;margin-top:2px}
+.spips i{flex:1;height:3px;border-radius:2px;background:var(--raise);transition:background-color .25s}
+.spips i.on{background:var(--lantern)}
+.stat.heat1 b{color:#ffd27a}
+.stat.heat2 b{color:#ffb347;text-shadow:0 0 8px rgba(255,179,71,.55)}
+.stat.heat3 b{color:#ff9a5a;text-shadow:0 0 12px rgba(255,140,60,.8)}
+.stat.heat3 .spips i.on{background:#ff8f3d}
+.stat.heat3{border-color:rgba(255,143,61,.6)}
+/* numbers counted by CSS: a registered whole-number property runs from 0 to --to; the number itself is in .sr for screen readers */
+@property --n{syntax:'<integer>';inherits:false;initial-value:0}
+@keyframes lf-count{from{--n:0}to{--n:var(--to)}}
+.cnt{--n:var(--to);counter-reset:lfn var(--n);animation:lf-count var(--dur,1s) var(--ease,linear) var(--delay,0s) both}
+.cnt::before{content:counter(lfn)}
+/* the night's report: each lantern that went up lights in turn, in time with the count, then the headline */
+@keyframes lf-light{0%{filter:grayscale(1) brightness(.45);transform:translateY(5px)}55%{filter:brightness(1.6) drop-shadow(0 0 8px #ffb347);transform:translateY(-4px)}100%{filter:none;transform:none}}
+.lant.lit{animation:lf-light .55s cubic-bezier(.2,.8,.3,1) calc(300ms + var(--i,0) * 140ms) both}
+.rephead{animation:lf-rise .4s ease-out var(--delay,0s) both}
+@keyframes lf-glow{0%,100%{filter:none}50%{filter:drop-shadow(0 0 10px #ffd27a) brightness(1.25)}}
+.lrow.all .lant.lit svg{animation:lf-glow .9s ease-in-out calc(500ms + var(--n,12) * 140ms) 2}
+/* the season: the grade stamps down, the score counts up, the bars fill one after another */
+@keyframes lf-stamp{0%{opacity:0;transform:scale(2.6) rotate(-10deg)}65%{opacity:1;transform:scale(.9) rotate(2deg)}100%{opacity:1;transform:none}}
+@keyframes lf-fill{from{transform:scaleX(0)}to{transform:none}}
+.final .grade{animation:lf-stamp .5s cubic-bezier(.2,.8,.3,1) .25s both;text-shadow:0 0 30px rgba(255,179,71,.45)}
+.final .kpi .bar span{transform-origin:left;animation:lf-fill .7s cubic-bezier(.2,.8,.3,1) calc(.6s + var(--k,0) * 110ms) both}
+.scrim.final{background:linear-gradient(rgba(7,9,26,.12),rgba(7,9,26,.85) 45%)}
 :root{
   /* Layout: the park is the board. Map in the middle, work orders left, the selected ride right, the team along the bottom, clock and accounts on top. The planning desk (team, stores, projects) opens over it. One world, one theme: a funfair going from afternoon into lantern-lit night. */
   --night:#0e1330;
@@ -662,7 +693,7 @@ html.calm *{animation:none!important;transition:none!important}
       <div class="stat"><small>Cash</small><b id="h-cash" class="num">$0</b></div>
       <div class="stat"><small>Uptime</small><b id="h-up" class="num">100%</b></div>
       <div class="stat"><small>Board</small><b id="h-conf" class="num">60</b></div>
-      <div class="stat"><small>Streak</small><b id="h-streak" class="num">×0</b></div>
+      <div class="stat" id="s-streak"><small>Streak</small><b id="h-streak" class="num">×0</b><div class="spips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
       <div class="stat"><small>Glow</small><b id="h-glow" class="num">80</b><div class="glowbar"><span id="h-glowbar"></span></div></div>
       <div class="stat"><small>Lanterns</small><b id="h-lit" class="num">0</b></div>
     </div>
@@ -2229,7 +2260,7 @@ function tone(f, d, type, v, when) {
   } catch (e) { /* no audio here; the game is silent but complete */ }
 }
 const SFX = {
-  major: () => { tone(392, .22, 'triangle', .07); tone(294, .34, 'triangle', .07, .16); },
+  major: () => { tone(466, .09, 'sawtooth', .03); tone(440, .09, 'sawtooth', .03); tone(392, .2, 'triangle', .075, .08); tone(277, .4, 'triangle', .075, .22); }, // a breakdown: a short clash, then a falling sting
   minor: () => tone(330, .2, 'triangle', .05),
   warn: () => tone(440, .16, 'triangle', .04),
   fix: () => { tone(523, .14, 'sine', .06); tone(784, .26, 'sine', .06, .1); },
@@ -2239,7 +2270,10 @@ const SFX = {
   close: () => [392, 494, 587, 784].forEach((f, i) => tone(f, .5, 'sine', .05, i * .14)),
   ready: () => tone(660, .1, 'sine', .03),
   req: () => { tone(740, .09, 'square', .025); tone(988, .12, 'square', .025, .09); },
-  fast: () => { tone(784, .07, 'sine', .05); tone(1047, .07, 'sine', .05, .06); tone(1319, .12, 'sine', .05, .12); },
+  fast: () => { tone(784, .07, 'sine', .05); tone(1047, .07, 'sine', .05, .06); tone(1319, .12, 'sine', .05, .12); tone(2093, .35, 'sine', .018, .16); }, // a fast response: a rising chime with a shimmer on top
+  lost: () => { tone(330, .12, 'triangle', .05); tone(247, .3, 'triangle', .05, .1); }, // a streak broken
+  lanterns: (n, all) => { const P = [523, 587, 659, 784, 880]; for (let i = 0; i < n; i++) tone(P[i % 5] * (1 + Math.floor(i / 5)), .5, 'sine', .035, .3 + i * .14); if (all) [523, 659, 784, 1047].forEach((q, i) => tone(q, 1.2, 'sine', .04, .3 + n * .14 + .1 + i * .02)); }, // one bell per lantern, in time with the count
+  grade: g => { const up = { A: [523, 659, 784, 1047, 1319], B: [523, 659, 784, 1047], C: [440, 523, 659], D: [330, 294, 247] }[g] || [440]; up.forEach((q, i) => tone(q, i === up.length - 1 ? .9 : .25, g === 'D' ? 'triangle' : 'sine', .05, .35 + i * .13)); },
 };
 
 /* ---------- canvas ---------- */
@@ -2852,6 +2886,7 @@ function draw(now, frac) {
   const dt = VIS.last ? Math.min(.1, Math.max(0, (now - VIS.last) / 1000)) : 0, pm = VIS.run ? dt * TPS * S.speed : ui.title ? dt * TPS : 0, w = weatherNow();
   VIS.last = now; if (pm > 0) VIS.vt = (VIS.vt || 0) + dt;
   lifeStep(pm > 0 ? dt : 0, pm, n, w.wind);
+  const sh = shakeNow(now); if (sh) { ox += sh[0]; oy += sh[1]; } // a breakdown jolts the map (only the drawing: clicks use the steady view)
   drawGround(n, now, skyTint(clock, w)); // leaves the park transform on
   if (day && S.fab.length && L.onNow(S, 'mach')) { ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(L.SHOP.x - 34, L.SHOP.y - 24, 68, 42, 8); ctx.stroke(); }
   for (const r of S.rides) if (r.sub) { const sb = L.ride(S, r.sub), off = L.subDown(S, sb); line([[sb.x, sb.y], [r.x, r.y]], 1.5, off ? rgba('#ff5d4a', .6) : rgba('#f4d35e', .1 + .1 * n), [3, 9]); }
@@ -2869,9 +2904,10 @@ function draw(now, frac) {
   drawParts();
 
   const names = []; for (const r of S.rides) rideInfo(r, t, rideSt(r), names); for (const f of names) f();
+  drawBursts(now);
   drawCrew(t, frac, pm > 0 ? dt : 0);
   for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (now - p.t0) / 600; if (a >= 1) { pings.splice(i, 1); continue; } ctx.strokeStyle = rgba(p.col, 1 - a); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 6 + 22 * a, 0, 7); ctx.stroke(); }
-  for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i], a = (now - p.t0) / 1800; if (a >= 1) { pops.splice(i, 1); continue; } ctx.globalAlpha = 1 - a * a; label(p.txt, p.x, p.y - 56 - a * 26, 15, p.col, 700); ctx.globalAlpha = 1; }
+  for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i], a = (now - p.t0) / 1800; if (a >= 1) { pops.splice(i, 1); continue; } ctx.globalAlpha = 1 - a * a; const pin = reduce ? 1 : 1 + .4 * Math.max(0, 1 - a * 7); label(p.txt, p.x, p.y - 56 - (reduce ? 0 : a * 26), (p.big ? 18 : 15) * pin, p.col, p.big ? 800 : 700); ctx.globalAlpha = 1; } // pops pop in, then rise and fade
   if (ui.title && !reduce && lanterns.length < 26 && Math.random() < .04) { const r = S.rides[Math.floor(Math.random() * 12)]; lanterns.push({ x: r.x, y: r.y - 20, vy: 14 + Math.random() * 12, ph: Math.random() * 6, t0: now, life: 9000 }); }
   for (let i = lanterns.length - 1; i >= 0; i--) {
     const l = lanterns[i], a = (now - l.t0) / l.life; if (a >= 1) { lanterns.splice(i, 1); continue; } if (a < 0) continue;
@@ -2881,6 +2917,7 @@ function draw(now, frac) {
   }
   drawWeather(w, VIS.vt || 0);
   ctx.restore();
+  if (sh) { ox -= sh[0]; oy -= sh[1]; }
   if (ui.box) { const b = ui.box; ctx.fillStyle = 'rgba(121,194,255,.12)'; ctx.strokeStyle = '#79c2ff'; ctx.lineWidth = 1.5; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); }
 }
 /* ---------- the living park: everything that moves just for show ----------
@@ -2928,6 +2965,7 @@ function lifeStep(dt, pm, n, wx) {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i]; p.t += dt; if (p.t >= p.life) { parts.splice(i, 1); continue; }
     if (p.k === 'spark') p.vy += 140 * dt;
+    if (p.k === 'star' || p.k === 'coin') { p.vy += (p.k === 'coin' ? 120 : 50) * dt; p.vx *= 1 - 2.2 * dt; p.vy *= 1 - 1.4 * dt; }
     if (p.k === 'smoke') { p.vx += (wx * 25 - p.vx) * dt * .5; p.size += dt * 4; }
     p.x += p.vx * dt; p.y += p.vy * dt;
   }
@@ -2965,6 +3003,9 @@ function drawParts() {
   ctx.beginPath(); let any = false;
   for (const p of parts) if (p.k === 'spark') { ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * .03, p.y - p.vy * .03); any = true; }
   if (any) { ctx.strokeStyle = '#ffe58a'; ctx.lineWidth = 1.4; ctx.stroke(); }
+  // sparkles (little diamonds) and coins, one fill per colour
+  const by = {}; for (const p of parts) if (p.k === 'star' || p.k === 'coin') { const a = 1 - p.t / p.life, s = p.size * (p.k === 'star' ? .6 + .6 * a : 1), path = by[p.col + p.k] || (by[p.col + p.k] = new Path2D()); if (p.k === 'star') { path.moveTo(p.x, p.y - s * 1.6); path.lineTo(p.x + s, p.y); path.lineTo(p.x, p.y + s * 1.6); path.lineTo(p.x - s, p.y); path.closePath(); } else { path.moveTo(p.x + s, p.y); path.ellipse(p.x, p.y, s * Math.abs(Math.cos(p.t * 9)) + .4, s, 0, 0, 7); } }
+  for (const k in by) { ctx.fillStyle = k.replace(/(star|coin)$/, ''); ctx.fill(by[k]); }
   ctx.beginPath(); any = false;
   for (const p of parts) if (p.k === 'dust') { const a = 1 - p.t / p.life; ctx.moveTo(p.x + p.size * a, p.y); ctx.arc(p.x, p.y, p.size * (1.4 - a), 0, 7); any = true; }
   if (any) { ctx.fillStyle = 'rgba(214,196,150,.35)'; ctx.fill(); }
@@ -3095,6 +3136,54 @@ function skyTint(clock, w) {
   if (dark > a) { col = '#1c2440'; a = dark; }
   return col && a > .005 ? [col, a] : null;
 }
+/* ---------- feedback: a breakdown is felt, a fast response and a quick fix reward you ----------
+   Called for every event the engine reports (drainFx). Visual and sound only, never saved.
+   Reduced motion: no shake, no flash, no bursts or sparkles; the sounds still play, and the ride's ring, badge and
+   status word already say what happened. */
+const FEEL = { shake: null, bursts: [], last: 0, flash: null };
+function feel(f, t) {
+  const r = f.id && L.ride(S, f.id);
+  if (!r || ui.title) return;
+  if (f.k === 'major') { // a ride closes: a red shockwave, and a short shake and edge flash (at most one every 1.2 s, so a squall does not rattle the screen)
+    burst(r, '#ff5d4a', 74, 700, 6);
+    if (!reduce && t - FEEL.last > 1200) { FEEL.last = t; FEEL.shake = { t0: t, amp: 6 }; edgeFlash(); }
+  } else if (f.k === 'minor') burst(r, '#ffb347', 52, 520, 4);
+  else if (f.k === 'fast') { burst(r, '#d8f0ff', 86, 760, 5); sparkle(r, ['#ffffff', '#bfe3ff', '#79c2ff'], 22, 80, 'star'); }
+  else if (f.k === 'fix') { burst(r, '#8fe8c4', 62, 620, 4); sparkle(r, ['#e8fff4', '#8fe8c4'], 10, 52, 'star'); }
+  else if (f.k === 'cash') { const m = /×(\d+)/.exec(f.txt || ''); if (m) sparkle(r, ['#ffd27a', '#ffb347', '#fff1c4'], 8 + 4 * +m[1], 52 + 6 * +m[1], 'coin'); } // a quick fix: more coins the longer the streak
+}
+function burst(r, col, grow, dur, w) { if (!reduce) FEEL.bursts.push({ x: r.x, y: r.y - 6, col, grow, dur, w, t0: performance.now() }); }
+function sparkle(r, cols, n, speed, kind) {
+  for (let i = 0; i < n; i++) { const a = Math.random() * TAU, v = speed * (.45 + Math.random() * .7); emit(kind, r.x + Math.cos(a) * 14, r.y - 12 + Math.sin(a) * 10, Math.cos(a) * v, Math.sin(a) * v - 30, .7 + Math.random() * .5, kind === 'coin' ? 2.6 : 2, cols[i % cols.length]); }
+}
+function edgeFlash() { // a red glow round the edge of the map, in and out in under half a second
+  let el = FEEL.flash;
+  if (!el) { el = FEEL.flash = document.createElement('div'); el.className = 'edgeflash'; el.setAttribute('aria-hidden', 'true'); $('app').insertBefore(el, $('top')); }
+  el.animate([{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 0 }], { duration: 440, easing: 'ease-out' });
+}
+// where the map is pushed this frame by a shake: a few quick, shrinking jolts over 0.3 s
+function shakeNow(now) {
+  const s = FEEL.shake; if (!s || reduce) return null;
+  const k = (now - s.t0) / 300; if (k >= 1) { FEEL.shake = null; return null; }
+  const a = s.amp * (1 - k) * (1 - k); return [a * Math.sin(k * 55), a * Math.cos(k * 47) * .6];
+}
+function drawBursts(now) {
+  for (let i = FEEL.bursts.length - 1; i >= 0; i--) {
+    const b = FEEL.bursts[i], k = (now - b.t0) / b.dur; if (k >= 1) { FEEL.bursts.splice(i, 1); continue; }
+    const e = 1 - Math.pow(1 - k, 3); ctx.strokeStyle = rgba(b.col, .9 * (1 - k)); ctx.lineWidth = b.w * (1 - k) + .5; ctx.beginPath(); ctx.arc(b.x, b.y, 37 + b.grow * e, 0, 7); ctx.stroke();
+  }
+}
+
+/* the night's report and the season's end each get their moment once: bells with the lantern count, a fanfare with the
+   grade, and for a good season a sky full of lanterns over the park. Called after every render. */
+function celebrate() {
+  const rep = S.reports[S.reports.length - 1], m = $('modal');
+  if (rep && m.querySelector('.lrow') && !(FEEL.night && FEEL.night[0] === S && FEEL.night[1] === rep.day)) { FEEL.night = [S, rep.day]; SFX.lanterns(rep.n, rep.n === L.N_RIDES); }
+  if (S.final && m.querySelector('.final') && FEEL.season !== S) {
+    FEEL.season = S; const g = S.final.fired || S.final.broke ? 'D' : S.final.grade; SFX.grade(g);
+    if (!reduce && (g === 'A' || g === 'B')) for (const r of S.rides) if (r.sub) releaseLanterns(r, g === 'A' ? 5 : 3);
+  }
+}
 /* ---------- panels ---------- */
 /* Panels are patched in place rather than rebuilt: an element that is still there keeps its identity, so a timer bar can
    slide to its new width, a card that is new slides in once, and focus and scroll stay put. Elements are matched by
@@ -3218,7 +3307,17 @@ function hudUpdate() {
   countTo('h-glow', Math.round(S.glow), v => String(Math.round(v))); $('h-glowbar').style.width = Math.round(S.glow) + '%';
   $('h-glowbar').style.background = S.glow >= 60 ? 'var(--lantern)' : S.glow >= 35 ? 'var(--mech)' : 'var(--ember)';
   countTo('h-lit', S.total, v => `${Math.round(v)}/${L.N_RIDES * L.DAYS}`);
-  { const e = $('h-streak'), v = '×' + (S.streak || 0); if (e.textContent !== v) { if ((S.streak || 0) > (e._n || 0)) pop(e); e._n = S.streak || 0; e.textContent = v; } } $('h-streak').style.color = S.streak >= 3 ? 'var(--jade)' : '';
+  { // the streak: a pip for each quick fix up to the ×6 bonus cap, warmer as it builds; a lost streak cracks
+    const e = $('h-streak'), n = S.streak || 0, v = '×' + n, box = $('s-streak');
+    if (e.textContent !== v) {
+      const was = e._n || 0;
+      if (n > was) pop(e);
+      else if (was >= 2 && n === 0 && !ui.title) { SFX.lost(); if (!reduce) box.animate([{ transform: 'none' }, { transform: 'translateX(-5px)', color: '#ff8f7f' }, { transform: 'translateX(4px)' }, { transform: 'translateX(-3px)' }, { transform: 'none' }], { duration: 380, easing: 'ease-out' }); }
+      e._n = n; e.textContent = v;
+      box.className = 'stat' + (n >= 6 ? ' heat3' : n >= 4 ? ' heat2' : n >= 2 ? ' heat1' : '');
+      box.querySelectorAll('.spips i').forEach((p, i) => p.classList.toggle('on', i < Math.min(6, n)));
+    }
+  } $('h-streak').style.color = S.streak >= 3 ? 'var(--jade)' : '';
   { const b = $('b-seat'), t = `<small>Seat</small>${esc(seatTitle(S.seat))}`; if (b._h !== t) { b.innerHTML = t; b._h = t; } }
   const us = selUnits(), arm = us.length && day && !ui.title && !ui.desk && !S.paused && S.seat !== 'tech'; $('armed').hidden = !arm;
   if (arm) $('armed').textContent = `${us.length === 1 ? us[0].name : us.length + ' people'} selected. ${ui.touch ? 'Tap a ride to send, tap the ground to move.' : 'Click a fault to send. Right-click to move or send.'}${L.RANK[S.seat] >= 2 && L.onNow(S, 'sup') && S.pol.auto ? ' You are going over the supervisor\'s head.' : ''}`;
@@ -3532,8 +3631,9 @@ function plTable(pl, net) {
 }
 function reportTab() {
   const rep = S.reports[S.reports.length - 1], rides = S.rides.filter(r => r.sub);
-  return `<div class="row" style="gap:20px;align-items:flex-end"><div class="bignum">${rep.n}<span style="font-size:.4em;color:var(--dim)"> of ${L.N_RIDES}</span></div><div style="flex:1;min-width:200px"><h2 style="font:400 26px/1.05 var(--display)">${L.dow(rep.day)} night: ${rep.n === L.N_RIDES ? 'every lantern up' : rep.n >= 9 ? 'a bright night' : rep.n >= 6 ? 'a patchy night' : 'a dark night'}</h2><p class="dim">${S.total} lanterns so far. ${L.DAYS - rep.day} day${L.DAYS - rep.day === 1 ? '' : 's'} to go.</p></div></div>
-<div class="lrow">${rides.map(r => `<div class="lant${rep.lit.includes(r.id) ? ' lit' : ''}">${lantSVG(rep.lit.includes(r.id))}<span>${esc(r.short)}</span></div>`).join('')}</div>
+  let li = 0; const allLit = rep.n === L.N_RIDES;
+  return `<div class="row" style="gap:20px;align-items:flex-end"><div class="bignum"><span class="cnt" aria-hidden="true" style="--to:${rep.n};--dur:${rep.n * 140}ms;--delay:300ms"></span><span class="sr">${rep.n}</span><span style="font-size:.4em;color:var(--dim)"> of ${L.N_RIDES}</span></div><div class="rephead" style="flex:1;min-width:200px;--delay:${300 + rep.n * 140}ms"><h2 style="font:400 26px/1.05 var(--display)">${L.dow(rep.day)} night: ${rep.n === L.N_RIDES ? 'every lantern up' : rep.n >= 9 ? 'a bright night' : rep.n >= 6 ? 'a patchy night' : 'a dark night'}</h2><p class="dim">${S.total} lanterns so far. ${L.DAYS - rep.day} day${L.DAYS - rep.day === 1 ? '' : 's'} to go.</p></div></div>
+<div class="lrow${allLit ? ' all' : ''}" style="--n:${rep.n}">${rides.map(r => `<div class="lant${rep.lit.includes(r.id) ? ' lit' : ''}"${rep.lit.includes(r.id) ? ` style="--i:${li++}"` : ''}>${lantSVG(rep.lit.includes(r.id))}<span>${esc(r.short)}</span></div>`).join('')}</div>
 <div class="two"><div class="tw">${plTable(rep.pl, rep.net)}</div><div class="tiles">
 <div class="tile"><small>Uptime</small><b>${Math.round(rep.up * 100)}%</b><i>earnings-weighted</i></div>
 <div class="tile"><small>Average glow</small><b>${Math.round(rep.glow)}</b><i>out of 100</i></div>
@@ -3759,9 +3859,9 @@ const HOW = `<ol class="how">
 </ol>`;
 function finalHTML() {
   const f = S.final, verdict = f.broke ? 'The company is insolvent.' : f.fired ? 'The board has removed you.' : { A: 'The board extends your contract, with a bonus.', B: 'The board extends your contract.', C: 'You keep the job, on probation.', D: 'The board is looking for a new chief executive.' }[f.grade];
-  const kpi = (n, v, max, txt) => `<div class="kpi"><span>${n}<br><span class="dim">${txt}</span></span><div class="bar c-${v / max >= .8 ? 'ok' : v / max >= .5 ? 'warn' : 'bad'}"><span style="width:${Math.round(v / Math.max(1e-9, max) * 100)}%"></span></div><b class="num" style="text-align:right">${Math.round(v)} / ${max}</b></div>`;
-  return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="f-t">
-<div class="row" style="gap:24px;align-items:flex-end"><div class="grade" aria-hidden="true">${f.grade}</div><div style="flex:1;min-width:220px"><h2 class="title" id="f-t" style="font-size:clamp(28px,5vw,44px)">${verdict}</h2><p class="lede">${f.broke ? 'The overdraft passed $20,000 and the bank called it in.' : f.fired ? 'Their confidence in you ran out before the season did.' : f.total + ' points out of 100. You ended with ' + f.heads + ' people on the payroll.'}</p><p class="note">${L.DIFF[f.diff || 'standard'].name} difficulty.</p></div></div>
+  let kk = 0; const kpi = (n, v, max, txt) => `<div class="kpi" style="--k:${kk++}"><span>${n}<br><span class="dim">${txt}</span></span><div class="bar c-${v / max >= .8 ? 'ok' : v / max >= .5 ? 'warn' : 'bad'}"><span style="width:${Math.round(v / Math.max(1e-9, max) * 100)}%"></span></div><b class="num" style="text-align:right">${Math.round(v)} / ${max}</b></div>`;
+  return `<div class="scrim soft final"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="f-t">
+<div class="row" style="gap:24px;align-items:flex-end"><div class="grade" aria-hidden="true">${f.grade}</div><div style="flex:1;min-width:220px"><h2 class="title" id="f-t" style="font-size:clamp(28px,5vw,44px)">${verdict}</h2><p class="lede">${f.broke ? 'The overdraft passed $20,000 and the bank called it in.' : f.fired ? 'Their confidence in you ran out before the season did.' : `<span class="cnt" aria-hidden="true" style="--to:${f.total};--dur:1.3s;--delay:.55s;--ease:cubic-bezier(.2,.8,.3,1)"></span><span class="sr">${f.total}</span> points out of 100. You ended with ` + f.heads + ' people on the payroll.'}</p><p class="note">${L.DIFF[f.diff || 'standard'].name} difficulty.</p></div></div>
 ${f.own ? `<div class="own"><div class="row" style="justify-content:space-between"><b>How the score is made</b><span class="num">Company ${f.company} × 80% + your own work ${Math.round(f.own.p * 20)} / 20 = ${f.total}</span></div><p class="note">Your own work is judged in the seat you spent most of the season in: ${ROLE[f.own.seat].title.toLowerCase()}.</p><div class="sect" style="gap:8px">${f.own.parts.map(([n, w, v]) => kpi(n, v * w * 20, Math.round(w * 20), Math.round(v * 100) + '%')).join('')}</div></div>` : ''}
 <div class="sect" style="gap:12px">${kpi('Uptime', f.pts.up, 20, Math.round(f.up * 100) + '% across the season')}${kpi('Profit after tax', f.pts.net, 30, fmtMoney(f.net) + ' after ' + fmtMoney(f.tax) + ' tax and a ' + fmtMoney(f.auditFee) + ' audit')}${kpi('Lanterns', f.pts.lit, 20, f.lit + ' of ' + L.N_RIDES * L.DAYS)}${kpi('Safety', f.pts.safe, 15, f.patches + ' patches, ' + f.tags + ' red tags')}${kpi('Board confidence', f.pts.conf, 15, f.conf + ' out of 100')}</div>
 <div class="days" style="grid-template-columns:repeat(${S.reports.length},minmax(0,1fr))">${S.reports.map(r => `<div><b>${r.n}</b><span style="height:${r.n / L.N_RIDES * 100}%"></span>${L.dow(r.day).slice(0, 2)}</div>`).join('')}</div>
@@ -3959,6 +4059,7 @@ function renderUI() {
     try { setHTML($(id), fn()); } catch (e) { oops('panel ' + id, e); }
   }
   fitLeft(); coachMarks();
+  try { celebrate(); } catch (e) { /* the moment is a nice-to-have */ }
 }
 function fitLeft() { // objectives grow down from the top, radio lines up from the bottom: when they would meet, the radio lines give way (the Log button stays)
   const app = $('app'), o = $('obj'), g = $('log'); if (!o || !g) return;
@@ -4204,9 +4305,10 @@ function bind() {
 
 function drainFx(t) {
   for (const f of S.fx) {
-    if (SFX[f.k]) SFX[f.k]();
+    if (SFX[f.k]) SFX[f.k](f);
+    try { feel(f, t); } catch (e) { /* feedback is a nice-to-have */ }
     const r = f.id && L.ride(S, f.id);
-    if (r && f.txt) pops.push({ id: r.id, x: r.x, y: r.y - 20 * pops.filter(p => p.id === r.id && t - p.t0 < 1800).length, txt: f.k === 'fast' ? '⚡ ' + f.txt : f.txt, t0: t, col: f.k === 'fix' || f.k === 'cash' ? '#8fe8c4' : f.k === 'warn' ? '#ffd27a' : f.k === 'fast' || f.k === 'ready' ? '#9fd4ff' : '#ff9a8c' });
+    if (r && f.txt) pops.push({ id: r.id, x: r.x, y: r.y - 20 * pops.filter(p => p.id === r.id && t - p.t0 < 1800).length, txt: f.k === 'fast' ? '⚡ ' + f.txt : f.txt, t0: t, big: f.k === 'fast' || f.k === 'cash', col: f.k === 'fix' || f.k === 'cash' ? '#8fe8c4' : f.k === 'warn' ? '#ffd27a' : f.k === 'fast' || f.k === 'ready' ? '#9fd4ff' : '#ff9a8c' });
     if (f.k === 'close') {
       try { ptTrack(); ptClose(); } catch (e) { /* nice-to-have */ }
       ui.reportAt = t + (reduce ? 300 : 3600); ui.sel = ui.tech = null; ui.desk = null; ui.tab = 'report';

@@ -232,9 +232,10 @@ function bind() {
 
 function drainFx(t) {
   for (const f of S.fx) {
-    if (SFX[f.k]) SFX[f.k]();
+    if (SFX[f.k]) SFX[f.k](f);
+    try { feel(f, t); } catch (e) { /* feedback is a nice-to-have */ }
     const r = f.id && L.ride(S, f.id);
-    if (r && f.txt) pops.push({ id: r.id, x: r.x, y: r.y - 20 * pops.filter(p => p.id === r.id && t - p.t0 < 1800).length, txt: f.k === 'fast' ? '⚡ ' + f.txt : f.txt, t0: t, col: f.k === 'fix' || f.k === 'cash' ? '#8fe8c4' : f.k === 'warn' ? '#ffd27a' : f.k === 'fast' || f.k === 'ready' ? '#9fd4ff' : '#ff9a8c' });
+    if (r && f.txt) pops.push({ id: r.id, x: r.x, y: r.y - 20 * pops.filter(p => p.id === r.id && t - p.t0 < 1800).length, txt: f.k === 'fast' ? '⚡ ' + f.txt : f.txt, t0: t, big: f.k === 'fast' || f.k === 'cash', col: f.k === 'fix' || f.k === 'cash' ? '#8fe8c4' : f.k === 'warn' ? '#ffd27a' : f.k === 'fast' || f.k === 'ready' ? '#9fd4ff' : '#ff9a8c' });
     if (f.k === 'close') {
       try { ptTrack(); ptClose(); } catch (e) { /* nice-to-have */ }
       ui.reportAt = t + (reduce ? 300 : 3600); ui.sel = ui.tech = null; ui.desk = null; ui.tab = 'report';

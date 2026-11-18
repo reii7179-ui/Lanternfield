@@ -314,6 +314,7 @@ function draw(now, frac) {
   const dt = VIS.last ? Math.min(.1, Math.max(0, (now - VIS.last) / 1000)) : 0, pm = VIS.run ? dt * TPS * S.speed : ui.title ? dt * TPS : 0, w = weatherNow();
   VIS.last = now; if (pm > 0) VIS.vt = (VIS.vt || 0) + dt;
   lifeStep(pm > 0 ? dt : 0, pm, n, w.wind);
+  const sh = shakeNow(now); if (sh) { ox += sh[0]; oy += sh[1]; } // a breakdown jolts the map (only the drawing: clicks use the steady view)
   drawGround(n, now, skyTint(clock, w)); // leaves the park transform on
   if (day && S.fab.length && L.onNow(S, 'mach')) { ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(L.SHOP.x - 34, L.SHOP.y - 24, 68, 42, 8); ctx.stroke(); }
   for (const r of S.rides) if (r.sub) { const sb = L.ride(S, r.sub), off = L.subDown(S, sb); line([[sb.x, sb.y], [r.x, r.y]], 1.5, off ? rgba('#ff5d4a', .6) : rgba('#f4d35e', .1 + .1 * n), [3, 9]); }
@@ -331,9 +332,10 @@ function draw(now, frac) {
   drawParts();
 
   const names = []; for (const r of S.rides) rideInfo(r, t, rideSt(r), names); for (const f of names) f();
+  drawBursts(now);
   drawCrew(t, frac, pm > 0 ? dt : 0);
   for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (now - p.t0) / 600; if (a >= 1) { pings.splice(i, 1); continue; } ctx.strokeStyle = rgba(p.col, 1 - a); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 6 + 22 * a, 0, 7); ctx.stroke(); }
-  for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i], a = (now - p.t0) / 1800; if (a >= 1) { pops.splice(i, 1); continue; } ctx.globalAlpha = 1 - a * a; label(p.txt, p.x, p.y - 56 - a * 26, 15, p.col, 700); ctx.globalAlpha = 1; }
+  for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i], a = (now - p.t0) / 1800; if (a >= 1) { pops.splice(i, 1); continue; } ctx.globalAlpha = 1 - a * a; const pin = reduce ? 1 : 1 + .4 * Math.max(0, 1 - a * 7); label(p.txt, p.x, p.y - 56 - (reduce ? 0 : a * 26), (p.big ? 18 : 15) * pin, p.col, p.big ? 800 : 700); ctx.globalAlpha = 1; } // pops pop in, then rise and fade
   if (ui.title && !reduce && lanterns.length < 26 && Math.random() < .04) { const r = S.rides[Math.floor(Math.random() * 12)]; lanterns.push({ x: r.x, y: r.y - 20, vy: 14 + Math.random() * 12, ph: Math.random() * 6, t0: now, life: 9000 }); }
   for (let i = lanterns.length - 1; i >= 0; i--) {
     const l = lanterns[i], a = (now - l.t0) / l.life; if (a >= 1) { lanterns.splice(i, 1); continue; } if (a < 0) continue;
@@ -343,5 +345,6 @@ function draw(now, frac) {
   }
   drawWeather(w, VIS.vt || 0);
   ctx.restore();
+  if (sh) { ox -= sh[0]; oy -= sh[1]; }
   if (ui.box) { const b = ui.box; ctx.fillStyle = 'rgba(121,194,255,.12)'; ctx.strokeStyle = '#79c2ff'; ctx.lineWidth = 1.5; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); }
 }

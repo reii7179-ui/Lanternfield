@@ -31,6 +31,7 @@ function renderUI() {
     try { setHTML($(id), fn()); } catch (e) { oops('panel ' + id, e); }
   }
   fitLeft(); coachMarks();
+  try { celebrate(); } catch (e) { /* the moment is a nice-to-have */ }
 }
 function fitLeft() { // objectives grow down from the top, radio lines up from the bottom: when they would meet, the radio lines give way (the Log button stays)
   const app = $('app'), o = $('obj'), g = $('log'); if (!o || !g) return;

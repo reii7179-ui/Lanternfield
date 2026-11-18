@@ -121,7 +121,17 @@ function hudUpdate() {
   countTo('h-glow', Math.round(S.glow), v => String(Math.round(v))); $('h-glowbar').style.width = Math.round(S.glow) + '%';
   $('h-glowbar').style.background = S.glow >= 60 ? 'var(--lantern)' : S.glow >= 35 ? 'var(--mech)' : 'var(--ember)';
   countTo('h-lit', S.total, v => `${Math.round(v)}/${L.N_RIDES * L.DAYS}`);
-  { const e = $('h-streak'), v = '×' + (S.streak || 0); if (e.textContent !== v) { if ((S.streak || 0) > (e._n || 0)) pop(e); e._n = S.streak || 0; e.textContent = v; } } $('h-streak').style.color = S.streak >= 3 ? 'var(--jade)' : '';
+  { // the streak: a pip for each quick fix up to the ×6 bonus cap, warmer as it builds; a lost streak cracks
+    const e = $('h-streak'), n = S.streak || 0, v = '×' + n, box = $('s-streak');
+    if (e.textContent !== v) {
+      const was = e._n || 0;
+      if (n > was) pop(e);
+      else if (was >= 2 && n === 0 && !ui.title) { SFX.lost(); if (!reduce) box.animate([{ transform: 'none' }, { transform: 'translateX(-5px)', color: '#ff8f7f' }, { transform: 'translateX(4px)' }, { transform: 'translateX(-3px)' }, { transform: 'none' }], { duration: 380, easing: 'ease-out' }); }
+      e._n = n; e.textContent = v;
+      box.className = 'stat' + (n >= 6 ? ' heat3' : n >= 4 ? ' heat2' : n >= 2 ? ' heat1' : '');
+      box.querySelectorAll('.spips i').forEach((p, i) => p.classList.toggle('on', i < Math.min(6, n)));
+    }
+  } $('h-streak').style.color = S.streak >= 3 ? 'var(--jade)' : '';
   { const b = $('b-seat'), t = `<small>Seat</small>${esc(seatTitle(S.seat))}`; if (b._h !== t) { b.innerHTML = t; b._h = t; } }
   const us = selUnits(), arm = us.length && day && !ui.title && !ui.desk && !S.paused && S.seat !== 'tech'; $('armed').hidden = !arm;
   if (arm) $('armed').textContent = `${us.length === 1 ? us[0].name : us.length + ' people'} selected. ${ui.touch ? 'Tap a ride to send, tap the ground to move.' : 'Click a fault to send. Right-click to move or send.'}${L.RANK[S.seat] >= 2 && L.onNow(S, 'sup') && S.pol.auto ? ' You are going over the supervisor\'s head.' : ''}`;

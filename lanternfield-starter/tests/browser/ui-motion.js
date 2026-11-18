@@ -3,7 +3,9 @@
 // - an element that stays keeps its identity across redraws, and a card's slide-in plays once, not on every redraw;
 // - timer bars slide to their new width; the top-bar numbers count to, and settle on, the real value;
 // - a dialog that closes fades out and is gone a moment later;
-// - with reduced motion none of that animates: dialogs close at once, numbers jump, nothing slides.
+// - with reduced motion none of that animates: dialogs close at once, numbers jump, nothing slides;
+// - feedback: a breakdown flashes the edge of the map, the streak meter follows the streak and cracks when it is lost
+//   (no flash and no crack with reduced motion).
 //   node tests/browser/ui-motion.js
 const { launch, openGame, gameErrors, report } = require('./lib.js');
 (async () => {
@@ -43,6 +45,21 @@ const { launch, openGame, gameErrors, report } = require('./lib.js');
     if (!calm && !(mid.leaving && mid.inert)) problems.push(`${tag}: the closed dialog did not fade out (or still took clicks while it did)`);
     await page.waitForTimeout(400);
     if (!(await page.evaluate(() => !document.querySelector('#modal .dialog [data-a="closehelp"]')))) problems.push(`${tag}: the closed dialog never went away`);
+    // feedback (phase 4), driven through the engine's own event queue: a breakdown flashes the edge (not with reduced motion)
+    await page.evaluate(() => { LFUI.state.fx.push({ k: 'major', id: 'wheel', txt: 'Breakdown' }); });
+    await page.waitForTimeout(250);
+    const flash = await page.evaluate(() => { const e = document.querySelector('.edgeflash'); return e ? e.getAnimations().length : 0; });
+    if (calm && flash) problems.push(`${tag}: a breakdown flashed the screen`);
+    if (!calm && !flash) problems.push(`${tag}: a breakdown did not flash the edge of the map`);
+    // the streak meter: pips and heat follow the streak; a lost streak cracks (not with reduced motion)
+    await page.evaluate(() => { LFUI.state.streak = 4; }); await page.waitForTimeout(400);
+    const st = await page.evaluate(() => { const b = document.getElementById('s-streak'); return { heat: b.className, on: b.querySelectorAll('.spips i.on').length }; });
+    if (st.on !== 4 || !/heat2/.test(st.heat)) problems.push(`${tag}: streak 4 shows ${st.on} pips (${st.heat})`);
+    await page.evaluate(() => { LFUI.state.streak = 0; }); await page.waitForTimeout(250);
+    const lost = await page.evaluate(() => { const b = document.getElementById('s-streak'); return { anims: b.getAnimations().length, on: b.querySelectorAll('.spips i.on').length }; });
+    if (lost.on) problems.push(`${tag}: a lost streak still shows ${lost.on} pips`);
+    if (calm && lost.anims) problems.push(`${tag}: a lost streak shook the stat`);
+    if (!calm && !lost.anims) problems.push(`${tag}: a lost streak did not crack`);
     problems.push(...(await gameErrors(page, errors)).map(e => `${tag}: ${e}`));
     await page.close();
   }

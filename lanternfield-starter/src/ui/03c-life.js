@@ -43,6 +43,7 @@ function lifeStep(dt, pm, n, wx) {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i]; p.t += dt; if (p.t >= p.life) { parts.splice(i, 1); continue; }
     if (p.k === 'spark') p.vy += 140 * dt;
+    if (p.k === 'star' || p.k === 'coin') { p.vy += (p.k === 'coin' ? 120 : 50) * dt; p.vx *= 1 - 2.2 * dt; p.vy *= 1 - 1.4 * dt; }
     if (p.k === 'smoke') { p.vx += (wx * 25 - p.vx) * dt * .5; p.size += dt * 4; }
     p.x += p.vx * dt; p.y += p.vy * dt;
   }
@@ -80,6 +81,9 @@ function drawParts() {
   ctx.beginPath(); let any = false;
   for (const p of parts) if (p.k === 'spark') { ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * .03, p.y - p.vy * .03); any = true; }
   if (any) { ctx.strokeStyle = '#ffe58a'; ctx.lineWidth = 1.4; ctx.stroke(); }
+  // sparkles (little diamonds) and coins, one fill per colour
+  const by = {}; for (const p of parts) if (p.k === 'star' || p.k === 'coin') { const a = 1 - p.t / p.life, s = p.size * (p.k === 'star' ? .6 + .6 * a : 1), path = by[p.col + p.k] || (by[p.col + p.k] = new Path2D()); if (p.k === 'star') { path.moveTo(p.x, p.y - s * 1.6); path.lineTo(p.x + s, p.y); path.lineTo(p.x, p.y + s * 1.6); path.lineTo(p.x - s, p.y); path.closePath(); } else { path.moveTo(p.x + s, p.y); path.ellipse(p.x, p.y, s * Math.abs(Math.cos(p.t * 9)) + .4, s, 0, 0, 7); } }
+  for (const k in by) { ctx.fillStyle = k.replace(/(star|coin)$/, ''); ctx.fill(by[k]); }
   ctx.beginPath(); any = false;
   for (const p of parts) if (p.k === 'dust') { const a = 1 - p.t / p.life; ctx.moveTo(p.x + p.size * a, p.y); ctx.arc(p.x, p.y, p.size * (1.4 - a), 0, 7); any = true; }
   if (any) { ctx.fillStyle = 'rgba(214,196,150,.35)'; ctx.fill(); }

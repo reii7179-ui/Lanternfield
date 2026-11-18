@@ -27,4 +27,8 @@ window.__mock = {
   zoom(z, x, y) { cam.z = z; cam.x = x; cam.y = y; cam.user = true; applyCam(); },
   // keep the scripted player playing while the clip runs (recordings only): it acts before every park minute
   drive(P, o) { const step = LF.step; LF.step = st => { if (st.phase === 'day') { if (st.clock % o.every === 0) P.dispatch(st, o); if (st.clock % o.inboxEvery === 0) P.answerAll(st); P.seatPlay(st, o); } return step(st); }; },
+  // recordings only: fire a feedback event as if the engine had reported it, set the streak, or play the season out
+  fx(k, id, txt) { S.fx.push({ k, id, txt }); drainFx(performance.now()); },
+  streak(n) { S.streak = n; },
+  season(P, o) { while (!S.final) { if (S.phase === 'plan') { P.plan(S); L.startDay(S); continue; } if (S.clock % o.every === 0) P.dispatch(S, o); if (S.clock % o.inboxEvery === 0) P.answerAll(S); P.seatPlay(S, o); L.step(S); S.fx.length = 0; } ui.title = false; ui.desk = null; ui.reportAt = 0; return S.final.grade; },
 };
