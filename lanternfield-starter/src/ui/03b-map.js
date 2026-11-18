@@ -21,7 +21,7 @@ const palA = n => ({
   beacon: '#fff0b0', smoke: '#eef0f6', hum: '#79c2ff',
 });
 const ZONES = [[40, 70, 330, 560], [330, 30, 400, 190], [360, 240, 300, 420], [650, 150, 330, 420]];
-const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0 }; // a state missing here would stop the ride's phase being a number
+const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0, unchecked: 0, ready: 0 }; // a state missing here would stop the ride's phase being a number
 const ART_SCALE = 1.2;
 const rideSt = r => ui.title ? 'ok' : L.status(S, r);
 const hashOf = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997; return h / 997; };
@@ -245,7 +245,7 @@ function rideFrame(r, n, st, idx) {
 function drawRide(r, n, st, idx) { const f = rideFrame(r, n, st, idx); blitWorld(f.c, r.x + SPR_BOX.x, r.y + SPR_BOX.y, SPR_BOX.w, SPR_BOX.h, f.k); }
 
 /* ride names: a pill, with a status word when the ride is not running (so colour is never the only signal) */
-const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW', signoff: 'TO SIGN', signme: 'SIGN NOW', restart: 'RESTART' };
+const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW', signoff: 'TO SIGN', signme: 'SIGN NOW', restart: 'RESTART', unchecked: 'NOT CHECKED' };
 const pills = {};
 function namePill(r, st) {
   const fs = Math.max(12.5, labelPx() / sc), k = sc * dprNow(), word = ui.title ? '' : STWORD[st] || '', key = `${fs.toFixed(2)}|${k.toFixed(3)}|${word}|${st === 'nopower'}|${fontsReady()}`;

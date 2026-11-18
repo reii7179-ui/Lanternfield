@@ -1,7 +1,7 @@
 /* Lanternfield engine. Pure state in, pure state out; no DOM. One step is one park minute. */
 (function (G) {
 'use strict';
-const HZ = .6, OPEN = 540, CLOSE = 1320, LH = 1260, DAYS = 14, LIT_MIN = 45, SERVICE_WORK = 45, CASH0 = 20000, OVERHEAD = 7000;
+const HZ = .6, PRE = 495, OPEN = 540, CLOSE = 1320, LH = 1260, DAYS = 14, LIT_MIN = 45, SERVICE_WORK = 45, CASH0 = 20000, OVERHEAD = 7000;
 const FAST = 8; // a fault answered within this many minutes is caught early: the job is a fifth smaller
 // difficulty: how long the windows are and how much goes wrong. Standard is what the game was tuned on.
 const DIFF = {
@@ -19,7 +19,7 @@ const OFFICE = { x: 962, y: 618 };
 const GRADE = ['', 'Apprentice', 'Tradesperson', 'Senior'];
 const DOW = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dow = d => DOW[(d - 1) % 7];
-const SHIFT = { early: [540, 1020], late: [840, 1320], full: [540, 1320] };
+const SHIFT = { early: [PRE, 1020], late: [840, 1320], full: [PRE, 1320] }; // the early shift comes in at 08:15 for the morning checks
 const WAGE = [0, 110, 200, 300];
 const YARD = { x: 872, y: 612 }, STORE = { x: 778, y: 612 }, SHOP = { x: 962, y: 528 }, GATE = { x: 500, y: 640 };
 const NODES = { P: { x: 500, y: 418 }, W: { x: 285, y: 345 }, N: { x: 500, y: 180 }, E: { x: 745, y: 350 } };
@@ -114,6 +114,7 @@ function migrate(s) { // an older save brought up to date; anything new starts e
   if (s.v !== 7 && s.v !== 8) return s;
   for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0 }); }
   Object.assign(s, { big: s.big || [], boardQ: s.boardQ || [], bigN: s.bigN || 0, bigDay: s.bigDay != null ? s.bigDay : -9 });
+  if (s.gates == null) { s.gates = s.phase === 'day' && s.clock >= OPEN; s.chk = s.chk || {}; for (const r of s.rides || []) if (r.chk == null) r.chk = s.phase === 'day' ? s.day : 0; } // a save from before the morning checks: its rides count as checked
   for (const r of s.rides || []) Object.assign(r, { pc: r.pc || 0, mf: r.mf || 0, cf: r.cf || 0, hzm: r.hzm || 1, so: r.so || null, restart: r.restart || 0, gb: r.gb || 0 });
   s.v = 8; return s;
 }
@@ -333,11 +334,13 @@ function status(s, r) {
   if (r.so) return 'signoff';
   if (r.restart > s.clock) return 'restart';
   const j = r.job;
+  if (r.sub && (r.chk !== s.day || !s.gates)) { // not checked today, or the gates are still shut: it does not run, whatever else is wrong
+    if (j && j.type === 'fault') return 'down'; if (j && j.started) return 'service'; return r.chk !== s.day ? 'unchecked' : 'ready'; }
   if (j) { if (j.type === 'fault') return j.sev === 'major' ? 'down' : 'degraded'; if (j.started) return 'service'; }
   if (r.sub && !s.staffed.includes(r.id)) return 'unstaffed';
   return 'ok';
 }
-const AV = { ok: 1, degraded: .5, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0 };
+const AV = { ok: 1, degraded: .5, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0, unchecked: 0, ready: 0 };
 
 /* world */
 function mkStaff(s, name, role, skills, shift, grade) {
@@ -356,7 +359,7 @@ const mkSc = () => ({
 function newGame(seed) {
   const s = {
     v: SAVE_V, strategy: 'uptime', comp: 20, cdT: 0, later: [], sf: {}, sq: {}, seat: 'sup', me: null, inbox: [], asks: [], rq: 0, sc: mkSc(), budget: 3500, focus: 'uptime', freeze: 0, cool: false, cdW: 0, cdq: {}, spons: 0, aiMin: false, prio: null, talk: null, away: 0, cdV: 0, diff: 'standard', rk: {}, hh: 0,
-    streak: 0, best: 0, cdC: 0, waves: [], seed: (seed >>> 0) || 7, day: 1, clock: OPEN, phase: 'plan', closed: false, paused: true, speed: 1,
+    streak: 0, best: 0, cdC: 0, waves: [], seed: (seed >>> 0) || 7, day: 1, clock: PRE, gates: false, chk: {}, phase: 'plan', closed: false, paused: true, speed: 1,
     cash: CASH0, glow: 80, crowd: 1, heat: false, att: .35, total: 0, seq: 0, nextT: 1,
     rides: [], crew: [], events: [], feed: [], fx: [], reports: [], forecast: null, cands: [], final: null,
     stock: Object.assign({}, STOCK0), min: {}, inbound: [], fab: [], used: {},
@@ -409,14 +412,14 @@ function rollCands(s) {
 }
 function resetDay(s) { // put the park in its opening state for s.day without starting the clock
   const f = s.forecast;
-  s.clock = OPEN; s.crowd = f.weekend ? 1.2 : 1; s.heat = f.heat;
+  s.clock = PRE; s.gates = false; s.chk = {}; s.crowd = f.weekend ? 1.2 : 1; s.heat = f.heat;
   s.events = f.events.map(e => Object.assign({ done: false, warned: false }, e)).sort((a, b) => a.at - b.at);
   s.waves = (f.waves || []).map(w => ({ at: w.at, size: w.size, left: 0, warned: false, done: false })); s.cdC = 0;
   const prev = s.reports[s.reports.length - 1];
   s.glow = prev ? clamp(prev.glowEnd * .5 + 45, 55, 90) : 80;
   for (const r of s.rides) { r.q = 0; r.lh = 0; r.earn = 0; r.rate = 0; r.jam = false; r.crew = 0; r.warnAt = 0; }
   s.crew = s.crew.filter(t => !t.temp);
-  for (const t of s.crew) { place(t); t.state = 'home'; t.target = null; t.fetch = t.carry = false; t.dest = null; t.day = 0; t.on = false; t.post = null; t.sprint = t.push = t.cdS = t.cdP = 0; t.brk = false; t.talk = 0; t.wake = 0; t.inAt = 0; t.hurt = 0; t.stall = 0; t.risk = t.riskW = t.riskC = 0; t.pace = 0; } // every timer here is a clock of the day, so it must not carry into tomorrow
+  for (const t of s.crew) { place(t); t.state = 'home'; t.target = null; t.chkRun = null; t.chkUntil = 0; t.fetch = t.carry = false; t.dest = null; t.day = 0; t.on = false; t.post = null; t.sprint = t.push = t.cdS = t.cdP = 0; t.brk = false; t.talk = 0; t.wake = 0; t.inAt = 0; t.hurt = 0; t.stall = 0; t.risk = t.riskW = t.riskC = 0; t.pace = 0; } // every timer here is a clock of the day, so it must not carry into tomorrow
   s.prio = null; s.talk = null; s.away = 0; s.cdV = 0; s.hh = 0; for (const r of s.rides) { r.vouch = 0; r.fl = 0; r.svcReq = false; }
 }
 function startDay(s) {
@@ -448,11 +451,12 @@ function startDay(s) {
     if (roll('legal', .06 * m.pLegal)) hit(1500 * m.fine, 'A contract dispute went against you.', 0);
     if (s.cm < 20) log(s, 'Office staff are working to rule. Every department is at half strength until morale recovers.', 'bad');
   }
-  for (const t of s.crew) { t.on = onShift(t, OPEN); if (t.on) t.state = 'idle'; t.shiftWas = t.shift; t.worked = true; t.en = t.tired ? 70 : 100; }
+  for (const t of s.crew) { t.on = onShift(t, s.clock); if (t.on) t.state = 'idle'; t.shiftWas = t.shift; t.worked = true; t.en = t.tired ? 70 : 100; }
+  shareChecks(s);
   const due = s.inbound.filter(o => !o.at && o.due <= s.day);
   for (const o of due) s.stock[o.sku]++;
   s.inbound = s.inbound.filter(o => o.at || o.due > s.day);
-  log(s, `${dow(s.day)}, day ${s.day} of ${DAYS}. Gates open.${s.crowd > 1 ? ' Weekend crowds.' : ''}${s.heat ? ' Heatwave: electrics will run hot.' : ''}`, 'event');
+  log(s, `${dow(s.day)}, day ${s.day} of ${DAYS}. Morning checks: the gates open at ${fmtClock(OPEN)} once the check sheet is signed.${s.crowd > 1 ? ' Weekend crowds.' : ''}${s.heat ? ' Heatwave: electrics will run hot.' : ''}`, 'event');
   if (due.length) log(s, `Morning delivery booked into stores: ${due.length} item${due.length > 1 ? 's' : ''}.`);
 }
 
@@ -474,13 +478,13 @@ function createFault(s, r, o) {
   if (r.blame) { const b = r.blame; r.blame = null; // it failed again (or was red-tagged) after someone countersigned a weak job sheet
     if (b.mine && s.day - b.day <= 1 && s.sc[b.x]) { s.sc[b.x].csHurt = (s.sc[b.x].csHurt || 0) + 1; if (b.x === s.seat) log(s, `${r.name} failed again after you countersigned a job sheet with gaps in it. You share the fault.`, 'bad'); } }
   if (!o.glitch && !o.lock) { if (trade === 'mech') r.mf = (r.mf || 0) + 1; else if (trade === 'ctrl') r.cf = (r.cf || 0) + 1; }
-  r.job = { type: 'fault', title: tpl[0], trade, sev, work: Math.round(R(s, 38, 88) * (sev === 'minor' ? .7 : 1)), prog: 0, mode: 'full', lock: !!o.lock, part: tpl[2], ps: 'none', t0: s.clock };
+  r.job = { type: 'fault', title: tpl[0], trade, sev, work: Math.round(R(s, 38, 88) * (sev === 'minor' ? .7 : 1) * (r.nohist ? 1.25 : 1)), nohist: r.nohist ? 1 : 0, prog: 0, mode: 'full', lock: !!o.lock, part: tpl[2], ps: 'none', t0: s.clock };
   if (tpl[4]) { // what the technician sees, and three possible causes
     const kin = FAULTS.filter(f => f !== tpl && f[3].includes(r.kind)), same = kin.filter(f => f[1] === trade), d = [];
     const take = arr => { const f = arr.filter(x => !d.includes(x[0]))[Math.floor(rnd(s) * arr.filter(x => !d.includes(x[0])).length)]; if (f) d.push(f[0]); };
     take(same.length ? same : kin); take(kin.length > 1 ? kin : FAULTS.filter(f => f !== tpl)); if (d.length < 2) take(FAULTS.filter(f => f !== tpl));
     const opts = [tpl[0]].concat(d.slice(0, 2)); for (let i = opts.length - 1; i > 0; i--) { const k = Math.floor(rnd(s) * (i + 1)); [opts[i], opts[k]] = [opts[k], opts[i]]; }
-    const right = opts.indexOf(tpl[0]), gut = chance(s, .85) ? right : (right + 1 + Math.floor(rnd(s) * 2)) % 3;
+    const right = opts.indexOf(tpl[0]), gut = chance(s, r.nohist ? .55 : .85) ? right : (right + 1 + Math.floor(rnd(s) * 2)) % 3; // no history from the last job sheet: a hunch is right less often
     Object.assign(r.job, { sym: tpl[4], ans: tpl[0], opts, gut });
   } else r.job.dx = 1;
   { const j = r.job; j.par = s.clock + 40 + Math.round(j.work * 1.1);
@@ -514,7 +518,7 @@ function dropJob(s, r) { // a job goes away without using its part
   for (const t of s.crew) if (t.target === r.id) release(t);
   r.job = null;
 }
-function release(t) { t.target = null; t.fetch = false; t.carry = false; t.lk = null; if (t.on) t.state = 'idle'; }
+function release(t) { t.target = null; t.fetch = false; t.carry = false; t.lk = null; t.chkRun = null; t.chkUntil = 0; if (t.on) t.state = 'idle'; }
 function rouse(s, t) { if (t.brk || t.talk) { t.brk = false; t.talk = 0; t.wake = s.clock + 2; } } // pulled off a break or out of a talk, people take a couple of minutes to get going (and miss the talk)
 // returns true, or a short reason it cannot be done
 function assign(s, t, r, mode, ai) {
@@ -608,6 +612,57 @@ function callout(s, r) {
   log(s, `Contractor called out for ${r.name}. On site around ${fmtClock(t.arrive)}.`, 'event');
   return true;
 }
+/* ---------- the morning: 08:15 to the gates ----------
+   The early shift comes in at 08:15. Each ride gets its daily check from one technician (the rides are shared out
+   between the early shift); the checks fill one check sheet, and the supervisor signs it once to open the gates at
+   09:00. A ride not yet checked stays shut until it is. Your own checks left past 09:10 go to the supervisor, who
+   sends someone else, and count as missed. */
+const CHECK_MIN = 1; // minutes at the ride for the daily check
+function shareChecks(s) {
+  const techs = s.crew.filter(t => t.role === 'tech' && t.on && !t.temp && !t.agency), rides = s.rides.filter(r => r.sub);
+  if (!techs.length) return;
+  rides.sort((a, b) => Math.atan2(a.y - 418, a.x - 500) - Math.atan2(b.y - 418, b.x - 500)); // round the park, so each person gets a stretch of it
+  const per = Math.ceil(rides.length / techs.length);
+  rides.forEach((r, i) => { s.chk[r.id] = techs[Math.min(techs.length - 1, Math.floor(i / per))].id; });
+}
+const myChecks = s => s.seat === 'tech' ? s.rides.filter(r => r.sub && s.chk[r.id] === s.me && r.chk !== s.day && !r.job && !r.so) : []; // a ride with a job open gets its check when it is signed back
+function checkDone(s, r, t) {
+  r.chk = s.day; if (t) { t.chkRun = null; t.chkUntil = 0; }
+  if (s.rides.every(x => !x.sub || x.chk === s.day)) log(s, `Morning checks done: every ride is on the sheet${s.gates ? '' : ', ready for the gates'}.`, 'good');
+}
+// the computer technicians (and anyone the supervisor sends after 09:10) walk their round
+function checkRound(s, t, sp) {
+  if (t.chkUntil) { t.state = 'daily'; if (s.clock >= t.chkUntil) { const r = ride(s, t.chkRun); if (r && r.chk !== s.day) checkDone(s, r, t); else { t.chkRun = null; t.chkUntil = 0; } } return true; }
+  const r = s.rides.filter(x => x.sub && s.chk[x.id] === t.id && x.chk !== s.day && !x.job && !x.so).sort((a, b) => Math.hypot(a.x - t.x, a.y - t.y) - Math.hypot(b.x - t.x, b.y - t.y))[0];
+  if (!r) return false;
+  t.chkRun = r.id; t.state = 'walk';
+  if (moveTo(t, r.x + t.ox, r.y + t.oy, sp)) t.chkUntil = s.clock + CHECK_MIN;
+  return true;
+}
+// you, the technician, at one of your rides: the daily check
+function dailyCheck(s, rid) {
+  const t = me(s), r = ride(s, rid); if (!t || !r || !t.on || s.chk[rid] !== t.id || r.chk === s.day || t.chkUntil || t.target) return false;
+  if (Math.hypot(t.x - r.x, t.y - r.y) > 70) return 'Walk to the ride first';
+  t.chkRun = r.id; t.chkUntil = s.clock + CHECK_MIN; t.post = null; return true;
+}
+function morning(s) {
+  const m = me(s);
+  if (m && m.chkUntil && s.clock >= m.chkUntil) { const r = ride(s, m.chkRun); if (r && r.chk !== s.day) { checkDone(s, r, m); s.sc.tech.chk = (s.sc.tech.chk || 0) + 1; if (!myChecks(s).length && s.clock <= OPEN) onTime(s); } else { m.chkRun = null; m.chkUntil = 0; } }
+  // the check sheet: the supervisor signs it before the gates; the gates open at 09:00 once it is signed
+  if (!s.d.sheet && s.clock >= OPEN - 5) { s.d.sheet = s.clock; log(s, `${holder(s, handler(s, 'sup'))} signed the morning check sheet.`, 'info'); }
+  if (!s.gates && s.d.sheet && s.clock >= OPEN) { s.gates = true; s.d.gateAt = s.clock; const n = s.rides.filter(r => r.sub && r.chk !== s.day).length; log(s, `Gates open.${n ? ` ${n} ride${n > 1 ? 's are' : ' is'} not checked yet and stay${n > 1 ? '' : 's'} shut until ${n > 1 ? 'they are' : 'it is'}.` : ''}`, 'event'); fx(s, 'ready', null); }
+  // your checks left past 09:10 go to the supervisor, who shares them out to whoever is free
+  if (s.clock === OPEN + 10) { const left = myChecks(s); if (left.length) { miss(s); const sc = s.sc.tech; sc.esc = (sc.esc || 0) + 1; sc.chkMiss = (sc.chkMiss || 0) + left.length;
+    for (const r of left) delete s.chk[r.id]; log(s, `${left.map(r => r.short).join(', ')} still not checked: escalated to ${seatWho(s, above(s, 'tech'))}, who is sending someone else. They stay shut until then.`, 'bad'); } }
+  // a ride nobody is down to check (escalated, or its checker is off or hurt) goes to the nearest free technician
+  if (s.clock % 2 === 0) for (const r of s.rides) {
+    if (!r.sub || r.chk === s.day) continue;
+    const who = staff(s, s.chk[r.id]); if (who && who.on && !(who.hurt > s.clock) && !(s.seat === 'tech' && who.id === s.me && s.clock > OPEN + 10)) continue;
+    const f = s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !(c.hurt > s.clock) && !(s.seat === 'tech' && c.id === s.me)).sort((a, b) => Math.hypot(a.x - r.x, a.y - r.y) - Math.hypot(b.x - r.x, b.y - r.y))[0];
+    if (f) s.chk[r.id] = f.id;
+  }
+}
+
 /* ---------- reopening a fixed ride: who signs it back into service, and the padlocks ----------
    A finished job no longer reopens the ride by itself. It waits, "fixed, waiting to reopen", until the right people have
    signed and every padlock on it is off. Never more than two signatures, plus Operations accepting it back:
@@ -679,7 +734,7 @@ function soNext(s, r) {
   if (o.x === s.seat) { fx(s, 'req', r.id, 'Sign to reopen'); log(s, `${r.name} is waiting for your countersign to reopen. Check the write-up on its card.`, 'event'); }
 }
 function soOpen(s, r) {
-  const o = r.so; r.so = null;
+  const o = r.so; r.so = null; r.chk = s.day; // a ride signed back into service has had its check
   if (!r.sub) { // power back: the rides it feeds restart one by one
     let k = 0; for (const x of s.rides.filter(x => x.sub === r.id)) x.restart = s.clock + 1 + 1.5 * k++;
     log(s, `${r.name} is signed off and power is back. Its rides restart one by one.`, 'good'); fx(s, 'fix', r.id, 'Power back');
@@ -708,7 +763,7 @@ function soBack(s, r, who, x) {
 }
 // you were the signer and let it sit: it goes one seat up
 function soEsc(s, r) {
-  const o = r.so, x = above(s, s.seat) === 'board' ? 'dir' : above(s, s.seat);
+  const up = above(s, s.seat), o = r.so, x = up !== 'ceo' && up !== 'board' ? up : s.seat === 'dir' ? 'mgr' : 'dir'; // never the chief executive: with no one filled above, an acting director (or, above a director, their deputy) signs
   miss(s); const sc = s.sc[s.seat]; sc.esc = (sc.esc || 0) + 1; sc.csMiss = (sc.csMiss || 0) + 1; s.d.esc = (s.d.esc || 0) + 1;
   o.esc = 1; o.x = x; o.at = s.clock; o.lag = ESC_DELAY[x] || 10;
   log(s, `No signature from you in ${SO_SIGN} minutes: ${r.name} was escalated to ${seatWho(s, x)}, who will get to it in about ${o.lag} minutes. It stays shut until then.`, 'bad');
@@ -818,6 +873,8 @@ function techStep(s, t) {
   const sp = speed(s) * (t.sprint > s.clock ? 2 : 1), tire = n => { if (!t.temp && !t.agency) t.en = clamp(t.en - n, 0, 100); };
   if (!t.target) {
     const mine0 = s.seat === 'tech' && t.id === s.me;
+    if (!t.post && !t.brk && !t.talk && !mine0 && checkRound(s, t, sp)) return; // the morning round of daily checks
+    if (mine0 && t.chkUntil) { t.state = 'daily'; return; }
     if (!t.post && !t.brk && !t.talk && !mine0) { const back = s.rides.find(x => x.so && x.so.pads.includes(t.id)); if (back) { t.post = { x: back.x + t.ox, y: back.y + t.oy }; t.padRun = back.id; } } // back to take a padlock off
     if (t.post) { t.state = 'walk'; tire(t.sprint > s.clock ? .35 : .1); if (moveTo(t, t.post.x, t.post.y, sp)) { t.post = null; t.state = 'idle';
       if (t.padRun) { const x = ride(s, t.padRun); if (x && x.so && x.so.pads.includes(t.id)) { x.so.pads = x.so.pads.filter(id => id !== t.id); log(s, `${t.name} came back and took their padlock off ${x.short}.`, 'info'); } t.padRun = null; } } }
@@ -882,7 +939,8 @@ function supStep(s) { // whoever is running the shift sends people to work; with
   if (!P.auto && !m) return; // you said you would dispatch yourself
   const lagOf = r => r.id === s.prio ? 0 : (r.job.lag || 6) + (supOn ? 0 : 10), woOpen = s.inbox.some(i => i.k === 'wo');
   const padded = new Set(); for (const r of s.rides) if (r.so) for (const id of r.so.pads) padded.add(id); // a good supervisor lets people go back for their padlocks first
-  const free = tr => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded.has(c.id) && !(c.hurt > s.clock) && (tr === '*' || c.skills[tr] && !c.talk && !(c.brk && enOf(c) < 60)) && !(c === m && (woOpen || !supOn)));
+  const round = new Set(); for (const r of s.rides) if (r.sub && r.chk !== s.day && s.chk[r.id] && !r.job && !r.so) round.add(s.chk[r.id]); // on the morning round: checks first, only stranded guests come before them
+  const free = tr => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded.has(c.id) && (tr === '*' || !round.has(c.id)) && !(c.hurt > s.clock) && (tr === '*' || c.skills[tr] && !c.talk && !(c.brk && enOf(c) < 60)) && !(c === m && (woOpen || !supOn)));
   const dist = (c, r) => Math.hypot(c.x - r.x, c.y - r.y);
   // stranded guests first: anyone at all can get them down
   for (const r of s.rides) {
@@ -1434,7 +1492,7 @@ function step(s) {
   if (s.day === 1 && s.clock === 548) { const c = ride(s, 'carou'); if (!c.job) createFault(s, c, { sev: 'minor', trade: 'mech' }); }
   if (s.day === 1 && s.clock === 590) { const c = ride(s, 'food'); if (!c.job) createFault(s, c, { sev: 'major', trade: 'elec' }); }
   if (s.clock === LH + 1) { log(s, 'Lantern Hour. Every ride that runs 45 of the next 60 minutes sends up a lantern. Income is up by half.', 'event'); fx(s, 'lh', null); }
-  const M = s.m, hh = s.hh > s.clock, att = attendance(s.clock) * s.crowd * M.crowd * (.75 + .25 * s.glow / 100) * (hh ? 1.5 : 1), lh = s.clock > LH;
+  const M = s.m, hh = s.hh > s.clock, att = !s.gates ? 0 : attendance(s.clock) * s.crowd * M.crowd * (.75 + .25 * s.glow / 100) * (hh ? 1.5 : 1), lh = s.clock > LH;
   s.att = att;
   for (const e of s.events) if (!e.done) doEvent(s, e);
   for (const w of s.waves) {
@@ -1458,9 +1516,7 @@ function step(s) {
         const fl = r.fl > s.clock, qmax = cap * s.qtol * (fl ? .5 : 1); r.jam = r.q >= qmax; if (r.jam) r.q = qmax;
         const m = served * r.fare * .65 * (lh ? 1.5 : 1) * s.confMult * M.spend * (1 - .04 * M.leak) * (s.itOut ? .92 : 1) * (fl ? 1.4 : 1) * (hh ? .85 : 1); rev += m; r.earn += m; r.rate = m;
       } else { r.q *= .9; r.rate = 0; r.jam = false; }
-      pen += r.w * ((1 - av) + (r.jam ? .25 : 0)) * (r.vouch > s.clock ? .3 : 1);
-      if (lh) r.lh += av;
-      s.d.upW += r.w * av; s.d.upT += r.w;
+      if (s.gates) { pen += r.w * ((1 - av) + (r.jam ? .25 : 0)) * (r.vouch > s.clock ? .3 : 1); if (lh) r.lh += av; s.d.upW += r.w * av; s.d.upT += r.w; } // nothing counts before the gates open
     }
     const live = r.sub ? av > 0 : st !== 'down' && st !== 'signoff';
     if (live) {
@@ -1500,6 +1556,7 @@ function step(s) {
       else t.state = 'idle';
     }
   }
+  morning(s);
   soStepAll(s);
   supStep(s);
   requests(s);
@@ -1759,7 +1816,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);

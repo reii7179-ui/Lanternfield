@@ -4,6 +4,7 @@
 // - a red-tagged ride stays closed until the inspector has cleared it;
 // - the chief executive never signs a reopen, and nobody countersigns their own work;
 // - every ride waiting to reopen eventually reopens or is escalated (nothing waits for ever);
+// - nothing runs before the gates open, and no ride runs before its daily check;
 // - everything is the same for the same seed.
 //   node tests/engine/rules.js [seeds, default 4]
 const { loadEngine } = require('./load.js');
@@ -39,6 +40,12 @@ function watch(name, seed) {
       for (const k of ['sup', 'mgr', 'dir']) if (b.by[k] && b.by[k] === b.wr.who) note('the person who did the work countersigned it', where + ' ' + r.id);
     });
     for (const r of s.rides) if (r.so && ['sup', 'mgr', 'dir', 'review'].includes(r.so.steps[r.so.i]) && r.so.x === 'ceo') note('the chief executive was asked to sign a reopen', where + ' ' + r.id);
+    for (const r of s.rides) { // the morning: nothing runs before the gates, and no ride runs before its daily check
+      const st = L.status(s, r);
+      if (r.sub && (st === 'ok' || st === 'degraded') && !s.gates) note('a ride ran before the gates opened', where + ' ' + r.id);
+      if (r.sub && (st === 'ok' || st === 'degraded') && r.chk !== s.day) note('a ride ran before its daily check', where + ' ' + r.id);
+    }
+    if (!s.gates && s.clock > L.OPEN + 40) note('the gates never opened', where);
     if (s.reports.length > 30) break;
   }
   return { s, opened, waited };

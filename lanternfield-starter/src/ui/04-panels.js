@@ -66,6 +66,9 @@ function staffLine(c) {
   if (c.role === 'mach') return S.fab.length ? `Making ${L.SKU[S.fab[0].sku][0].toLowerCase()}` : 'Workshop idle';
   if (c.role === 'sup') return S.seat === 'sup' ? 'You are running the shift' : S.pol.auto ? 'Running the shift' : 'Standing by';
   const d = c.target && L.ride(S, c.target);
+  if (!d && c.chkRun) { const k = L.ride(S, c.chkRun); return c.state === 'daily' ? `Daily check on ${k.short}` : `Walking to check ${k.short}`; }
+  if (!d && c.padRun) return `Going back for their padlock on ${L.ride(S, c.padRun).short}`;
+  if (c.state === 'signoff' && d) return `Signing off ${d.short}`;
   if (c.fetch) return 'Fetching a part from stores';
   if (d && c.state === 'walk') return `Walking to ${d.short}`;
   if (d && c.state === 'wait') return `Waiting for a part at ${d.short}`;

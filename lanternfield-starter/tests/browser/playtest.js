@@ -71,7 +71,7 @@ const STAMP = /^\d+\.\d+\.\d+\+[0-9a-f]{8}$/;
   const c0 = await frame().evaluate(() => { LFUI.act('pause', {}); return LFUI.state.clock; });
   await top.reload(); await top.waitForTimeout(800);
   const c1 = await frame().evaluate(() => LFUI.state.clock);
-  if (c1 !== c0 || c0 <= 540) problems.push(`in a frame on another site the game did not carry on after a reload (clock ${c0} then ${c1})`);
+  if (c1 !== c0 || c0 <= 495) problems.push(`in a frame on another site the game did not carry on after a reload (clock ${c0} then ${c1})`);
   await frame().evaluate(() => { LFUI.act('pause', {}); LFUI.act('help', {}); }); await top.waitForTimeout(400);
   const frec = await frame().evaluate(() => document.querySelector('#modal .pt').value);
   await frame().locator('#modal [data-a=ptcopy]').click(); await top.waitForTimeout(300);

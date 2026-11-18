@@ -34,11 +34,13 @@ module.exports = function makePlayers(L) {
 
   function dispatch(s, o) { // the supervisor's hands
     const padded = id => s.rides.some(r => r.so && r.so.pads.includes(id)); // let them go back for their padlock first
-    const freeT = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded(c.id) && !(c.hurt > s.clock) && !(c.wake > s.clock));
+    const round = new Set(); if (s.chk) for (const r of s.rides) if (r.sub && r.chk !== s.day && s.chk[r.id] && !r.job && !r.so) round.add(s.chk[r.id]); // (an older engine, as in the speed test's baseline, has no morning checks) // let the morning round finish first
+    const freeT = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded(c.id) && !round.has(c.id) && !(c.hurt > s.clock) && !(c.wake > s.clock));
+    const freeAny = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !(c.hurt > s.clock) && !(c.wake > s.clock)); // stranded guests: anyone at all
     for (const r of s.rides) { // guests stuck: anyone, now
       const j = r.job; if (!j || !j.rescue || s.clock - j.t0 < o.delay) continue;
       if (s.crew.some(c => c.on && c.role === 'tech' && (c.target === r.id || (c.post && Math.hypot(c.post.x - r.x, c.post.y - r.y) < 60)))) continue;
-      const f = freeT().sort((a, b) => dist(a, r) - dist(b, r))[0]; if (!f) continue;
+      const f = freeAny().sort((a, b) => dist(a, r) - dist(b, r))[0]; if (!f) continue;
       if (f.skills[j.trade]) L.assign(s, f, r); else L.moveOrder(s, f, r.x + f.ox, r.y + f.oy); L.sprint(s, f);
     }
     const jobs = unsent(s).filter(r => s.clock - r.job.t0 >= o.delay).sort((a, b) => ((!a.sub) - (!b.sub) ? (!b.sub) - (!a.sub) : (b.job.sev === 'major') - (a.job.sev === 'major') || b.w - a.w));
@@ -81,7 +83,12 @@ module.exports = function makePlayers(L) {
 
   function signOffs(s, o) { // a fixed ride waiting for this seat: the technician signs it fit to run and takes their padlock off;
     // a countersigner reads the write-up after o.delay minutes and sends a weak one back; the director does the incident review
+    if (!L.signFit) return; // an older engine, with no sign-offs
     const m = L.me(s);
+    if (m && m.on && !m.target && !m.chkUntil) { // the technician's morning round: walk to the nearest ride on the sheet and check it
+      const r = L.myChecks(s).sort((a, b) => Math.hypot(m.x - a.x, m.y - a.y) - Math.hypot(m.x - b.x, m.y - b.y))[0];
+      if (r) { if (Math.hypot(m.x - r.x, m.y - r.y) < 60) L.dailyCheck(s, r.id); else if (!m.post) L.moveOrder(s, m, r.x + m.ox, r.y + m.oy); }
+    }
     if (m && m.state === 'signoff') { L.signFit(s, true); L.padOff(s); }
     if (m && !m.target && !m.post) { const r = s.rides.find(r => r.so && r.so.pads.includes(m.id)); if (r) { if (Math.hypot(m.x - r.x, m.y - r.y) < 60) L.padOff(s); else L.moveOrder(s, m, r.x + m.ox, r.y + m.oy); } }
     for (const r of s.rides) {
@@ -106,7 +113,7 @@ module.exports = function makePlayers(L) {
         const j = m.target && L.ride(s, m.target).job;
         if (m.state === 'prep') L.lockout(s, false);
         else if (m.state === 'diag' && j && j.opts) { const tried = j.out || []; L.diagnose(s, !tried.includes(j.gut) ? j.gut : [0, 1, 2].find(k => !tried.includes(k))); }
-        else if (!m.target && !m.post && !(m.wake > s.clock)) {
+        else if (!m.target && !m.post && !(m.wake > s.clock) && !m.chkUntil && !(L.myChecks && L.myChecks(s).length && s.clock < L.OPEN + 10)) {
           const r = unsent(s).filter(r => m.skills[r.job.trade]).sort((a, b) => dist(m, a) - dist(m, b))[0];
           if (r && L.enOf(m) >= 20) L.assign(s, m, r); else if (L.enOf(m) < 40 && !m.brk) L.rest(s, m);
         }
