@@ -16,8 +16,8 @@ function inboxHTML() {
   const sent = S.asks.map(a => { const n = Math.max(1, a.due - S.clock);
     if (a.esc) return `<div class="sent esc" data-key="esc-${a.id}"><b><span aria-hidden="true">⤴</span> Escalated to ${esc(lc(L.holder(S, a.x)))}</b>: ${esc(a.it.k === 'wo' ? 'your work order' : a.it.from + '\'s request')}${a.it.rid ? ' on ' + esc(L.ride(S, a.it.rid).short) : ''}. Waiting for their decision, about ${n} min.</div>`;
     let t = ''; try { t = ASKTXT[a.k](a.o); } catch (e) { t = 'a decision'; } return `<div class="sent" data-key="ask-${a.id}">Waiting for <b>${esc(lc(L.holder(S, a.x)))}</b>, about ${n} min: you asked for ${esc(t)}.</div>`; }).join('');
-  const away = S.away > S.clock ? `<div class="sent"><b>You are out of the office until ${fmtClock(S.away)}.</b> Requests wait for you, and their clocks keep running.</div>` : '';
-  return cards || sent ? `<div class="inbox${away ? ' away' : ''}" data-key="inbox" aria-live="polite">${away}${cards}${items.length > 3 ? `<div class="more">${items.length - 3} more waiting</div>` : ''}${sent}</div>` : '';
+  const away = S.tools ? `<div class="sent esc" data-key="tools"><b>You are on the tools at ${esc(L.ride(S, S.tools.rid).short)}.</b> Nobody is running the shift: requests wait, then escalate. <button type="button" class="btn sm" data-a="leavetools" data-fk="lt">Back to the shift</button></div>` : S.away > S.clock ? `<div class="sent"><b>You are out of the office until ${fmtClock(S.away)}.</b> Requests wait for you, and their clocks keep running.</div>` : '';
+  return cards || sent || away ? `<div class="inbox${away ? ' away' : ''}" data-key="inbox" aria-live="polite">${away}${cards}${items.length > 3 ? `<div class="more">${items.length - 3} more waiting</div>` : ''}${sent}</div>` : '';
 }
 // a fault still inside its fast-response window: the card beats faster as the window closes (three steps, so it does not restart)
 const fastBeat = id => { const r = id && L.ride(S, id), j = r && r.job, age = j ? S.clock - j.t0 : 99; if (!j || j.first || age > L.FAST) return ''; const f = (L.FAST - age) / L.FAST; return f > .5 ? '1.1s' : f > .25 ? '.75s' : '.5s'; };
@@ -89,6 +89,7 @@ function selPark() {
   const boss = S.seat === 'ceo' ? 'the board' : lc(L.holder(S, L.BOSS[S.seat]));
   const hd = shead(`<span class="av" style="--c:var(--lantern)" aria-hidden="true">${R0.short[0]}</span>`, `You: ${R0.title}`, `${R0.lvl} · answers to ${esc(boss)}`, false);
   let info = '', cm = '';
+  { const bx = L.above(S, S.seat === 'tech' ? 'tech' : S.seat), st = bx !== 'board' && S.styles && S.styles[bx]; if (st) info += `<p class="note boss"><b>Your boss, ${esc(lc(L.holder(S, bx)))}: ${esc(L.STYLE[st][0].toLowerCase())}.</b> ${esc(L.STYLE[st][1])}.</p>`; } // learn to work with them
   const up = day && S.d.upT ? S.d.upW / S.d.upT : null, chip = (t, c) => `<span class="chip c-${c}">${t}</span>`;
   if (day) {
     const row = [];
@@ -146,7 +147,7 @@ function taskHTML() { // the technician's own steps at a job, big and in the mid
   return '';
 }
 function selOther(c) { // a colleague, seen from the technician's seat
-  const info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span></div>${c.role === 'tech' ? `<div class="row sk">${skillsHTML(c)}</div>` : ''}<p class="note">${c.role === 'sup' ? 'Your supervisor. Work orders come from here.' : 'A colleague. Only the supervisor can send them anywhere.'}</p>`;
+  const info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span></div>${c.role === 'tech' ? `<div class="row sk">${skillsHTML(c)}</div>${c.traits && c.traits.length ? `<div class="row">${traitsHTML(c)}</div>` : ''}` : ''}<p class="note">${c.role === 'sup' ? 'Your supervisor. Work orders come from here.' : 'A colleague. Only the supervisor can send them anywhere.'}</p>`;
   return [shead(avHTML(c), esc(c.name), title(c), true), info, (c.on ? cmd('focus', `data-x="${Math.round(c.x)}" data-y="${Math.round(c.y)}" data-fk="loc"`, 'Locate', 'Centre the map') : '') + cmd('me', 'data-fk="me"', 'Back to you', 'Select yourself', 'go')];
 }
 function selMe(c) { // you, the technician
@@ -203,7 +204,7 @@ function selUnit(c) {
     cm += abilHTML([c]);
     if (c.target || c.post) cm += cmd('stop', 'data-fk="stand"', 'Stop <kbd>S</kbd>', 'Drop the current order');
   }
-  if (tech) info += `<div class="row sk">${skillsHTML(c)}</div>`;
+  if (tech) info += `<div class="row sk">${skillsHTML(c)}</div>${c.traits && c.traits.length ? `<div class="row">${traitsHTML(c)}</div>` : ''}`;
   if (c.role === 'store') {
     const parts = [...new Set(S.rides.filter(r => isStuck(r.job) && !L.incoming(S, r.job.part)).map(r => r.job.part))];
     cm += parts.slice(0, 3).map(k => { const p = L.price(S, k, 'exp'), rr = S.rides.find(r => isStuck(r.job) && r.job.part === k); return canSpend(p) ? cmd('order', `data-k="${k}" data-v="exp" data-fk="ex-${k}"`, `Express ${esc(L.SKU[k][0].toLowerCase())}`, `${fmtMoney(p)}, in by ${fmtClock(L.expressEta(S))}`, 'go', !day || S.cash < p) : cmd('ask', `data-k="express" data-id="${rr.id}" data-sku="${k}" data-fk="ex-${k}"`, `Ask for express ${esc(L.SKU[k][0].toLowerCase())}`, `${fmtMoney(p)}: ${askWho('sup', p)} decides`, '', !day); }).join('');
@@ -326,6 +327,7 @@ function selRide(r) {
     }
   }
   if (day && S.seat !== 'tech' && L.RANK[S.seat] >= 1 && ((j && j.type === 'service' && j.plan && !j.started) || (S.dplan || []).includes(r.id))) cm += cmd('postpone', `data-id="${r.id}" data-fk="pp"`, 'Postpone the service', 'To tomorrow: frees the crew for breakdowns');
+  if (day && S.seat === 'sup' && j && j.type === 'fault' && !S.tools && !S.crew.some(c => c.target === r.id && c.on)) cm += cmd('takejob', `data-id="${r.id}" data-fk="tj"`, 'Take it myself', 'Fast and skilled, but nobody runs the shift meanwhile');
   cm = soCm + cm;
   cm += cmd('focus', `data-x="${r.x}" data-y="${r.y}" data-fk="loc"`, 'Locate', 'Centre the map');
   return [hd, h, cm];

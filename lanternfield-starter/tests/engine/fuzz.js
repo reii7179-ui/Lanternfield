@@ -78,6 +78,8 @@ const dayCmds = s => [
   () => L.signFit(s, r() < 0.7),
   () => L.padOff(s),
   () => L.postpone(s, pick(s.rides).id),
+  () => L.takeJob(s, pick(s.rides).id),
+  () => L.leaveTools(s),
   () => L.countersign(s, pick(s.rides).id, pick(['sign', 'back', 'x'])),
   () => L.review(s, pick(s.rides).id, pick(['retrain', 'stop', 'accept', 'x'])),
 ];

@@ -47,6 +47,8 @@ function setHTML(el, html) {
 const pips = (n, tr) => `<span class="pips t-${tr}" aria-label="grade ${n} of 3">${[1, 2, 3].map(i => `<i${i <= n ? ' class="on"' : ''}></i>`).join('')}</span>`;
 const avHTML = c => `<span class="av t-${rk(c)}" aria-hidden="true">${esc(c.name[0])}</span>`;
 const gradeOf = c => c.role === 'tech' ? L.topSkill(c)[1] : c.role === 'mach' ? c.grade : 0;
+// a technician's traits, as chips with what they mean (colour is not the signal: the words are)
+const traitsHTML = c => (c.traits || []).map(k => `<span class="chip c-dim trait" title="${esc(L.TRAIT[k][1])}">${esc(L.TRAIT[k][0])}</span>`).join('');
 const skillsHTML = c => c.role === 'tech' ? Object.entries(c.skills).sort((a, b) => b[1] - a[1]).map(([tr, g]) => `<span>${L.TRADES[tr].slice(0, 4)} ${pips(g, tr)}</span>`).join(' ') : c.role === 'mach' ? pips(c.grade, 'mach') : '';
 function shiftLine(c) {
   if (c.temp) return 'One job, then leaves';

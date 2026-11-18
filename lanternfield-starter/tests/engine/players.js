@@ -124,7 +124,7 @@ module.exports = function makePlayers(L) {
     }
     if (o.play === 'dir' && s.clock % 3 === 0) {
       if (L.maintSpend(s) > s.budget * 0.85) L.setBudget(s, 500);
-      if (s.focus !== s.strategy) L.setFocus(s, s.strategy);
+      if (s.focus !== s.strategy && !s.gates) L.setFocus(s, s.strategy); // the priority is set before the gates open, not changed during the day
       if (unsent(s).length >= 3) L.agency(s);
       if (s.glow < 60) L.crowdPleaser(s);
       const w = s.rides.filter(r => !r.job && !r.svcReq && r.health < 40 && L.status(s, r) !== 'nopower').sort((a, b) => a.health - b.health)[0]; if (w) L.orderService(s, w);
@@ -174,7 +174,7 @@ module.exports = function makePlayers(L) {
     'dir idle': { seat: 'dir', about: 'Director who does nothing at all' },
     'dir active': { seat: 'dir', plan: true, inbox: true, inboxEvery: 3, play: 'dir', walk: true, rush: true, about: 'Budget, focus, agency, services, fast lanes, rush jobs' },
     'ceo idle': { seat: 'ceo', about: 'Chief executive who does nothing at all' },
-    'ceo active': { seat: 'ceo', plan: true, inbox: true, inboxEvery: 3, play: 'ceo', walk: true, rush: true, about: 'Vouchers, happy hour, briefings, rush jobs' },
+    'ceo active': { seat: 'ceo', plan: true, inbox: true, inboxEvery: 3, play: 'ceo', walk: true, about: 'Fills key posts, the board and the big decisions, vouchers, happy hour, briefings; no floor work' },
   };
   return { season, PLAYERS, plan, dispatch, answerAll, signOffs, seatPlay };
 };

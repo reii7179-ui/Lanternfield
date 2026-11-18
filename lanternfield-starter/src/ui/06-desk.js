@@ -110,7 +110,7 @@ function dirHTML() { // the director's levers, visible to everyone
 <div class="row"><span class="seg3" role="group" aria-label="Strategy">${Object.keys(L.STRATEGY).map(k => `<button type="button" data-a="setstrat" data-v="${k}" data-fk="ds-${k}" aria-pressed="${S.strategy === k}"${ce ? '' : ' disabled'}>${L.STRATEGY[k][0]}</button>`).join('')}</span></div>
 <p class="note">${L.STRATEGY[S.strategy][1]} A strategic choice: it lasts all season, and changing it after the first day costs board confidence and office morale. The director's daily priority is expected to follow it.</p></div>
 <div class="sect"><h2 class="cap">Direction for ${S.phase === 'plan' ? L.dow(upcoming()) : 'today'} <span class="chip c-dim">${ed ? 'yours to set' : 'set by the ' + L.SEATNAME.dir}</span></h2>
-<div class="row"><span class="seg3" role="group" aria-label="Priority">${Object.keys(L.FOCUS).map(f => `<button type="button" data-a="setfocus" data-v="${f}" data-fk="df-${f}" aria-pressed="${S.focus === f}"${ed ? '' : ' disabled'}>${L.FOCUS[f]}</button>`).join('')}</span>
+${S.phase === 'day' && S.gates ? '<p class="note" style="color:var(--lantern)">The gates are open: changing the priority now means an hour of slower work, and the managers are unsettled.</p>' : ''}<div class="row"><span class="seg3" role="group" aria-label="Priority">${Object.keys(L.FOCUS).map(f => `<button type="button" data-a="setfocus" data-v="${f}" data-fk="df-${f}" aria-pressed="${S.focus === f}"${ed ? '' : ' disabled'}>${L.FOCUS[f]}</button>`).join('')}</span>
 <span class="step"><button type="button" data-a="budget" data-v="-250" data-fk="db-dn" aria-label="Lower the maintenance budget"${ed ? '' : ' disabled'}>−</button><b class="num" style="min-width:120px;text-align:center">${fmtMoney(S.budget)} a day</b><button type="button" data-a="budget" data-v="250" data-fk="db-up" aria-label="Raise the maintenance budget"${ed ? '' : ' disabled'}>+</button></span></div>
 <p class="note">The priority steers every manager: with uptime first they pay for express parts and contractors, with costs first they wait for stock, with safety first nobody patches. The maintenance budget covers crew wages, overtime, parts and contractors, and the Engineering Manager is judged against it.</p></div>`;
 }
@@ -143,7 +143,7 @@ function seatReport(rep) {
 }
 /* the seat picker and the real-life role card */
 function seatCards(sel, act) {
-  return `<div class="seats" role="radiogroup" aria-label="Seats">${L.LV.slice().reverse().map(x => `<button type="button" class="seat${x === sel ? ' on' : ''}" role="radio" aria-checked="${x === sel}" data-a="${act}" data-v="${x}" data-fk="st-${x}">${x === S.seat && !ui.title ? '<em>You</em>' : ''}<small>${ROLE[x].lvl}</small><b>${ROLE[x].title}</b><span>${ROLE[x].line}</span></button>`).join('')}</div>`;
+  return `<div class="seats" role="radiogroup" aria-label="Seats">${L.LV.slice().reverse().map(x => `<button type="button" class="seat${x === sel ? ' on' : ''}" role="radio" aria-checked="${x === sel}" data-a="${act}" data-v="${x}" data-fk="st-${x}">${x === S.seat && !ui.title ? '<em>You</em>' : ''}<small>${ROLE[x].lvl}</small><b>${ROLE[x].title}</b><span>${ROLE[x].line}</span>${x !== S.seat && S.styles && S.styles[x] ? `<span class="sty"><b>This season: ${esc(L.STYLE[S.styles[x]][0])}.</b> ${esc(L.STYLE[S.styles[x]][1])}</span>` : ''}</button>`).join('')}</div>`;
 }
 function whoPick(sel) { // which technician to be
   const techs = S.crew.filter(c => c.role === 'tech' && !c.temp);
