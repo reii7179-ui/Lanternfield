@@ -11,13 +11,15 @@ function inboxHTML() {
     const hint = it.brief ? '' : kd === 'str' ? `<small class="rqn">${KIND.str[1]}</small>` : L.ALIGN[it.k] ? `<small class="rqn">Priority today: ${L.FOCUS[S.focus].toLowerCase()}.</small>` : '';
     const brief = it.brief ? `<p class="brief">${esc(it.brief)}</p>` : '';
     const note = it.lvl !== S.seat && it.lvl !== 'tech' ? `<small class="rqn">Normally the ${L.SEATNAME[it.lvl]}'s call. Nobody is in that post right now, so it comes to you.</small>` : '';
-    return `<div class="req${it.k === 'wo' ? ' wo' : ''}${hot ? ' hot' : ''}" role="group" aria-label="Request from ${esc(it.from)}"><div class="rqh"><span>${esc(it.from)}</span><span class="num">${left} min</span></div><small class="kind k-${kd}">${KIND[kd][0]} decision</small><p>${esc(it.txt)}</p>${brief}${hint}${note}<div class="rqo">${o.map(x => `<button type="button" class="cmd${x.go && (it.k === 'wo' || it.k === 'stay') ? ' go' : ''}"${S.away > S.clock ? ' disabled' : ''} data-a="ans" data-id="${it.id}" data-v="${x.v}" data-fk="rq-${it.id}-${x.v}"><b>${esc(x.b)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</button>`).join('')}</div><i style="width:${Math.round(f * 100)}%"></i></div>`;
+    return `<div data-key="rq-${it.id}" class="req${it.k === 'wo' ? ' wo' : ''}${hot ? ' hot' : ''}" role="group" aria-label="Request from ${esc(it.from)}"><div class="rqh"><span>${esc(it.from)}</span><span class="num">${left} min</span></div><small class="kind k-${kd}">${KIND[kd][0]} decision</small><p>${esc(it.txt)}</p>${brief}${hint}${note}<div class="rqo">${o.map(x => `<button type="button" class="cmd${x.go && (it.k === 'wo' || it.k === 'stay') ? ' go' : ''}"${S.away > S.clock ? ' disabled' : ''} data-a="ans" data-id="${it.id}" data-v="${x.v}" data-fk="rq-${it.id}-${x.v}"><b>${esc(x.b)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</button>`).join('')}</div><i style="width:${Math.round(f * 100)}%"></i></div>`;
   }).join('');
   const sent = S.asks.map(a => { let t = ''; try { t = ASKTXT[a.k](a.o); } catch (e) { t = 'a decision'; } return `<div class="sent">You asked <b>${esc(lc(L.holder(S, a.x)))}</b> for ${esc(t)}. Answer in about ${Math.max(1, a.due - S.clock)} min.</div>`; }).join('');
   const away = S.away > S.clock ? `<div class="sent"><b>You are out of the office until ${fmtClock(S.away)}.</b> Requests wait for you, and their clocks keep running.</div>` : '';
   return cards || sent ? `<div class="inbox${away ? ' away' : ''}" aria-live="polite">${away}${cards}${items.length > 3 ? `<div class="more">${items.length - 3} more waiting</div>` : ''}${sent}</div>` : '';
 }
-const fastLeft = id => { const r = id && L.ride(S, id), j = r && r.job; const age = j ? S.clock - j.t0 : 99; return j && !j.first && age <= L.FAST ? `⚡ ${L.FAST - age} min` : 'nobody sent'; };
+// a fault still inside its fast-response window: the card beats faster as the window closes (three steps, so it does not restart)
+const fastBeat = id => { const r = id && L.ride(S, id), j = r && r.job, age = j ? S.clock - j.t0 : 99; if (!j || j.first || age > L.FAST) return ''; const f = (L.FAST - age) / L.FAST; return f > .5 ? '1.1s' : f > .25 ? '.75s' : '.5s'; };
+const fastLeft = id => { const r = id && L.ride(S, id), j = r && r.job; const age = j ? S.clock - j.t0 : 99; return j && !j.first && age <= L.FAST ? `<span class="bolt">⚡</span> ${L.FAST - age} min` : 'nobody sent'; };
 function objHTML() {
   const day = S.phase === 'day', evs = [];
   for (const e of S.events) if (!e.done) evs.push([e.at, e.k === 'vip' ? `VIP party rides ${L.ride(S, e.ride).short}` : 'Inspector walks the park']);
@@ -31,7 +33,8 @@ function objHTML() {
   if (S.heat) tags.push('<span class="tag c-bad">Heatwave</span>');
   const lit = day && S.clock > L.LH ? S.rides.filter(r => r.sub && r.lh >= L.LIT_MIN).length : 0;
   const al = L.alerts(S).slice(0, 4).map(a => { const left = a.due - S.clock, f = clamp(left / Math.max(1, a.due - a.t0), 0, 1);
-    return `<button type="button" class="alert a-${a.k}" data-a="alert" data-id="${a.id || ''}" data-fk="al-${a.k}-${a.id}"><b>${esc(a.txt)}</b><span class="num">${a.k === 'open' ? fastLeft(a.id) : left + ' min'}</span><i style="width:${Math.round(f * 100)}%"></i></button>`; }).join('');
+    const beat = a.k === 'open' ? fastBeat(a.id) : '';
+    return `<button type="button" class="alert a-${a.k}${beat ? ' fast' : ''}"${beat ? ` style="--beat:${beat}"` : ''} data-a="alert" data-id="${a.id || ''}" data-fk="al-${a.k}-${a.id}"><b>${esc(a.txt)}</b><span class="num">${a.k === 'open' ? fastLeft(a.id) : left + ' min'}</span><i style="width:${Math.round(f * 100)}%"></i></button>`; }).join('');
   return `<button type="button" class="ohead" data-a="objt" data-fk="objt" aria-expanded="${ui.obj}"><span>${S.inbox.length ? 'Inbox' : 'Objectives'}</span><em>${S.inbox.length ? `<span class="count">${S.inbox.length}</span>` : ''}Day ${Math.min(L.DAYS, upcoming())}/${L.DAYS}</em><i aria-hidden="true">${ui.obj ? '▾' : '▸'}</i></button>${inboxHTML()}${al ? `<div class="alerts">${al}</div>` : ''}
 ${ui.obj ? `<div class="obody"><div class="oitem main"><i aria-hidden="true">★</i><span>${esc(L.MEMOS[(S.forecast || {}).memo] || 'Keep the rides open.')}</span></div>
 ${day && S.clock > L.LH ? `<div class="oitem main"><i aria-hidden="true">✦</i><span>Lanterns earned tonight: ${lit} of ${L.N_RIDES}</span></div>` : ''}
@@ -58,7 +61,7 @@ function capHTML() {
   return `Park board ${f.length ? `<span class="count">${f.length}</span><span class="capn">${un ? un + ' unassigned' : 'all assigned'}</span>` : '<span class="capn">all clear</span>'}`;
 }
 function logHTML() {
-  const n = ui.log ? 30 : 3, rows = S.feed.slice(0, n).map(f => `<div class="k-${f.k}"><time>${fmtClock(f.c)}</time><span>${esc(f.txt)}</span></div>`).join('');
+  const n = ui.log ? 30 : 3, rows = S.feed.slice(0, n).map(f => `<div data-key="lg-${f.id}" class="k-${f.k}"><time>${fmtClock(f.c)}</time><span>${esc(f.txt)}</span></div>`).join('');
   return `<button type="button" class="lbtn" data-a="logt" data-fk="logt" aria-expanded="${ui.log}">Log ${ui.log ? '▾' : '▴'}</button><div class="radio${ui.log ? ' open' : ''}">${rows || '<div><time></time><span>Nothing on the radio yet.</span></div>'}</div>`;
 }
 const shead = (av, name, sub, x) => `<div class="shead">${av}<div class="sh"><b>${name}</b><small>${sub}</small></div>${x ? '<button type="button" class="x" data-a="park" aria-label="Clear selection" data-fk="x">✕</button>' : ''}</div>`;
@@ -278,7 +281,8 @@ function selRide(r) {
 function selHTML() {
   const t = S.seat === 'tech', c = ui.tech && L.staff(S, ui.tech), r = ui.sel && L.ride(S, ui.sel), us = selUnits(), m = t && L.me(S);
   const [hd, det, cm] = !t && us.length > 1 && S.phase === 'day' ? selGroup(us) : c ? selUnit(c) : r ? selRide(r) : m ? selUnit(m) : selPark();
-  return `<div class="selw"><div class="sinfo" data-sc="i">${hd}<div class="sdet">${det}</div></div><div class="cmds" data-sc="c">${cm}</div></div>`;
+  const sk = !t && us.length > 1 && S.phase === 'day' ? 'group' : c ? 'u-' + c.id : r ? 'r-' + r.id : m ? 'me' : 'park'; // a new subject slides in; the same one updates in place
+  return `<div class="selw" data-key="sel-${sk}"><div class="sinfo" data-sc="i">${hd}<div class="sdet">${det}</div></div><div class="cmds" data-sc="c">${cm}</div></div>`;
 }
 
 

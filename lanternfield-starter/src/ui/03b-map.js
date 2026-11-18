@@ -275,11 +275,16 @@ function rideInfo(r, t, st, names) {
     const due = j.rescue || j.esc, span = j.rescue ? 30 : Math.max(1, j.esc - j.t0), f = clamp((due - S.clock) / span, 0, 1), urgent = !!j.rescue;
     ring(cx, cy, R + (urgent ? 13 : 11) * b, top, top + f * TAU, (urgent ? 5.5 : 4) * b, urgent ? rgba('#ff5d4a', reduce ? 1 : .7 + .3 * Math.sin(t * 9)) : '#ffb347');
   }
-  if (j && j.type === 'fault' && !j.first && S.clock - j.t0 <= L.FAST) { // the fast-response window: a blue ring that drains, with a lightning mark
-    const f = clamp((L.FAST - (S.clock - j.t0)) / L.FAST, 0, 1), rr = R + 19 * b;
-    ring(cx, cy, rr, top, top + f * TAU, 5 * b, rgba('#79c2ff', reduce ? 1 : .75 + .25 * Math.sin(t * 12)));
-    const bx = cx - rr * .72, by = cy - rr * .72; ctx.fillStyle = '#0a0e2a'; ctx.strokeStyle = '#79c2ff'; ctx.lineWidth = 2 * b; ctx.beginPath(); ctx.arc(bx, by, 10.5 * b, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#bfe3ff'; ctx.save(); ctx.translate(bx, by); ctx.scale(b * 1.1, b * 1.1); ctx.beginPath(); ctx.moveTo(1.5, -7); ctx.lineTo(-4.5, 1); ctx.lineTo(-.5, 1); ctx.lineTo(-1.5, 7); ctx.lineTo(4.5, -1.5); ctx.lineTo(.5, -1.5); ctx.closePath(); ctx.fill(); ctx.restore();
+  if (j && j.type === 'fault' && !j.first && S.clock - j.t0 <= L.FAST) {
+    // the fast-response window: a blue ring that drains. It beats faster as the window closes, sends out a sonar ping,
+    // and turns white-hot in its last quarter. Reduced motion: a steady ring.
+    const f = clamp((L.FAST - (S.clock - j.t0)) / L.FAST, 0, 1), rr = R + 19 * b, hz = 1.2 + 2.8 * (1 - f), beat = reduce ? 0 : Math.max(0, Math.sin(t * hz * TAU));
+    const col = f < .25 ? '#e6f6ff' : '#79c2ff';
+    if (!reduce) { const per = 1.3 - .7 * (1 - f), q = (t % per) / per; ring(cx, cy, rr + q * 18 * b, 0, 7, 2.5 * b * (1 - q), rgba('#79c2ff', .55 * (1 - q)), false); }
+    ring(cx, cy, rr, top, top + f * TAU, 5 * b, rgba(col, reduce ? 1 : .75 + .25 * beat));
+    const bx = cx - rr * .72, by = cy - rr * .72, bs = b * (1 + .14 * beat);
+    ctx.fillStyle = '#0a0e2a'; ctx.strokeStyle = col; ctx.lineWidth = 2 * b; ctx.beginPath(); ctx.arc(bx, by, 10.5 * bs, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = f < .25 ? '#ffffff' : '#bfe3ff'; ctx.save(); ctx.translate(bx, by); ctx.scale(bs * 1.1, bs * 1.1); ctx.beginPath(); ctx.moveTo(1.5, -7); ctx.lineTo(-4.5, 1); ctx.lineTo(-.5, 1); ctx.lineTo(-1.5, 7); ctx.lineTo(4.5, -1.5); ctx.lineTo(.5, -1.5); ctx.closePath(); ctx.fill(); ctx.restore();
   }
   if (ui.coachRide === r.id && !reduce) { ctx.setLineDash([6, 6]); ring(cx, cy, R + 26 * b, 0, 7, 3 * b, rgba('#ffb347', .55 + .45 * Math.sin(t * 7)), false); ctx.setLineDash([]); }
   ctx.lineCap = 'round';

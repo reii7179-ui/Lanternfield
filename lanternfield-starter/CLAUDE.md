@@ -14,6 +14,11 @@ A real-time maintenance-management browser game. It ships as one self-contained 
       - the rings and badges that change only now and then.
       The pulsing and draining rings are drawn live. `src/css/20-look.css` styles the HUD to match.
     - The living park is `03c-life.js`: ride motion, broken-ride smoke, sparks and lamps, crew figures (each pose a cached image), queues, squall wind and rain, the light of the hour, and lanterns at Lantern Hour. Its state is in `VIS` and a capped particle pool (`PMAX`), never in the save. With reduced motion, rides hold still and still marks replace the smoke, sparks and flashing lamps.
+    - Panels are patched in place, not rebuilt: `setHTML` (`04-panels.js`) matches elements by `data-key`, else `data-fk`, else by tag and position.
+      - Give anything in a list that can be added or removed a stable `data-key`, so it keeps its element (and its animation state) across redraws.
+      - `src/css/30-motion.css` holds the interface motion: cards slide in once, the few timer bars that matter slide, dialogs fade in and out (a closing dialog lingers for 170 ms as `#modal.leaving`, `inert`), and fast-response alerts pulse.
+      - The top-bar numbers count to their new value (`countTo`, driven every frame by `hudTick`).
+      - Don't animate `width` on many elements: each one is laid out again every frame.
   - `src/fonts/`: Bagel Fat One and Familjen Grotesk (Latin subsets, SIL Open Font License).
 - Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys: `kll-motion` (`auto`, `reduce` or `full`).
 - `design/`: art-direction mock-ups and their screenshot script. Not shipped.

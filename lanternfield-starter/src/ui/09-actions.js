@@ -264,6 +264,7 @@ function tick(t) {
     stepGuests(dt * TPS * S.speed);
   } else if (ui.title && !reduce) stepGuests(dt * TPS);
   draw(t, run ? Math.min(1, acc) : 1);
+  hudTick(t); // the top-bar numbers counting to their new values
   if (t - lastMini > 90) { drawMini(t); lastMini = t; } // the minimap is small: about ten redraws a second is plenty
   if (t - lastUI > 140) { renderUI(); lastUI = t; }
   if (t - lastSave > 5000) { save(); lastSave = t; }
