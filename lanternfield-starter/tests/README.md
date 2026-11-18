@@ -27,11 +27,12 @@ npx playwright install chromium
 | `node tests/browser/saves.js` | **Saves.** Broken or old saves start a fresh game; a reload mid-day carries on. | ~15 s |
 | `node tests/browser/motion.js` | **Motion setting.** Auto follows the device's reduced-motion setting, Reduced and Full override it, CSS animations stop when reduced, the choice survives a reload and stays out of the saved game. | ~10 s |
 | `node tests/browser/ui-motion.js` | **Interface motion.** Panels are patched in place: a card keeps its element across redraws and its slide-in plays once, timer bars slide, top-bar numbers settle on the real value, and a closing dialog fades out then goes. Feedback: a breakdown flashes the edge of the map, and the streak meter follows the streak and cracks when it's lost. With reduced motion nothing animates. | ~20 s |
+| `node tests/browser/sound.js` | **Sound.** Off on a first visit, with no audio created. Turning it on, and the four volumes, are remembered across a reload and kept out of the saved game. Audio starts on the first click or key. Without Web Audio the game still runs, silently. | ~15 s |
 | `node tests/browser/perf.js` | **Frame time** at 2× speed. Laptop and phone screens fail only below 30 fps. **Phone budget:** a busy afternoon on a 390×844 phone with a 3× screen and the processor slowed 4×. It runs alternately with the game from before the visual work (`baseline/before-visuals.html`), three times each in fresh browsers. It fails if this build's median main-thread time per frame is higher. Headless fps snaps to whole frames and drifts, so fps is printed but not compared. `--phone` runs only the phone budget. | ~3 min |
 | `node tests/browser/final-screen.js` | **End-of-season screen.** Score split, your own work, playtest record, Copy button. | ~15 s |
 | `node tests/browser/coach.js` | **Coaching.** Does what each seat's coach asks, with real clicks, all seats side by side; checks the clock waits when it should. Options: `--phone`, `--desk`, a seat list. | ~2 min |
 | `node tests/browser/real-day.js` | **One real day** of clicks and keys at 2×; checks the playtest record. | ~3–4 min |
-| `npm run test:browser` | smoke, layout, saves, motion, ui motion, perf, final screen, coach. | ~6 min |
+| `npm run test:browser` | smoke, layout, saves, motion, ui motion, sound, perf, final screen, coach. | ~6 min |
 | `npm run test:slow` | real day, phone coach, desk coach. | ~10 min |
 
 Screenshots from the browser tests are saved in `tests/browser/out/`.

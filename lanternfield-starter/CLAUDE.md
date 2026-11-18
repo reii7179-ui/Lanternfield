@@ -19,8 +19,15 @@ A real-time maintenance-management browser game. It ships as one self-contained 
       - `src/css/30-motion.css` holds the interface motion: cards slide in once, the few timer bars that matter slide, dialogs fade in and out (a closing dialog lingers for 170 ms as `#modal.leaving`, `inert`), and fast-response alerts pulse.
       - The top-bar numbers count to their new value (`countTo`, driven every frame by `hudTick`).
       - Don't animate `width` on many elements: each one is laid out again every frame.
+    - Sound is `02-sound.js`, all synthesised (no audio files):
+      - effects for each game event (`SFX`, played from `drainFx` and from actions);
+      - a park ambience that follows the day and the weather (`ambTick`);
+      - an optional original waltz (`musicTick`).
+      Buses for effects, park and music feed a master volume, a makeup gain and a compressor. Keep music voices plain (no filters): audio shares the phone's processor.
   - `src/fonts/`: Bagel Fat One and Familjen Grotesk (Latin subsets, SIL Open Font License).
-- Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys: `kll-motion` (`auto`, `reduce` or `full`).
+- Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys:
+  - `kll-motion` (`auto`, `reduce` or `full`);
+  - `kll-sound` (`{ on, master, sfx, amb, music }`). Sound is off until the player turns it on. The audio graph is built only then, after a click or key.
 - `design/`: art-direction mock-ups and their screenshot script. Not shipped.
 - `tests/` holds the engine and browser tests; see `tests/README.md`.
 

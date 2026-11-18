@@ -112,7 +112,7 @@ function selPark() {
         + cmd('pol', `data-k="pm" data-v="${nx([0, 40, 55, 70], +P.pm)}" data-fk="p-pm"`, 'Rule: services', +P.pm ? `Below ${P.pm}% health` : 'Off'); }
   }
   cm += cmd('role', `data-v="${S.seat}" data-fk="c-role"`, 'What this job is', 'In real life') + cmd('seats', 'data-fk="c-seat"', 'Change seat', 'Try another job', 'dupa');
-  cm += `${cmd('desk', 'data-v="company" data-fk="c-co"', 'Company', `${L.headcount(S)} on the payroll`, 'dup')}${cmd('desk', 'data-v="team" data-fk="c-tm"', 'Team', 'Roster, shifts, policy', 'dup')}${cmd('desk', 'data-v="stores" data-fk="c-st"', 'Stores', 'Parts and orders', 'dup')}${cmd('mute', 'data-fk="c-mu"', 'Sound', ui.mute ? 'Off' : 'On', '', false, !ui.mute)}${cmd('fit', 'data-fk="c-fit"', 'Whole park', 'Reset the view', 'dupa')}${cmd('help', 'data-fk="c-help"', 'How to play', 'Rules and map key', 'dupa')}`;
+  cm += `${cmd('desk', 'data-v="company" data-fk="c-co"', 'Company', `${L.headcount(S)} on the payroll`, 'dup')}${cmd('desk', 'data-v="team" data-fk="c-tm"', 'Team', 'Roster, shifts, policy', 'dup')}${cmd('desk', 'data-v="stores" data-fk="c-st"', 'Stores', 'Parts and orders', 'dup')}${cmd('mute', 'data-fk="c-mu"', 'Sound', snd.on ? 'On' : 'Off', '', false, snd.on)}${cmd('fit', 'data-fk="c-fit"', 'Whole park', 'Reset the view', 'dupa')}${cmd('help', 'data-fk="c-help"', 'How to play', 'Rules and map key', 'dupa')}`;
   return [hd, info, cm];
 }
 function taskHTML() { // the technician's own steps at a job, big and in the middle

@@ -79,7 +79,8 @@ function act(a, d, el, ev) {
     case 'stop': for (const c of selUnits()) L.standDown(S, c); break;
     case 'crowd': if (!may('crowd')) { say(`Crowd-pleasers are the ${L.SEATNAME.dir}'s call.`); break; } if (L.crowdPleaser(S)) SFX.cash(); else say(S.cash < 250 ? 'Not enough cash' : 'Not ready yet'); break;
     case 'allfree': if (S.seat === 'tech') { ui.units = []; break; } ui.units = S.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target).map(c => c.id); ui.sel = null; break;
-    case 'mute': ui.mute = !ui.mute; break;
+    case 'mute': setSound(!snd.on); if (snd.on) SFX.ready(); break;
+    case 'sound': setSound(d.v === 'on'); if (snd.on) SFX.ready(); break;
     case 'motion': setMotion(d.v); break;
     case 'help': ui.help = true; break;
     case 'closehelp': if (d.self && ev && ev.target !== el) return; ui.help = false; break;
@@ -202,7 +203,8 @@ function bind() {
   mv.addEventListener('pointermove', ev => { if (mdown) mgo(ev); });
   mv.addEventListener('pointerup', () => { mdown = false; }); mv.addEventListener('pointercancel', () => { mdown = false; });
   document.addEventListener('keydown', ev => {
-    if (ev.target.closest && ev.target.closest('input,textarea')) return;
+    unlockAudio();
+    if (ev.target.closest && ev.target.closest('input,textarea') && ev.key !== 'Escape') return; // a slider keeps its arrow keys; Escape still closes
     if (ev.key === 'Escape') { if (ui.help) ui.help = false; else if (ui.role) { ui.role = null; unhold(); } else if (ui.seats) { ui.seats = false; unhold(); } else if (ui.desk) ui.desk = null; else { ui.sel = null; ui.tech = null; } renderUI(); return; }
     if (ui.seats || ui.role) return;
     if (ui.title || ui.help || S.phase !== 'day') return;
@@ -222,7 +224,9 @@ function bind() {
     const techs = S.crew.filter(c => c.role === 'tech' && !c.temp), n = ev.code && ev.code.startsWith('Digit') ? +ev.code.slice(5) : 0;
     if (n >= 1 && n <= techs.length) { pickUnit(techs[n - 1].id, ev.shiftKey); renderUI(); }
   });
-  document.addEventListener('pointerdown', ev => { ui.touch = ev.pointerType !== 'mouse'; if (ev.target.closest('button')) { ui.pdown = true; ui.pdownAt = performance.now(); } });
+  // volume sliders (in How to play): they are inputs, not buttons, so they report through 'input'
+  document.addEventListener('input', ev => { const el = ev.target.closest && ev.target.closest('input[data-vol]'); if (el) setVolume(el.dataset.vol, +el.value / 100); });
+  document.addEventListener('pointerdown', ev => { unlockAudio(); ui.touch = ev.pointerType !== 'mouse'; if (ev.target.closest('button')) { ui.pdown = true; ui.pdownAt = performance.now(); } });
   const up = () => { if (ui.pdown) { ui.pdown = false; setTimeout(renderUI, 0); } };
   document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
   window.addEventListener('pagehide', save);
@@ -266,6 +270,7 @@ function tick(t) {
   } else if (ui.title && !reduce) stepGuests(dt * TPS);
   draw(t, run ? Math.min(1, acc) : 1);
   hudTick(t); // the top-bar numbers counting to their new values
+  ambTick(t); musicTick(); // the park's sound and the music follow the game
   if (t - lastMini > 90) { drawMini(t); lastMini = t; } // the minimap is small: about ten redraws a second is plenty
   if (t - lastUI > 140) { renderUI(); lastUI = t; }
   if (t - lastSave > 5000) { save(); lastSave = t; }

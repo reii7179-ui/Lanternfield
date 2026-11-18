@@ -31,4 +31,16 @@ window.__mock = {
   fx(k, id, txt) { S.fx.push({ k, id, txt }); drainFx(performance.now()); },
   streak(n) { S.streak = n; },
   season(P, o) { while (!S.final) { if (S.phase === 'plan') { P.plan(S); L.startDay(S); continue; } if (S.clock % o.every === 0) P.dispatch(S, o); if (S.clock % o.inboxEvery === 0) P.answerAll(S); P.seatPlay(S, o); L.step(S); S.fx.length = 0; } ui.title = false; ui.desk = null; ui.reportAt = 0; return S.final.grade; },
+  // recordings only: capture what the game sounds like for ms milliseconds, as base64 webm/opus
+  recordAudio(ms) {
+    return new Promise((res, rej) => {
+      if (!audio()) return rej(new Error('no audio'));
+      const dest = AC.createMediaStreamDestination(); BUS.out.connect(dest); // what the player hears: after the master volume, makeup and compressor
+      const rec = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus' }), chunks = [];
+      rec.ondataavailable = e => chunks.push(e.data);
+      rec.onstop = async () => { BUS.out.disconnect(dest); const u = new Uint8Array(await new Blob(chunks).arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); res(btoa(s)); };
+      rec.start(); setTimeout(() => rec.stop(), ms);
+    });
+  },
+  sfx(name, ...a) { SFX[name](...a); },
 };
