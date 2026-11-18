@@ -34,8 +34,8 @@ const SCENES = {
       LFUI.ui.sel = null; LFUI.act('speed', { v: 1 }); return r;
     }, s);
     const ready = Date.now() - t0;
-    for (const [wait, a, v] of s.steps) {
-      if (wait) { await page.waitForTimeout(wait); continue; }
+    for (const [a, v] of s.steps) {
+      if (typeof a === 'number') { await page.waitForTimeout(a); continue; }
       await page.evaluate(([a, v]) => { const d = a === 'sel' ? { id: v === 'fault' ? window.__fault : 'wheel' } : { v }; LFUI.act(a, d); }, [a, v]);
     }
     const secs = (Date.now() - t0 - ready) / 1000;
