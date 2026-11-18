@@ -77,6 +77,7 @@ const dayCmds = s => [
   () => L.holdOver(s, pick(s.crew)),
   () => L.signFit(s, r() < 0.7),
   () => L.padOff(s),
+  () => L.postpone(s, pick(s.rides).id),
   () => L.countersign(s, pick(s.rides).id, pick(['sign', 'back', 'x'])),
   () => L.review(s, pick(s.rides).id, pick(['retrain', 'stop', 'accept', 'x'])),
 ];

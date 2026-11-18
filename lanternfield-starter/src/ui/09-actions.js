@@ -56,6 +56,7 @@ function act(a, d, el, ev) {
     case 'padoff': { const ok = L.padOff(S); if (ok === true) { SFX.send(); say('Padlock off.', 'var(--jade)'); } else if (ok) say(ok, 'var(--ember)'); break; }
     case 'dcheck': { const ok = L.dailyCheck(S, d.id); if (ok === true) SFX.send(); else if (ok) say(ok, 'var(--ember)'); break; }
     case 'chkgo': { const t = L.me(S), r = L.ride(S, d.id); if (t && r && L.moveOrder(S, t, r.x + t.ox, r.y + t.oy)) SFX.send(); break; }
+    case 'postpone': if (L.postpone(S, d.id)) SFX.send(); break;
     case 'padgo': { const t = L.me(S), r = L.ride(S, d.id); if (t && r && L.moveOrder(S, t, r.x + t.ox, r.y + t.oy)) SFX.send(); break; }
     case 'ans': { const it = S.inbox.find(x => x.id === +d.id); if (L.answer(S, +d.id, d.v)) { SFX.send(); if (it && d.v !== 'brief') PT.q.push((S.clock - it.at) / (TPS0 * S.speed)); } break; }
     case 'ptcopy': { // the old copy command first: it works inside a frame on another site (as itch.io shows games), the newer one needs that page's permission
