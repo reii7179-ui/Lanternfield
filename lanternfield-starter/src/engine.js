@@ -648,9 +648,9 @@ function dailyCheck(s, rid) {
 function morning(s) {
   const m = me(s);
   if (m && m.chkUntil && s.clock >= m.chkUntil) { const r = ride(s, m.chkRun); if (r && r.chk !== s.day) { checkDone(s, r, m); s.sc.tech.chk = (s.sc.tech.chk || 0) + 1; if (!myChecks(s).length && s.clock <= OPEN) onTime(s); } else { m.chkRun = null; m.chkUntil = 0; } }
-  // the check sheet: the supervisor signs it before the gates; the gates open at 09:00 once it is signed
-  if (!s.d.sheet && s.clock >= OPEN - 5) { s.d.sheet = s.clock; log(s, `${holder(s, handler(s, 'sup'))} signed the morning check sheet.`, 'info'); }
-  if (!s.gates && s.d.sheet && s.clock >= OPEN) { s.gates = true; s.d.gateAt = s.clock; const n = s.rides.filter(r => r.sub && r.chk !== s.day).length; log(s, `Gates open.${n ? ` ${n} ride${n > 1 ? 's are' : ' is'} not checked yet and stay${n > 1 ? '' : 's'} shut until ${n > 1 ? 'they are' : 'it is'}.` : ''}`, 'event'); fx(s, 'ready', null); }
+  // the check sheet: the supervisor signs it once, and the gates open at 09:00 (or later, if they hold them for the checks)
+  if (s.clock === PRE + 2 && !s.d.sheet) raise(s, 'sheet', { from: 'The morning check sheet', due: OPEN, txt: `The daily checks go on one sheet. Sign it and the gates open at ${fmtClock(OPEN)}; a ride not checked by then stays shut until it is.` });
+  if (!s.gates && s.d.sheet && s.clock >= Math.max(OPEN, s.d.gateHold || 0)) { s.gates = true; s.d.gateAt = s.clock; const n = s.rides.filter(r => r.sub && r.chk !== s.day).length; log(s, `Gates open.${n ? ` ${n} ride${n > 1 ? 's are' : ' is'} not checked yet and stay${n > 1 ? '' : 's'} shut until ${n > 1 ? 'they are' : 'it is'}.` : ''}`, 'event'); fx(s, 'ready', null); }
   // your checks left past 09:10 go to the supervisor, who shares them out to whoever is free
   if (s.clock === OPEN + 10) { const left = myChecks(s); if (left.length) { miss(s); const sc = s.sc.tech; sc.esc = (sc.esc || 0) + 1; sc.chkMiss = (sc.chkMiss || 0) + left.length;
     for (const r of left) delete s.chk[r.id]; log(s, `${left.map(r => r.short).join(', ')} still not checked: escalated to ${seatWho(s, above(s, 'tech'))}, who is sending someone else. They stay shut until then.`, 'bad'); } }
@@ -1148,6 +1148,14 @@ const REQ = {
   squall: { lvl: 'sup', def: 'no', stale: (s, it) => s.clock >= it.due,
     opts: () => [OPT('yes', 'Stand by', 'Free crew to the plaza', true), OPT('no', 'Carry on')], pick: () => 'yes',
     res(s, it, v, who) { if (v !== 'yes') return ''; standBy(s); return `${Who(who, 'stood')} the free crew by in the middle of the park for the squall.`; } },
+  sheet: { lvl: 'sup', def: 'sign', stale: s => !!s.d.sheet,
+    opts: () => [OPT('sign', 'Sign the sheet', `Gates open at ${fmtClock(OPEN)}`, true), OPT('hold', 'Hold the gates 15 min', 'More checks done first, fewer guests in')],
+    pick: () => 'sign',
+    res(s, it, v, who) { s.d.sheet = s.clock; if (v === 'hold') s.d.gateHold = OPEN + 15; return `${Who(who, 'signed')} the morning check sheet${v === 'hold' ? ', and the gates open at ' + fmtClock(OPEN + 15) : ''}.`; } },
+  handover: { lvl: 'sup', def: 'brief', stale: s => s.clock >= SHIFT.early[1] || !!s.d.handover,
+    opts: () => [OPT('brief', 'Hand over', 'The late shift carries on where they left off', true), OPT('skip', 'Skip it', 'Saves a few minutes; the jobs start again')],
+    pick: () => 'brief',
+    res(s, it, v, who) { s.d.handover = v; return v === 'brief' ? `${Who(who, 'handed')} the open jobs over to the late shift.` : ''; } },
   // up to the manager
   callout: { lvl: 'mgr', def: 'no', stale: (s, it) => { const r = ride(s, it.rid); return !r || !r.job || r.job.type !== 'fault' || s.crew.some(c => c.target === it.rid); },
     opts: (s, it) => [OPT('yes', 'Call a contractor', fmtMoney(it.cost) + ' plus parts, here in 45 min', true), OPT('no', 'Wait for our crew')],
@@ -1193,7 +1201,7 @@ const REQ = {
 /* ---------- three kinds of decision ----------
    Operational: daily, guided by procedure and experience, at the front line. Tactical: middle management turning the direction into action.
    Strategic: executive, long-term, high stakes, touching staff, guests, suppliers and neighbours at once. */
-const DTYPE = { otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
+const DTYPE = { sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
 const STRATEGY = { uptime: ['The park that never stops', 'Guests spend 3% more. Managers lean towards paying to keep rides open.'], cost: ['Lean and profitable', 'Overheads 5% lower. Managers lean towards waiting and saving.'], safety: ['The safest park on the coast', 'Fines 40% smaller. Managers lean towards services and no patches.'] };
 // which choices pull with which priority; a call that pulls against today's priority is wasted effort
 const ALIGN = {
@@ -1396,6 +1404,10 @@ function requests(s) {
       j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), cs: 1, from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
     }
   }
+  if (s.clock === SHIFT.early[1] - 15 && !s.d.handover) { // the early shift's open jobs: hand them over, or the late shift starts them again
+    const open = s.rides.filter(r => r.job && s.crew.some(c => c.target === r.id && c.on && c.shift === 'early' && !c.once && !c.temp));
+    if (open.length) raise(s, 'handover', { rids: open.map(r => r.id), from: 'The early shift', due: SHIFT.early[1], txt: `The early shift goes home at 17:00 with ${open.map(r => r.short).join(', ')} still open. Brief the late shift, or they start ${open.length > 1 ? 'those jobs' : 'it'} again from scratch.` });
+  }
   if (s.clock === SHIFT.early[1] - 30) {
     const ts = s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && c.shift === 'early' && !c.once && c.target && c !== m);
     if (ts.length) raise(s, 'hold', { tids: ts.map(t => t.id), cost: ts.reduce((a, t) => a + otCost(t), 0), from: ts.length === 1 ? ts[0].name : 'The early shift', due: SHIFT.early[1] - 15, txt: `${ts.map(t => t.name).join(' and ')} ${ts.length > 1 ? 'are' : 'is'} mid-job and finish${ts.length > 1 ? '' : 'es'} at 17:00. Keep ${ts.length > 1 ? 'them' : 'them'} on overtime?` });
@@ -1480,6 +1492,7 @@ function step(s) {
   if (s.phase !== 'day') return;
   s.clock++;
   let clockedOn = 0;
+  if (s.clock === SHIFT.early[1]) for (const r of s.rides) if (r.job) r.job.left17 = s.crew.some(c => c.target === r.id && c.on && c.shift === 'early' && !c.temp);
   for (const t of s.crew) {
     const now = onShift(t, s.clock);
     if (now && !t.on) { t.on = true; t.state = 'idle'; t.worked = true; if (t.inAt) { if (t.inAt === s.clock) log(s, `${t.name} is on site${t.agency ? ' from the agency' : ', on overtime'}.`, 'good'); } else if (!t.temp) clockedOn++; }
@@ -1488,7 +1501,10 @@ function step(s) {
   if (clockedOn) log(s, `Late shift clocked on: ${clockedOn} ${clockedOn > 1 ? 'people' : 'person'}.`);
   if (s.crew.some(t => t.agency && s.clock >= t.agency)) { const gone = s.crew.filter(t => t.agency && s.clock >= t.agency); s.crew = s.crew.filter(t => !gone.includes(t)); log(s, `The agency technicians have gone: ${gone.map(t => t.name).join(' and ')}.`); }
   if (s.talk && s.clock >= s.talk.end) endTalk(s);
-  if (s.clock === SHIFT.early[1] && s.crew.some(t => t.shift === 'early')) log(s, 'Early shift has gone home.');
+  if (s.clock === SHIFT.early[1] && s.crew.some(t => t.shift === 'early')) {
+    log(s, 'Early shift has gone home.');
+    if (s.d.handover !== 'brief') for (const r of s.rides) { const j = r.job; if (j && j.left17 && j.prog > 0) { j.prog = Math.round(j.prog * .5); log(s, `No handover for ${r.short}: the late shift starts it again and loses time.`, 'bad'); } }
+  }
   if (s.day === 1 && s.clock === 548) { const c = ride(s, 'carou'); if (!c.job) createFault(s, c, { sev: 'minor', trade: 'mech' }); }
   if (s.day === 1 && s.clock === 590) { const c = ride(s, 'food'); if (!c.job) createFault(s, c, { sev: 'major', trade: 'elec' }); }
   if (s.clock === LH + 1) { log(s, 'Lantern Hour. Every ride that runs 45 of the next 60 minutes sends up a lantern. Income is up by half.', 'event'); fx(s, 'lh', null); }
@@ -1557,6 +1573,13 @@ function step(s) {
     }
   }
   morning(s);
+  if (s.seat === 'sup') for (const t of s.crew) { // break rotation: someone worn out and not resting is the supervisor's to send on a break
+    if (t.role !== 'tech' || t.temp || t.agency || !t.on) { t.tiredAt = 0; continue; }
+    const worn = (t.en == null ? 100 : t.en) < 30 && !t.brk && !t.talk;
+    if (!worn) { t.tiredAt = 0; t.tiredMiss = 0; continue; }
+    if (!t.tiredAt) t.tiredAt = s.clock;
+    else if (!t.tiredMiss && s.clock >= t.tiredAt + 20) { t.tiredMiss = 1; miss(s); s.sc.sup.tiredMiss = (s.sc.sup.tiredMiss || 0) + 1; log(s, `${t.name} has been worn out for 20 minutes with no break. Mistakes and injuries get more likely.`, 'bad'); }
+  }
   soStepAll(s);
   supStep(s);
   requests(s);
@@ -1813,6 +1836,7 @@ function alerts(s) {
     if (j.sev === 'minor' && j.esc && !crew) out.push({ k: 'esc', id: r.id, t0: j.t0, due: j.esc, txt: `${r.short} gets worse` });
     else if (!crew && !j.rescue) out.push({ k: 'open', id: r.id, t0: j.t0, due: j.par, txt: `${r.short} ${r.sub ? 'closed' : 'down'}` });
   }
+  if (s.seat === 'sup') for (const t of s.crew) if (t.tiredAt && t.on) out.push({ k: 'tired', id: t.id, tid: t.id, t0: t.tiredAt, due: t.tiredAt + 20, txt: `${t.name} is worn out: send on a break` });
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }

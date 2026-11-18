@@ -80,7 +80,7 @@ function act(a, d, el, ev) {
     case 'goride': orderRide(L.ride(S, d.id)); break;
     case 'pause': if (day) S.paused = !S.paused; break;
     case 'speed': S.speed = +d.v; if (day) S.paused = false; break;
-    case 'alert': if (d.id) { const r = L.ride(S, d.id); ui.sel = r.id; ui.units = []; focus(r.x, r.y, cam.z > cam.fit * 1.05); } break;
+    case 'alert': if (d.id) { const t = L.staff(S, d.id); if (t) { ui.units = [t.id]; ui.sel = null; if (t.on) focus(t.x, t.y, cam.z > cam.fit * 1.05); break; } const r = L.ride(S, d.id); if (r) { ui.sel = r.id; ui.units = []; focus(r.x, r.y, cam.z > cam.fit * 1.05); } } break; // a worn-out person: select them, so B sends them on a break
     case 'nearest': sendNearest(L.ride(S, d.id)); break;
     case 'gsend': orderRide(L.ride(S, d.id)); break;
     case 'sprint': if (selUnits().map(c => L.sprint(S, c)).some(Boolean)) SFX.send(); break;

@@ -1,4 +1,6 @@
-/* ---------- active seats: reopen sign-offs ----------
+/* ---------- active seats ---------- */
+.a-tired{--c:var(--sup)}
+/* ---------- reopen sign-offs ----------
    A board tile sits in a wrapper, so the "Sign to reopen" button can lie over the bottom of the tile without changing
    its size or rebuilding it. The sign-off card in the selection panel lists the steps and the job sheet. */
 .asw{position:relative;display:flex;min-width:0;min-height:0}
