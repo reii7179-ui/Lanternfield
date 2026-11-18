@@ -2,11 +2,13 @@
 // Layout test at phone, tablet and laptop sizes, on a busy moment of day 1 and on the title screen.
 // Fails if: the objectives card covers the log, a ride name is clipped on the park board, a command button is cut off
 // (desktop and tablet only: on phones the command card scrolls by design), the top bar's figures run off screen
-// (except phone landscape, where they scroll by design), the page scrolls sideways, or the title's Start button is unreachable.
+// (except phone landscape, where they scroll by design), the page scrolls sideways, the title's Start button is unreachable,
+// or two ride names on the map overlap at the default zoom (LFUI.labels() reports where each name was drawn).
 // Screenshots go to tests/browser/out/.
 //   node tests/browser/layout.js
 const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
-const SIZES = [[1440, 900], [1366, 768], [1280, 720], [1024, 768], [768, 1024], [844, 390], [390, 844]];
+const SIZES = [[2560, 1440], [1920, 1080], [1440, 900], [1366, 768], [1280, 720], [1180, 820], [1024, 768], [1024, 600], [820, 1180], [768, 1024],
+  [844, 390], [667, 375], [412, 915], [390, 844], [375, 667], [360, 640]];
 const phone = (w, h) => w <= 620 || h <= 520;
 
 const CHECK = () => {
@@ -20,6 +22,8 @@ const CHECK = () => {
   const st = [...document.querySelectorAll('.stat')].filter(vis), res = document.querySelector('.res');
   out.topBarCut = st.length ? r(st[st.length - 1]).right > innerWidth + 1 || res.scrollWidth > res.clientWidth + 1 : false;
   out.sideScroll = document.documentElement.scrollWidth > innerWidth + 1;
+  const L = LFUI.labels(), ov = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  out.labelsOverlap = []; for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) if (ov(L[i], L[j]) > .15 * Math.min(L[i].w * L[i].h, L[j].w * L[j].h)) out.labelsOverlap.push(L[i].id + '/' + L[j].id);
   return out;
 };
 
@@ -42,6 +46,7 @@ const CHECK = () => {
     if (c.cutCommands.length && !phone(w, h)) problems.push(`${tag}: command buttons cut off: ${c.cutCommands.join(', ')}`);
     if (c.topBarCut && !(h <= 520)) problems.push(`${tag}: top bar figures run off the screen`);
     if (c.sideScroll) problems.push(`${tag}: the page scrolls sideways`);
+    if (c.labelsOverlap.length) problems.push(`${tag}: ride names overlap on the map: ${c.labelsOverlap.join(', ')}`);
     await shot(page, `layout-${tag}`);
     for (const e of await gameErrors(page, errors)) problems.push(`${tag}: ${e}`);
     await page.close();

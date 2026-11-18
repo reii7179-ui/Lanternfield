@@ -285,5 +285,5 @@ function start(data) {
   for (const [n, fn] of [['bind', bind], ['resize', resize], ['render', renderUI]]) { try { fn(); } catch (e) { oops('start ' + n, e); } }
   requestAnimationFrame(frame);
 }
-window.LFUI = { get state() { return S; }, act, ui, scr: (x, y) => [ox + x * sc, oy + y * sc] }; // the last one is for tests: where a park point is on screen
+window.LFUI = { get state() { return S; }, act, ui, scr: (x, y) => [ox + x * sc, oy + y * sc], labels: () => mapLabels.map(l => ({ ...l })) }; // the last one is for tests: where a park point is on screen
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
