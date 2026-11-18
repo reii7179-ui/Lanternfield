@@ -1792,6 +1792,7 @@ function doEvent(s, e) {
     if (!e.warned && s.clock >= e.at - 90) { e.warned = true; log(s, `A VIP party rides ${r.name} at ${fmtClock(e.at)}. Have it running properly.`, 'event'); }
     if (s.clock >= e.at) {
       e.done = true; e.ok = status(s, r) === 'ok'; s.d.vip = e.ok;
+      if (s.d.vipEsc === r.id) { s.d.vipEsc = 0; s.cm = clamp(s.cm - 4, 0, 100); for (const t of s.crew) if (!isMgr(t) && !t.temp) t.morale = clamp(t.morale - 2, 0, 100); s.sc.dir.vipLate = (s.sc.dir.vipLate || 0) + (s.seat === 'dir' ? 1 : 0); log(s, `The dispute over ${r.short} was never settled in time: the VIP party arrived first. Operations and Engineering blame each other: office morale −4, crew morale −2.`, 'bad'); }
       if (e.ok) { s.cash += 400; s.d.bonus += 400; s.glow = Math.min(100, s.glow + 6); log(s, `The VIP party loved ${r.name}. The owner adds a $400 bonus.`, 'good'); fx(s, 'cash', r.id, '+$400'); }
       else { s.glow = Math.max(0, s.glow - 8); log(s, `The VIP party found ${r.name} out of action.`, 'bad'); fx(s, 'minor', r.id, 'VIP let down'); }
     }
@@ -1989,6 +1990,17 @@ const REQ = {
     opts: () => [OPT('yes', 'One-to-one', 'Morale +12', true), OPT('no', 'Not today', 'Morale −3')], pick: s => has(s, 'eng') || has(s, 'hr') ? 'yes' : 'no',
     res(s, it, v, who) { const t = staff(s, it.tid); if (v === 'yes') { t.morale = clamp(t.morale + 12, 0, 100); if (who === 'You') s.sc[s.seat].oneone = (s.sc[s.seat].oneone || 0) + 1; return `${Who(who, 'sat')} down with ${t.name} for a one-to-one. Morale now ${Math.round(t.morale)}.`; } t.morale = clamp(t.morale - 3, 0, 100); return who === 'You' ? `${t.name} feels brushed off.` : ''; } },
   // up to the director
+  morning: { lvl: 'dir', def: 'keep', stale: s => s.gates && s.clock >= OPEN + 30,
+    opts: s => [OPT('uptime', FOCUS.uptime, s.focus === 'uptime' ? 'As yesterday' : 'Contractors and express parts to keep rides open', s.strategy === 'uptime'), OPT('cost', FOCUS.cost, s.focus === 'cost' ? 'As yesterday' : 'Wait for stock, patch, hold spending', s.strategy === 'cost'), OPT('safety', FOCUS.safety, s.focus === 'safety' ? 'As yesterday' : 'Services first, no patches', s.strategy === 'safety')],
+    pick: s => s.focus,
+    res(s, it, v, who) { if (!FOCUS[v]) return who === 'You' ? '' : `${who} kept yesterday's priority: ${FOCUS[s.focus].toLowerCase()}.`; const was = s.focus; s.focus = v; s.d.focusSet = 1;
+      return v === was ? `${Who(who, 'kept')} the priority for today: ${FOCUS[v].toLowerCase()}.` : `${Who(who, 'set')} today's priority: ${FOCUS[v].toLowerCase()}.`; } },
+  dispute: { lvl: 'dir', def: 'open', stale: (s, it) => { const r = ride(s, it.rid); return !r || !!r.job || !!r.so; },
+    opts: () => [OPT('svc', 'Close it for the service', 'Engineering: about 45 min shut, then back to full health', true), OPT('open', 'Keep it open', 'Operations: earn through the peak, service it this evening')],
+    pick: (s, it) => ride(s, it.rid).health < 40 || s.focus === 'safety' ? 'svc' : 'open',
+    res(s, it, v, who) { const r = ride(s, it.rid); s.d.disp = (s.d.disp || 0) + 1;
+      if (v === 'svc') { const h = helper(s, r, primary(r)); if (h && s.stock.kit > 0 && assign(s, h, r, null, true) === true) return `${Who(who, 'sided')} with Engineering: ${h.name} is servicing ${r.short}.`; r.svcReq = true; return `${Who(who, 'sided')} with Engineering: ${r.short} gets the next free hand.`; }
+      r.evSvc = 1; return `${Who(who, 'sided')} with Operations: ${r.short} stays open, and Engineering services it this evening.`; } },
   vip: { lvl: 'dir', def: 'open', stale: (s, it) => { const r = ride(s, it.rid); return !r || !!r.job || s.clock >= it.vat - 45; },
     opts: () => [OPT('svc', 'Service it now', 'Closed about 45 min, then 100%', true), OPT('open', 'Keep it open', 'Queues keep moving, risk a failure')], pick: (s, it) => ride(s, it.rid).health < 50 ? 'svc' : 'open',
     res(s, it, v, who) { const r = ride(s, it.rid); if (v !== 'svc') return ''; const h = helper(s, r, primary(r)); if (!h || s.stock.kit < 1) return `Nobody was free to service ${r.short} before the VIP party.`; assign(s, h, r, null, true); return `${Who(who, 'sided')} with Engineering: ${h.name} is servicing ${r.short} before the VIP party.`; } },
@@ -2017,7 +2029,7 @@ const REQ = {
 /* ---------- three kinds of decision ----------
    Operational: daily, guided by procedure and experience, at the front line. Tactical: middle management turning the direction into action.
    Strategic: executive, long-term, high stakes, touching staff, guests, suppliers and neighbours at once. */
-const DTYPE = { cover: 'tac', reorder: 'tac', svcplan: 'tac', sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
+const DTYPE = { morning: 'tac', dispute: 'tac', cover: 'tac', reorder: 'tac', svcplan: 'tac', sheet: 'op', handover: 'op', otsign: 'tac', wo: 'op', stay: 'op', help: 'op', part: 'op', hold: 'op', defect: 'op', squall: 'op', callout: 'tac', express: 'tac', morale: 'tac', vip: 'tac', budget: 'tac', bigexp: 'tac', heat: 'tac', crowd: 'tac', board: 'str', press: 'str', sponsor: 'str', supplier: 'str', noise: 'str', pay: 'str', price: 'str' };
 const STRATEGY = { uptime: ['The park that never stops', 'Guests spend 3% more. Managers lean towards paying to keep rides open.'], cost: ['Lean and profitable', 'Overheads 5% lower. Managers lean towards waiting and saving.'], safety: ['The safest park on the coast', 'Fines 40% smaller. Managers lean towards services and no patches.'] };
 // which choices pull with which priority; a call that pulls against today's priority is wasted effort
 const ALIGN = {
@@ -2086,7 +2098,7 @@ Object.assign(REQ, {
 const ESC_DELAY = { sup: 10, mgr: 12, dir: 15, ceo: 20 }, INBOX_CAP = 3;
 const BOARD_PICK = { board: 'miss', press: 'quiet', sponsor: 'yes', supplier: 'yes', noise: 'ignore', pay: 'no', price: 'up' }; // the worse option for you, item by item
 // what the seat above decides for the requests the computer never answers when they are yours
-const ESC_PICK = { svcplan: () => 'any', reorder: () => 'std', wo: () => 'no', stay: () => 'go', defect: s => s.stock.kit > 0 ? 'yes' : 'no',
+const ESC_PICK = { morning: () => 'keep', svcplan: () => 'any', reorder: () => 'std', wo: () => 'no', stay: () => 'go', defect: s => s.stock.kit > 0 ? 'yes' : 'no',
   part: (s, it) => { const j = (ride(s, it.rid) || {}).job; return s.pol.nopart === 'patch' && j && !j.lock && s.focus !== 'safety' ? 'patch' : s.pol.nopart === 'express' ? 'exp' : 'wait'; } };
 function above(s, x) { if (x === 'ceo') return 'board'; for (let i = RANK[x] + 1; i < LV.length; i++) if (filled(s, LV[i])) return LV[i]; return 'ceo'; }
 const seatWho = (s, x) => { const h = holder(s, x); return h.startsWith('The ') ? 'the' + h.slice(3) : `${h}, the ${SEATNAME[x].toLowerCase()}`; };
@@ -2106,6 +2118,7 @@ function miss(s) { const sc = s.sc[s.seat]; sc.missed++; sc.run = 0; sc.mrun = (
 function escalate(s, it, why) { // why: 'late' ran out of time, 'full' inbox full while you sat on an old item, 'busy' inbox full (not a miss)
   const sc = s.sc[s.seat], x = above(s, s.seat), Q = REQ[it.k], what = reqWhat(s, it);
   if (why !== 'busy') miss(s);
+  if (it.k === 'vip') s.d.vipEsc = it.rid; // a dispute left to the seat above: it will be settled too late for the VIP
   sc.esc = (sc.esc || 0) + 1; s.d.esc = (s.d.esc || 0) + 1;
   if (x === 'board') {
     const dc = Math.min(9, 3 + 2 * ((sc.mrun || 1) - 1)), v = BOARD_PICK[it.k] || Q.def; let txt = '';
@@ -2220,9 +2233,15 @@ function requests(s) {
       j.coq = 1; raise(s, 'callout', { rid: r.id, cost: calloutCost(s), cs: 1, from: from(), due: s.clock + 15, txt: `${r.short} is ${r.sub ? 'closed' : 'down'} and nobody qualified for ${TRADES[j.trade].toLowerCase()} work is free. Call a contractor?` });
     }
   }
+  if (s.clock === PRE + 3) { const y = s.reports[s.reports.length - 1]; // the director's morning review: yesterday's numbers, today's priority
+    raise(s, 'morning', { from: 'The morning review', due: OPEN, txt: y ? `Yesterday: uptime ${Math.round(y.up * 100)}%, ${y.faults} faults, ${fmtMoney(y.net)} net, maintenance spend ${fmtMoney(y.spend)} against a budget of ${fmtMoney(y.budget)}. Today's priority?` : 'The first day of the season. Set today\'s priority for the managers before the gates open.' }); }
+  if (s.clock >= 660 && s.clock <= 960 && s.clock % 20 === 0 && !s.d.dispQ) { // Operations against Engineering: a worn ride, the afternoon peak coming
+    const r = s.rides.filter(r => r.sub && !r.job && !r.so && r.health < 45 && status(s, r) === 'ok' && !s.events.some(e => e.k === 'vip' && !e.done && e.ride === r.id)).sort((a, b) => a.health - b.health)[0];
+    if (r) { s.d.dispQ = 1; raise(s, 'dispute', { rid: r.id, from: 'Engineering and Operations', due: s.clock + 20, txt: `Engineering wants ${r.short} closed for a service now (health ${Math.round(r.health)}%). Operations wants it open through the afternoon peak.` }); } }
   if (s.clock === PRE + 1) for (const t of s.crew) if (t.sick && t.role === 'tech' && !t.temp) raise(s, 'cover', { tid: t.id, from: t.name, due: OPEN, txt: `${t.name} has called in sick for the ${t.shift} shift. Cover the ${TRADES[topSkill(t)[0]].toLowerCase()} work before the gates open?` });
   if (s.clock % 15 === 5 && !s.inbox.some(i => i.k === 'reorder')) { const low = lowStock(s); // stores below the minimum levels you set: one reorder list to approve
     if (low.length && cd('reorder', 60)) raise(s, 'reorder', { from: 'Stores', due: s.clock + 30, txt: `Below your minimum levels: ${low.map(([k, n]) => `${SKU[k][0].toLowerCase()} ×${n}`).join(', ')}. Reorder the list?` }); }
+  if (s.clock === 1110) for (const r of s.rides) if (r.evSvc) { r.evSvc = 0; if (!r.job && !r.so) r.svcReq = true; }
   if (s.clock === 1230 && s.day < DAYS && !s.d.planSet) raise(s, 'svcplan', { from: 'The planning desk', due: 1290, txt: 'Tomorrow\'s planned services: which rides get one? Left undecided, a plan is made without you.' });
   if (s.clock === SHIFT.early[1] - 15 && !s.d.handover) { // the early shift's open jobs: hand them over, or the late shift starts them again
     const open = s.rides.filter(r => r.job && s.crew.some(c => c.target === r.id && c.on && c.shift === 'early' && !c.once && !c.temp));
@@ -2706,7 +2725,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+96818f7d', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+2105fb69', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
