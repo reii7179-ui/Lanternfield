@@ -1748,9 +1748,10 @@ Object.assign(REQ, {
    A request nobody answers in time does not quietly fall back on a default. It goes up to the computer in the seat above,
    which decides after a while (longer the higher it goes), and until then whatever it is about waits: the ride stays shut,
    the person waits, the part is not ordered. It counts as missed for your seat, and misses in a row count for more.
-   The chief executive has only the board above, which decides at once, picks what suits it, and trusts you less. */
+   The chief executive has only the board above, which decides at once, picks the worse option for you (BOARD_PICK: the
+   costly or risky answer, never the safe one), and trusts you less. */
 const ESC_DELAY = { sup: 10, mgr: 12, dir: 15, ceo: 20 }, INBOX_CAP = 3;
-const BOARD_PICK = { board: 'miss', press: 'quiet', sponsor: 'yes', supplier: 'yes', noise: 'ignore', pay: 'no', price: 'up' };
+const BOARD_PICK = { board: 'miss', press: 'quiet', sponsor: 'yes', supplier: 'yes', noise: 'ignore', pay: 'no', price: 'up' }; // the worse option for you, item by item
 // what the seat above decides for the requests the computer never answers when they are yours
 const ESC_PICK = { wo: () => 'no', stay: () => 'go', defect: s => s.stock.kit > 0 ? 'yes' : 'no',
   part: (s, it) => { const j = (ride(s, it.rid) || {}).job; return s.pol.nopart === 'patch' && j && !j.lock && s.focus !== 'safety' ? 'patch' : s.pol.nopart === 'express' ? 'exp' : 'wait'; } };
@@ -2160,10 +2161,10 @@ function review(s) { // the board's end-of-season review
 const WORSE = 1.25, worthIt = (s, b) => DAYS - s.day >= 5 && s.cash >= b.cost + 12000; // a fix pays back only with enough season left
 const WORN = { coaster: 'gearbox', water: 'hydraulic cylinder', tower: 'hydraulic cylinder', wheel: 'slewing ring', gondola: 'slewing ring', carousel: 'slewing ring' };
 const BIG = {
-  // the cause is real from the moment it is found: the ride fails a quarter more often until it is put right (WORSE)
-  major: { t: r => `Major overhaul of ${r.name}`, why: r => `Patched ${r.pc} times this season, and it keeps coming back. Until it is done it fails more often.`, cost: () => 5500, fix(s, r) { r.health = 100; r.patched = false; r.hzm = (r.hzm || 1) / WORSE * .85; }, left(s, r) { r.pc = 0; } },
-  worn: { t: r => `Replace the worn ${WORN[r.kind]} on ${r.name}`, why: r => `${r.mf} mechanical failures this season trace back to it. Until it is replaced it fails more often.`, cost: r => r.kind === 'coaster' ? 8500 : 6000, fix(s, r) { r.health = 100; r.hzm = (r.hzm || 1) / WORSE * .8; }, left(s, r) { r.mf = 0; } },
-  ctrl: { t: r => `Control system upgrade on ${r.name}`, why: r => `${r.cf} control faults this season: the controller is past its best, and it will keep crashing.`, cost: () => 7500, fix(s, r) { r.hzm = (r.hzm || 1) / WORSE * .9; }, left(s, r) { r.cf = 0; } },
+  // put right, the ride fails less often than before; declined, the cause stays and it fails a quarter more often (WORSE)
+  major: { t: r => `Major overhaul of ${r.name}`, why: r => `Patched ${r.pc} times this season, and it keeps coming back. Leave it, and it fails more often.`, cost: () => 5500, fix(s, r) { r.health = 100; r.patched = false; r.hzm = (r.hzm || 1) * .85; }, left(s, r) { r.pc = 0; r.hzm = (r.hzm || 1) * WORSE; } },
+  worn: { t: r => `Replace the worn ${WORN[r.kind]} on ${r.name}`, why: r => `${r.mf} mechanical failures this season trace back to it. Leave it, and it fails more often.`, cost: r => r.kind === 'coaster' ? 8500 : 6000, fix(s, r) { r.health = 100; r.hzm = (r.hzm || 1) * .8; }, left(s, r) { r.mf = 0; r.hzm = (r.hzm || 1) * WORSE; } },
+  ctrl: { t: r => `Control system upgrade on ${r.name}`, why: r => `${r.cf} control faults this season: the controller is past its best, and it will keep crashing.`, cost: () => 7500, fix(s, r) { r.hzm = (r.hzm || 1) * .9; }, left(s, r) { r.cf = 0; r.hzm = (r.hzm || 1) * WORSE; } },
   refurb: { t: r => `Full refurbishment of ${r.name}`, why: r => `Two overhauls have not saved it: health ${Math.round(r.health)}%, and it fails more often every week.`, cost: () => 24000, fix(s, r) { r.health = 100; r.ovh = 0; r.hzm = .75; }, left() { /* it stays as it is */ } },
   claim: { t: () => 'Injury claim', why: () => 'The technician hurt on site has made a claim. Settle now, or contest it: about a 60% chance it costs more later, and the paper hears of it.', cost: () => 5000 },
 };
@@ -2180,7 +2181,7 @@ function bigCheck(s) { // at close: at most one new big decision, spaced out, a 
   const c = cand[0]; if (!c) return;
   const [k, r] = c, B = BIG[k], cost = B.cost(r);
   const b = { id: ++s.rq, k, rid: r ? r.id : null, cost, x: band(cost), day: s.day, t: B.t(r), why: B.why(r) };
-  if (r) { r.hzm = (r.hzm || 1) * WORSE; if (k === 'major') r.pc = 0; else if (k === 'worn') r.mf = 0; else if (k === 'ctrl') r.cf = 0; }
+  if (r) { if (k === 'major') r.pc = 0; else if (k === 'worn') r.mf = 0; else if (k === 'ctrl') r.cf = 0; }
   s.big.push(b); if (k === 'claim') s.claims = (s.claims || 0) + 1; else { s.bigN++; s.bigDay = s.day; }
   log(s, `For the desk: ${b.t}, ${fmtMoney(cost)}. ${b.x === 'board' ? 'Over the chief executive\'s limit, so it goes to the board.' : 'It needs the chief executive.'}`, 'event');
 }
@@ -2343,7 +2344,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+97b7846e', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+09c652c9', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });

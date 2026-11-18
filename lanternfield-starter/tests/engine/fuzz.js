@@ -31,6 +31,7 @@ function check(s, w) {
 }
 
 const planCmds = s => [
+  () => s.big && s.big.length && L.decideBig(s, pick(s.big).id, pick(['yes', 'no', 'settle', 'contest']), pick(['You', 'The board'])),
   () => s.cands.length && L.hire(s, Math.floor(r() * s.cands.length)),
   () => L.order(s, pick(Object.keys(L.SKU)), 'std'),
   () => L.setSeat(s, pick(L.LV), pick(s.crew).id),
