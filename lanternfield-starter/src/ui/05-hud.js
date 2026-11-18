@@ -26,7 +26,7 @@ function objHTML() {
   const day = S.phase === 'day', evs = [];
   for (const e of S.events) if (!e.done) evs.push([e.at, e.k === 'vip' ? `VIP party rides ${L.ride(S, e.ride).short}` : 'Inspector walks the park']);
   if (S.phase === 'day' && !S.gates) { const n = S.rides.filter(r => r.sub && r.chk === S.day).length, all = S.rides.filter(r => r.sub).length; evs.push([L.OPEN, `Gates open · ${n} of ${all} rides checked`]); }
-  if (S.phase === 'day' && (S.dplan || []).length) evs.push([Math.max(S.clock, L.OPEN + 20), `Planned services: ${S.dplan.map(id => L.ride(S, id).short).join(', ')}`]);
+  if (S.phase === 'day' && !S.gates && (S.dplan || []).length) evs.push([Math.max(S.clock, L.PRE + 5), `Planned services before the gates: ${S.dplan.map(id => L.ride(S, id).short).join(', ')}`]);
   for (const [at, txt] of [[L.SHIFT.late[0], 'Late shift clocks on'], [L.SHIFT.early[1], 'Early shift goes home'], [L.LH, 'Lantern Hour begins'], [L.CLOSE, 'Park closes']]) if (S.clock < at) evs.push([at, txt]);
   for (const o of S.inbound) if (o.at) evs.push([o.at, `Express: ${L.SKU[o.sku][0].toLowerCase()}`]);
   for (const w of S.waves || []) if (!w.hit && w.warned) evs.push([w.at, `Squall hits: about ${w.size} breakdowns`]);

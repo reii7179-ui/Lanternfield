@@ -52,7 +52,7 @@ module.exports = function makePlayers(L) {
       if (j.mode === 'full' && j.part && j.ps === 'none' && s.stock[j.part] < 1 && !L.incoming(s, j.part)) { if (L.order(s, j.part, 'exp') !== true && !j.lock) L.setMode(s, r, 'patch'); }
       let f = freeT().filter(c => c.skills[j.trade]);
       if (o.smart) { const fresh = f.filter(c => en(c) >= 30); if (fresh.length) f = fresh; }
-      const score = c => c.skills[j.trade] * 60 - dist(c, r) / 6 + (o.smart ? en(c) / 3 : 0);
+      const safe = L.safetyJob && L.safetyJob(r, j), score = c => c.skills[j.trade] * 60 - dist(c, r) / 6 + (o.smart ? en(c) / 3 : 0) - (safe && L.hasT(c, 'quick') ? 100 : 0); // the right person for a safety-critical job, not just the nearest
       f.sort((a, b) => score(b) - score(a));
       if (f[0]) L.assign(s, f[0], r);
     }
@@ -69,6 +69,11 @@ module.exports = function makePlayers(L) {
     if (o.smart) { // breaks for tired people when nothing in their trade is waiting
       const waiting = tr => unsent(s).some(r => r.job.trade === tr);
       for (const c of freeT()) if (!c.brk && !c.talk && en(c) < 45 && !Object.keys(c.skills).some(waiting)) L.rest(s, c);
+      // the break rotation: someone worn out goes for a break before the 20 minutes are up, with a fresh hand on their job if there is one
+      for (const c of s.crew) if (c.tiredAt && c.on && !c.brk && !c.talk && s.clock - c.tiredAt >= (c.target ? 5 : 0)) {
+        const r = c.target && L.ride(s, c.target), j = r && r.job, sub = j && freeT().filter(x => x !== c && x.skills[j.trade] && en(x) >= 50).sort((a, b) => dist(a, r) - dist(b, r))[0];
+        if (!c.target || sub || s.clock - c.tiredAt >= 15) { L.rest(s, c); if (sub) L.assign(s, sub, r); }
+      }
     }
     if (o.talk === 'often' && s.clock % 30 === 0) L.walk(s, 'safety');
     if (o.talk === 'quiet') { // a safety talk when alertness is low and the crew is mostly free
@@ -103,7 +108,12 @@ module.exports = function makePlayers(L) {
   }
 
   function answerAll(s) { // the computer's own pick for every request
-    for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; } L.answer(s, it.id, v); }
+    for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; }
+      // a manager keeps to the budget: once the day is over it, only a closed ride, a rush job or stuck guests get money spent on them
+      if (s.seat === 'mgr' && L.keySpend && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && L.maintSpend(s) > s.budget && !L.keySpend(s, it.rid && L.ride(s, it.rid))) v = it.k === 'express' ? 'wait' : 'no';
+      // overtime only to get a closed ride back, not for every job still open at 17:00
+      if (it.k === 'hold' && v === 'yes' && L.keySpend && !it.tids.some(id => { const t = s.crew.find(c => c.id === id); return t && t.target && L.keySpend(s, L.ride(s, t.target)); })) v = 'go';
+      L.answer(s, it.id, v); }
   }
 
   function seatPlay(s, o) {
@@ -135,7 +145,7 @@ module.exports = function makePlayers(L) {
       const up = s.d.upW / Math.max(1, s.d.upT);
       if (s.clock >= 700 && up >= 0.88) L.briefChair(s);
       if (s.clock >= 570 && s.clock < 660 && !s.rides.some(r => r.job && r.job.type === 'fault')) L.happyHour(s);
-      const r = s.rides.filter(r => r.sub && r.job && r.job.type === 'fault' && r.job.sev === 'major' && !(r.vouch > s.clock)).sort((a, b) => b.w - a.w)[0]; if (r && r.w > 14) L.vouch(s, r);
+      const r = s.rides.filter(r => r.sub && r.job && r.job.type === 'fault' && r.job.sev === 'major' && !(r.vouch > s.clock)).sort((a, b) => b.w - a.w)[0]; if (r && r.w > 14 && s.clock - r.job.t0 >= 20) L.vouch(s, r); // goodwill for a busy ride shut a while, not for every short closure
       if (s.glow < 60) L.crowdPleaser(s);
     }
   }
