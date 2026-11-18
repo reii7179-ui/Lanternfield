@@ -20,7 +20,8 @@ npx playwright install chromium
 | `npm run build:check` | `index.html` matches `src/` (nobody edited the built file by hand). `npm test` runs it first. | 1 s |
 | `npm run test:golden` | **Golden master.** 35 seeded seasons played by scripted players must match `golden.json` exactly. This is the "gameplay didn't change" check. | ~15 s |
 | `npm run test:fuzz` | **Random input.** 60 seasons with every engine command called at random. Nothing may throw, and no number may go bad (NaN, negative stock, out-of-range health or energy). | ~15 s |
-| `npm run test:engine` | Both of the above. | ~30 s |
+| `npm run test:rules` | **Active-seat rules.** Six scripted players, watched minute by minute: no ride reopens without the signatures its level needs, or with a padlock on; a red tag waits for the inspector; the chief executive never signs a reopen and nobody countersigns their own work; nothing waits for ever without being escalated; the same seed gives the same season. | ~15 s |
+| `npm run test:engine` | The golden master, the random-input test and the rules. | ~45 s |
 | `npm run balance` | **Balance report** (not pass/fail). Spread of scores for each scripted player; compare with the table below. | ~2 min |
 | `node tests/browser/smoke.js [n]` | **UI stress.** Plays `n` seasons (default 3) inside the page, presses every kind of button and redraws every panel every park minute. Fails on errors, the game's red error box, or NaN/undefined on screen. | ~1 min per season |
 | `node tests/browser/layout.js` | **Layout.** 16 screen sizes, from 360×640 to 2560×1440. Fails on overlapping panels, clipped ride names on the board, ride names overlapping on the map, cut-off buttons, top-bar overflow, sideways scrolling, or an unreachable Start button. | ~1 min |
@@ -32,6 +33,7 @@ npx playwright install chromium
 | `node tests/browser/dusk.js` | **The light changing.** In plain day and night nothing is composed. At dusk the composed ground covers the map on screen, also after panning and zooming. After a zoom late in the afternoon, the night layer is ready again before 18:00. On a phone and a laptop. | ~20 s |
 | `node tests/browser/final-screen.js` | **End-of-season screen.** Score split, your own work, playtest record, Copy button. | ~15 s |
 | `node tests/browser/playtest.js` | **Playtest record.** One day in, How to play holds a record that parses, with the build stamp, the finished day and the device. Copy the record copies exactly that. A playtest build shows the note on the title screen (same stamp, fits a phone); the normal build doesn't. Inside a frame on another site, as itch.io shows games, the game saves across a reload and Copy still works. | ~20 s |
+| `node tests/browser/seats.js` | **Active seats.** A fixed ride waiting for your countersign shows "Sign to reopen" on its board card; the button opens the card with the job sheet, Sign and Send back; signing reopens it after Operations' check. On a laptop and a phone. | ~15 s |
 | `node tests/browser/coach.js` | **Coaching.** Does what each seat's coach asks, with real clicks, all seats side by side; checks the clock waits when it should. Options: `--phone`, `--desk`, a seat list. | ~2 min |
 | `node tests/browser/real-day.js` | **One real day** of clicks and keys at 2×; checks the playtest record. | ~3–4 min |
 | `npm run test:browser` | smoke, layout, saves, motion, ui motion, sound, perf, dusk, final screen, playtest, coach. | ~6 min |

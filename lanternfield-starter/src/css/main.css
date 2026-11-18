@@ -397,7 +397,7 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
   .selp{grid-area:selp}
   .tilesg{display:flex;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
   .tilesg::-webkit-scrollbar{display:none}
-  .as{flex:0 0 106px}
+  .asw{flex:0 0 106px}
   .as b{-webkit-line-clamp:1}
   .as:has(.bd) .st{padding-right:19px}
 }

@@ -48,6 +48,13 @@ function act(a, d, el, ev) {
     case 'pickme': ui.pickMe = d.t; ui.pick = 'tech'; break;
     case 'takeseat': L.setSeat(S, d.v, d.v === 'tech' ? ui.pickMe || S.me : null); ui.coach = null; coachStart(); ui.seats = false; ui.role = null; ui.units = []; ui.sel = null; unhold(); SFX.send(); { const m = L.me(S); if (m && m.on) focus(m.x, m.y); } break;
     case 'big': if (L.decideBig(S, +d.id, d.v, 'You')) SFX.send(); break;
+    // reopening fixed rides: open the card, countersign or send back, the incident review, your own "fit to run" and padlock
+    case 'signopen': ui.sel = d.id; ui.tech = null; break;
+    case 'csign': { const ok = L.countersign(S, d.id, d.v); if (ok === true) { SFX[d.v === 'sign' ? 'fix' : 'send'](); say(d.v === 'sign' ? 'Signed. It moves on to the next step.' : 'Sent back to the crew.', d.v === 'sign' ? 'var(--jade)' : 'var(--sky)'); } break; }
+    case 'review': if (L.review(S, d.id, d.v) === true) SFX.send(); break;
+    case 'fit': { const ok = L.signFit(S, d.v === 'test'); if (ok === true) SFX.fix(); else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'padoff': { const ok = L.padOff(S); if (ok === true) { SFX.send(); say('Padlock off.', 'var(--jade)'); } else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'padgo': { const t = L.me(S), r = L.ride(S, d.id); if (t && r && L.moveOrder(S, t, r.x + t.ox, r.y + t.oy)) SFX.send(); break; }
     case 'ans': { const it = S.inbox.find(x => x.id === +d.id); if (L.answer(S, +d.id, d.v)) { SFX.send(); if (it && d.v !== 'brief') PT.q.push((S.clock - it.at) / (TPS0 * S.speed)); } break; }
     case 'ptcopy': { // the old copy command first: it works inside a frame on another site (as itch.io shows games), the newer one needs that page's permission
       const ta = document.querySelector('.pt'); if (!ta) break; const hand = () => say('Selected: copy it with Ctrl+C, Cmd+C or a long press', 'var(--sky)');

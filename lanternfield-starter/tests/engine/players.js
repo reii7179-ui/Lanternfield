@@ -33,7 +33,8 @@ module.exports = function makePlayers(L) {
   }
 
   function dispatch(s, o) { // the supervisor's hands
-    const freeT = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !(c.hurt > s.clock) && !(c.wake > s.clock));
+    const padded = id => s.rides.some(r => r.so && r.so.pads.includes(id)); // let them go back for their padlock first
+    const freeT = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded(c.id) && !(c.hurt > s.clock) && !(c.wake > s.clock));
     for (const r of s.rides) { // guests stuck: anyone, now
       const j = r.job; if (!j || !j.rescue || s.clock - j.t0 < o.delay) continue;
       if (s.crew.some(c => c.on && c.role === 'tech' && (c.target === r.id || (c.post && Math.hypot(c.post.x - r.x, c.post.y - r.y) < 60)))) continue;

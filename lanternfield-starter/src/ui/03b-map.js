@@ -245,7 +245,7 @@ function rideFrame(r, n, st, idx) {
 function drawRide(r, n, st, idx) { const f = rideFrame(r, n, st, idx); blitWorld(f.c, r.x + SPR_BOX.x, r.y + SPR_BOX.y, SPR_BOX.w, SPR_BOX.h, f.k); }
 
 /* ride names: a pill, with a status word when the ride is not running (so colour is never the only signal) */
-const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW' };
+const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW', signoff: 'TO SIGN', signme: 'SIGN NOW', restart: 'RESTART' };
 const pills = {};
 function namePill(r, st) {
   const fs = Math.max(12.5, labelPx() / sc), k = sc * dprNow(), word = ui.title ? '' : STWORD[st] || '', key = `${fs.toFixed(2)}|${k.toFixed(3)}|${word}|${st === 'nopower'}|${fontsReady()}`;
@@ -329,7 +329,8 @@ function rideInfo(r, t, st, names) {
   if (ui.coachRide === r.id && !reduce) { ctx.setLineDash([6, 6]); ring(cx, cy, R + 26 * b, 0, 7, 3 * b, rgba('#ffb347', .55 + .45 * Math.sin(t * 7)), false); ctx.setLineDash([]); }
   ctx.lineCap = 'round';
   if (r.sub && !ui.title && r.q > 1) { const q = Math.min(9, Math.ceil(r.q / (r.cap * S.qtol) * 9)); ctx.fillStyle = r.jam ? '#ff5d4a' : rgba('#f7edd8', .8); ctx.beginPath(); for (let i = 0; i < q; i++) { const qx = cx - (q - 1) * 3 * b + i * 6 * b, qy = r.y + 37 + 3 * b; ctx.moveTo(qx + 2 * b, qy); ctx.arc(qx, qy, 2 * b, 0, 7); } ctx.fill(); }
-  const p = namePill(r, st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
+  const p = namePill(r, st === 'signoff' && soMine(r) ? 'signme' : st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
+  if (st === 'signoff' && !ui.title) { const lost = L.hourly(S, r); if (lost > 0) names.push(() => label(`−${fmtMoney(lost)}/h`, cx, ly + p.h / 2 + 8, 10.5, '#ffd27a', 700)); } // what the wait is costing
   mapLabels.push({ id: r.id, x: ox + (cx - p.w / 2) * sc, y: oy + (ly - p.h / 2) * sc, w: p.w * sc, h: p.h * sc }); // where each name is on screen (for the layout test)
   if (ui.title) return;
   const vip = S.events.find(e => e.k === 'vip' && !e.done && e.ride === r.id && e.warned);

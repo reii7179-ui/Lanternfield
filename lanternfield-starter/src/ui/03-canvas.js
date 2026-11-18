@@ -75,7 +75,7 @@ const hex = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), pars
 function mix(a, b, t) { const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; }
 function rgba(c, a) { const A = hex(c); return `rgba(${A[0]},${A[1]},${A[2]},${a})`; }
 function nightOf(c) { if (c < 600) return .25 - .25 * (c - 540) / 60; if (c <= 1080) return 0; if (c <= 1230) return (c - 1080) / 150; return 1; }
-const SCOL = { ok: '#ffb347', degraded: '#ff8f3d', down: '#ff5d4a', service: '#79c2ff', nopower: '#7d7f9c', unstaffed: '#7d7f9c' };
+const SCOL = { ok: '#ffb347', degraded: '#ff8f3d', down: '#ff5d4a', service: '#79c2ff', nopower: '#7d7f9c', unstaffed: '#7d7f9c', signoff: '#e9c46a', signme: '#ffe08a', restart: '#79c2ff' };
 
 const guests = [], pops = [], lanterns = [];
 const prev = {};

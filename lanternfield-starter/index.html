@@ -135,6 +135,27 @@ body{background:#060a1e}
 .bigd>div:first-child{display:flex;flex-direction:column;gap:2px;flex:1 1 260px;min-width:0}
 .bigd small{font-size:13px}
 .bigd .btn small{display:block;font-weight:400;font-size:12px;opacity:.85}
+/* ---------- active seats: reopen sign-offs ----------
+   A board tile sits in a wrapper, so the "Sign to reopen" button can lie over the bottom of the tile without changing
+   its size or rebuilding it. The sign-off card in the selection panel lists the steps and the job sheet. */
+.asw{position:relative;display:flex;min-width:0;min-height:0}
+.asw>.as{flex:1 1 auto;min-width:0}
+.sgn{position:absolute;left:7px;right:3px;bottom:3px;min-height:26px;padding:4px 6px;border:0;border-radius:7px;background:var(--lantern);color:#16122b;font:700 11.5px/1.1 var(--body);box-shadow:0 2px 0 #9a5a10;cursor:pointer}
+.sgn:hover,.sgn:focus-visible{background:#ffd27a;outline:2px solid var(--ink);outline-offset:1px}
+@media (pointer:coarse){.sgn{min-height:32px;font-size:12.5px}}
+.so .sos{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.so .sos li{color:var(--dim)}
+.so .sos li.done{color:var(--jade)}
+.so .sos li.now{color:var(--ink);font-weight:700}
+.so .sos small{font-weight:400;color:var(--dim)}
+.so .sos small.hot{color:var(--ember);font-weight:700}
+.sheet{border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.sheet .cap{display:block;margin-bottom:2px}
+.wr{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;font-size:13px}
+.wr li::before{content:'· ';color:var(--dim)}
+.wr li.okk::before{content:'✓ ';color:var(--jade)}
+.wr li.gap{color:var(--ember);font-weight:700}
+.wr li.gap::before{content:'✗ ';color:var(--ember)}
 :root{
   /* Layout: the park is the board. Map in the middle, work orders left, the selected ride right, the team along the bottom, clock and accounts on top. The planning desk (team, stores, projects) opens over it. One world, one theme: a funfair going from afternoon into lantern-lit night. */
   --night:#0e1330;
@@ -534,7 +555,7 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
   .selp{grid-area:selp}
   .tilesg{display:flex;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
   .tilesg::-webkit-scrollbar{display:none}
-  .as{flex:0 0 106px}
+  .asw{flex:0 0 106px}
   .as b{-webkit-line-clamp:1}
   .as:has(.bd) .st{padding-right:19px}
 }
@@ -1214,6 +1235,8 @@ function createFault(s, r, o) {
   const sev = o.sev || (!r.sub || chance(s, r.health < 30 ? .75 : .55) ? 'major' : 'minor');
   if (r.job) dropJob(s, r);
   if (r.so) { r.so = null; r.restart = 0; }
+  if (r.blame) { const b = r.blame; r.blame = null; // it failed again (or was red-tagged) after someone countersigned a weak job sheet
+    if (b.mine && s.day - b.day <= 1 && s.sc[b.x]) { s.sc[b.x].csHurt = (s.sc[b.x].csHurt || 0) + 1; if (b.x === s.seat) log(s, `${r.name} failed again after you countersigned a job sheet with gaps in it. You share the fault.`, 'bad'); } }
   if (!o.glitch && !o.lock) { if (trade === 'mech') r.mf = (r.mf || 0) + 1; else if (trade === 'ctrl') r.cf = (r.cf || 0) + 1; }
   r.job = { type: 'fault', title: tpl[0], trade, sev, work: Math.round(R(s, 38, 88) * (sev === 'minor' ? .7 : 1)), prog: 0, mode: 'full', lock: !!o.lock, part: tpl[2], ps: 'none', t0: s.clock };
   if (tpl[4]) { // what the technician sees, and three possible causes
@@ -1367,11 +1390,11 @@ function callout(s, r) {
    Signing a bad write-up shares the fault; sending back a good one costs time and a little morale.
    Anyone who must sign and leaves it more than 10 minutes: it goes one seat up, counts as missed, and the ride waits. */
 const FACILITY = ['food', 'arcade', 'theater'];
-const SO_STEPS = { reset: ['fit'], normal: ['fit', 'ops'], safety: ['fit', 'sup', 'ops'], redtag: ['fit', 'mgr', 'insp'], injury: ['fit', 'review', 'dir', 'ops'], sub: ['fit', 'sup', 'power'] };
+const SO_STEPS = { reset: ['fit', 'go'], normal: ['fit', 'ops'], safety: ['fit', 'sup', 'ops'], redtag: ['fit', 'mgr', 'insp'], injury: ['fit', 'review', 'dir', 'ops'], sub: ['fit', 'sup', 'power'] };
 const SO_NAME = { reset: 'Quick reset', normal: 'Repair', safety: 'Safety-critical', redtag: 'Red tag', injury: 'After an injury', sub: 'Substation' };
 const SO_SIGN = 10, SO_OPS = 2; // minutes to sign before it goes up a seat; Operations' empty run
 const SO_LAG = { tech: [1, 2], sup: [1, 3], mgr: [2, 5], dir: [3, 6] }; // how long a computer signer takes to get to it and check
-const safetyJob = (r, j) => j.type === 'fault' && (j.part === 'brake' || j.part === 'relay' || /lap bar|restraint|e-stop/i.test(j.title || '') || (j.part === 'breaker' && FACILITY.includes(r.kind)));
+const safetyJob = (r, j) => j.type === 'fault' && (j.part === 'brake' || j.part === 'relay' || /lap bar|restraint|e-stop|brake/i.test(j.title || '') || (j.part === 'breaker' && FACILITY.includes(r.kind)));
 function soKind(r, j, inj) {
   if (!r.sub) return 'sub';
   if (inj) return 'injury';
@@ -1404,13 +1427,13 @@ function soStart(s, r, j, crew, mt) {
   const inj = r.injAt === s.clock, k = soKind(r, j, inj), lead = staff(s, j.lead) || crew.find(t => !t.temp) || crew[0] || null;
   // the people finishing take their own padlocks off as they go (you take yours off yourself); anyone who left earlier must come back
   const pads = (j.pads || []).filter(id => { const t = staff(s, id); return t && t.on && !(crew.includes(t) && t !== mt); });
-  r.so = { k, steps: SO_STEPS[k], i: 0, at: s.clock, lag: 0, esc: 0, x: null, wr: writeUp(s, r, j, lead), lead: lead ? lead.id : 0, pads, safe: !!safetyJob(r, j), back: j.back || 0, by: {},
+  r.so = { k, steps: SO_STEPS[k], i: 0, t0: s.clock, at: s.clock, lag: 0, esc: 0, x: null, wr: writeUp(s, r, j, lead), lead: lead ? lead.id : 0, pads, safe: !!safetyJob(r, j), back: j.back || 0, by: {},
     job: { type: j.type, title: j.title, trade: j.trade, lock: !!j.lock, mode: j.mode, part: j.part, glitch: j.glitch || null, sev: j.sev } };
   if (j.self) r.so.self = j.self;
   return r.so;
 }
 const soWhoNext = (s, r) => { const o = r.so, st = soStep0(o);
-  return st === 'fit' ? `${o.lead === s.me && s.seat === 'tech' ? 'you sign' : (staff(s, o.lead) || { name: 'the technician' }).name + ' signs'} it fit to run` : st === 'ops' ? 'Operations run it empty' : st === 'insp' ? 'the inspector clears the tag' : st === 'power' ? 'power is restored' : st === 'review' ? 'the incident review' : `${seatWho(s, o.x || soSigner(s, st, o))} countersigns`; };
+  return st === 'fit' ? `${o.lead === s.me && s.seat === 'tech' ? 'you sign' : (staff(s, o.lead) || { name: 'the technician' }).name + ' signs'} it fit to run` : st === 'ops' ? 'Operations run it empty' : st === 'insp' ? 'the inspector clears the tag' : st === 'power' ? 'power is restored' : st === 'go' ? 'every padlock is off' : st === 'review' ? 'the incident review' : `${seatWho(s, o.x || soSigner(s, st, o))} countersigns`; };
 function soNext(s, r) {
   const o = r.so; o.i++; o.at = s.clock; o.lag = 0; o.esc = 0; o.x = null; o.signedAt = 0;
   if (o.i >= o.steps.length) return soOpen(s, r);
@@ -1428,12 +1451,12 @@ function soOpen(s, r) {
   // what a weak job sheet costs later: no cause found leaves no history for the next fault, and no test run may mean it was not right
   if (o.wr.cause === 'none' || o.wr.cause === 'guess') { r.nohist = 1; r.health = Math.min(r.health, 72); }
   if (o.wr.test === false && chance(s, .35)) r.warnAt = s.clock + RI(s, 8, 25);
-  if (o.stamp) r.blame = { x: o.stamp, day: s.day, tid: o.wr.tid };
+  if (o.stamp) r.blame = { x: o.stamp, day: s.day, tid: o.wr.tid, mine: !!o.stampMine };
 }
 // a signer said yes
 function soSign(s, r, x, who) {
   const o = r.so, st = soStep0(o); o.by[st] = who;
-  if (soBad(o)) o.stamp = x; // signed a weak write-up: shares the fault if it goes wrong
+  if (soBad(o)) { o.stamp = x; o.stampMine = who === 'You'; } // signed a weak write-up: shares the fault if it goes wrong
   soNext(s, r);
 }
 // sent back: the job reopens for whoever did it, to find the cause, finish properly or run the test
@@ -1481,10 +1504,10 @@ function soStepAll(s) {
       if (s.clock >= o.at + o.lag) reviewDone(s, r, 'retrain', holder(s, x));
       continue;
     }
-    if (o.pads.length) continue; // nothing runs while anyone's padlock is still on the isolator
+    if (o.pads.length) { o.at = s.clock; continue; } // nothing runs while anyone's padlock is still on the isolator: the empty run starts once the last is off
     if (st === 'ops' && s.clock >= o.at + SO_OPS) soNext(s, r);
-    else if (st === 'insp' && s.clock >= o.inspAt) { log(s, `The inspector cleared the red tag on ${r.name}.`, 'good'); soNext(s, r); }
-    else if (st === 'power') soNext(s, r);
+    else if (st === 'insp' && s.clock >= o.inspAt && s.clock > o.at) { log(s, `The inspector cleared the red tag on ${r.name}.`, 'good'); soNext(s, r); }
+    else if ((st === 'power' || st === 'go') && s.clock > o.at) soNext(s, r);
   }
 }
 // the director's incident review: what changes after someone was hurt on this job
@@ -1622,7 +1645,8 @@ function supStep(s) { // whoever is running the shift sends people to work; with
   const P = s.pol, m = me(s), supOn = onNow(s, 'sup');
   if (!P.auto && !m) return; // you said you would dispatch yourself
   const lagOf = r => r.id === s.prio ? 0 : (r.job.lag || 6) + (supOn ? 0 : 10), woOpen = s.inbox.some(i => i.k === 'wo');
-  const free = tr => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !(c.hurt > s.clock) && (tr === '*' || c.skills[tr] && !c.talk && !(c.brk && enOf(c) < 60)) && !(c === m && (woOpen || !supOn)));
+  const padded = new Set(); for (const r of s.rides) if (r.so) for (const id of r.so.pads) padded.add(id); // a good supervisor lets people go back for their padlocks first
+  const free = tr => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded.has(c.id) && !(c.hurt > s.clock) && (tr === '*' || c.skills[tr] && !c.talk && !(c.brk && enOf(c) < 60)) && !(c === m && (woOpen || !supOn)));
   const dist = (c, r) => Math.hypot(c.x - r.x, c.y - r.y);
   // stranded guests first: anyone at all can get them down
   for (const r of s.rides) {
@@ -2016,6 +2040,7 @@ function diagnose(s, i) {
   log(s, `Not the ${j.opts[i].toLowerCase()}. Six minutes lost checking the wrong thing.`, 'bad'); return 'wrong';
 }
 function hurt(s, t, r, mine, why) {
+  if (r.blame && r.blame.mine && s.day - r.blame.day <= 1 && s.sc[r.blame.x]) s.sc[r.blame.x].csInj = (s.sc[r.blame.x].csInj || 0) + 1; // an injury after a weak countersign counts against the countersigner too
   t.hurt = s.clock + 30; r.injAt = s.clock; s.d.inj = (s.d.inj || 0) + 1; const c = Math.round(800 * s.m.fine); s.cash -= c; s.d.bonus -= c; s.conf = clamp(s.conf - (mine ? 3 : 2), 0, 100); s.safety.inj++; if (mine) s.sc.tech.hurt++; s.d.pressQ = `a technician hurt at ${r.name}`; s.comp = Math.max(0, s.comp - 40);
   log(s, why ? `${t.name} was hurt at ${r.short}: ${why}. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}.` : mine ? `You skipped the lockout and ${r.short} moved while your hands were in it. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}.` : `${t.name} was hurt finishing ${r.short}: a routine job, a shortcut, nobody watching. First aid, 30 minutes off and a reportable incident. Cost ${fmtMoney(c)}. Nobody had stopped the crew for a toolbox talk.`, 'bad'); fx(s, 'major', r.id, 'Injury');
 }
@@ -2329,7 +2354,10 @@ function personal(s) {
   else if (seat === 'mgr' || seat === 'dir') { const u = c.days ? c.upSum / c.days : 0; add('Uptime on your days', .4, (u - .7) / .2); add('Days on budget', .2, c.days ? c.budOk / days : 0);
     if (seat === 'mgr') add('Crew morale', .2, c.days ? (c.moraleSum / days - 35) / 30 : 0); else add('Days on strategy', .2, c.days ? 1 - c.off / days : 0); add('Requests answered in time', .2, req); }
   else { add('Profit on your days', .4, c.days ? (c.netSum / days + 2000) / 8000 : 0); add('Board confidence', .3, c.days ? ((c.confD || 0) / days + 3) / 6 : 0); add('Requests answered in time', .3, req); }
-  return { seat, p: parts.reduce((a, x) => a + x[1] * x[2], 0), parts };
+  // sign-offs: good ones signed quickly earn a little; a weak sheet you countersigned that went wrong costs more
+  const csUp = Math.min(.05, .01 * (c.csFast || 0)), csDown = Math.min(.2, .04 * (c.csHurt || 0) + .06 * (c.csInj || 0));
+  if (c.csFast || c.csHurt || c.csInj) parts.push(['Sign-offs', 0, clamp(.5 + csUp * 10 - csDown * 5, 0, 1)]);
+  return { seat, p: clamp(parts.reduce((a, x) => a + x[1] * x[2], 0) + csUp - csDown, 0, 1), parts };
 }
 function review(s) { // the board's end-of-season review
   mods(s);
@@ -2495,7 +2523,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2540,7 +2568,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+31291804', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+3b81480e', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -2846,7 +2874,7 @@ const hex = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), pars
 function mix(a, b, t) { const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; }
 function rgba(c, a) { const A = hex(c); return `rgba(${A[0]},${A[1]},${A[2]},${a})`; }
 function nightOf(c) { if (c < 600) return .25 - .25 * (c - 540) / 60; if (c <= 1080) return 0; if (c <= 1230) return (c - 1080) / 150; return 1; }
-const SCOL = { ok: '#ffb347', degraded: '#ff8f3d', down: '#ff5d4a', service: '#79c2ff', nopower: '#7d7f9c', unstaffed: '#7d7f9c' };
+const SCOL = { ok: '#ffb347', degraded: '#ff8f3d', down: '#ff5d4a', service: '#79c2ff', nopower: '#7d7f9c', unstaffed: '#7d7f9c', signoff: '#e9c46a', signme: '#ffe08a', restart: '#79c2ff' };
 
 const guests = [], pops = [], lanterns = [];
 const prev = {};
@@ -3310,7 +3338,7 @@ function rideFrame(r, n, st, idx) {
 function drawRide(r, n, st, idx) { const f = rideFrame(r, n, st, idx); blitWorld(f.c, r.x + SPR_BOX.x, r.y + SPR_BOX.y, SPR_BOX.w, SPR_BOX.h, f.k); }
 
 /* ride names: a pill, with a status word when the ride is not running (so colour is never the only signal) */
-const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW' };
+const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW', signoff: 'TO SIGN', signme: 'SIGN NOW', restart: 'RESTART' };
 const pills = {};
 function namePill(r, st) {
   const fs = Math.max(12.5, labelPx() / sc), k = sc * dprNow(), word = ui.title ? '' : STWORD[st] || '', key = `${fs.toFixed(2)}|${k.toFixed(3)}|${word}|${st === 'nopower'}|${fontsReady()}`;
@@ -3394,7 +3422,8 @@ function rideInfo(r, t, st, names) {
   if (ui.coachRide === r.id && !reduce) { ctx.setLineDash([6, 6]); ring(cx, cy, R + 26 * b, 0, 7, 3 * b, rgba('#ffb347', .55 + .45 * Math.sin(t * 7)), false); ctx.setLineDash([]); }
   ctx.lineCap = 'round';
   if (r.sub && !ui.title && r.q > 1) { const q = Math.min(9, Math.ceil(r.q / (r.cap * S.qtol) * 9)); ctx.fillStyle = r.jam ? '#ff5d4a' : rgba('#f7edd8', .8); ctx.beginPath(); for (let i = 0; i < q; i++) { const qx = cx - (q - 1) * 3 * b + i * 6 * b, qy = r.y + 37 + 3 * b; ctx.moveTo(qx + 2 * b, qy); ctx.arc(qx, qy, 2 * b, 0, 7); } ctx.fill(); }
-  const p = namePill(r, st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
+  const p = namePill(r, st === 'signoff' && soMine(r) ? 'signme' : st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
+  if (st === 'signoff' && !ui.title) { const lost = L.hourly(S, r); if (lost > 0) names.push(() => label(`−${fmtMoney(lost)}/h`, cx, ly + p.h / 2 + 8, 10.5, '#ffd27a', 700)); } // what the wait is costing
   mapLabels.push({ id: r.id, x: ox + (cx - p.w / 2) * sc, y: oy + (ly - p.h / 2) * sc, w: p.w * sc, h: p.h * sc }); // where each name is on screen (for the layout test)
   if (ui.title) return;
   const vip = S.events.find(e => e.k === 'vip' && !e.done && e.ride === r.id && e.warned);
@@ -3941,11 +3970,20 @@ function railHTML() {
     return `<button type="button" class="unit t-${rk(c)}${ui.coachUnit === c.id ? ' coachme' : ''}${ui.units.includes(c.id) ? ' on' : ''}${c.on ? '' : ' off'}${tech && c.on && !c.target && day && S.rides.some(r => r.job && r.job.type === 'fault' && c.skills[r.job.trade] && !S.crew.some(x => x.target === r.id)) ? ' call' : ''}" data-a="tech" data-id="${c.id}" data-fk="u-${c.id}" aria-pressed="${ui.units.includes(c.id)}" title="${esc(c.name)}, ${title(c)}: ${esc(staffLine(c))}${tech && !c.temp && !c.agency ? ', energy ' + Math.round(L.enOf(c)) : ''}"><span class="ul" aria-hidden="true">${esc(c.name[0])}</span>${key ? `<kbd>${key}</kbd>` : ''}<span class="un">${esc(c.name)}</span>${tech && !c.temp && !c.agency ? `<span class="ue" aria-hidden="true"><i style="height:${Math.round(L.enOf(c))}%;background:var(--${enCol(c)})"></i></span>` : ''}<i class="us" style="background:var(--${s})"></i></button>`;
   }).join('');
 }
+/* a fixed ride waiting for you: your countersign, your incident review, your "fit to run", or your padlock still on it */
+function soMine(r) {
+  const o = r && r.so; if (!o || o.esc || S.phase !== 'day') return false;
+  const st = o.steps[o.i];
+  if (st === 'fit' && S.seat === 'tech' && o.lead === S.me && !o.signedAt) return true;
+  if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(S, st, o) === S.seat) return true;
+  if (st === 'review' && L.soSigner(S, 'dir', o) === S.seat) return true;
+  return S.seat === 'tech' && o.pads.includes(S.me);
+}
 function boardHTML() {
   return S.rides.map(r => {
     const st = L.status(S, r), j = r.job, on = S.crew.some(c => c.target === r.id), hc = r.health >= 60 ? 'ok' : r.health >= 35 ? 'warn' : 'bad';
     const badge = j ? (j.type === 'fault' ? `<i class="bd t-${j.trade}">${L.TRADES[j.trade][0]}</i>` : '<i class="bd c-work">S</i>') : r.warnAt ? '<i class="bd c-warn">!</i>' : r.patched ? '<i class="bd c-dim">P</i>' : '';
-    return `<button type="button" class="as c-${STAT[st][1]}${ui.sel === r.id ? ' on' : ''}${j && j.type === 'fault' && !on ? ' alarm' : ''}${S.prio === r.id ? ' rush' : ''}${ui.coachRide === r.id ? ' coachme' : ''}" data-a="sel" data-id="${r.id}" data-fk="as-${r.id}" title="${esc(r.name)}: ${STAT[st][0]}"><b>${esc(r.short)}</b>${badge}<span class="st">${st === 'ok' ? Math.round(r.health) + '%' : STAT[st][0]}${on ? ' <em>crew</em>' : isStuck(j) ? ' <em class="np">no part</em>' : ''}</span><span class="bar c-${hc}"><span style="width:${Math.round(r.health)}%"></span></span></button>`;
+    return `<div class="asw" data-key="asw-${r.id}"><button type="button" class="as c-${STAT[st][1]}${ui.sel === r.id ? ' on' : ''}${j && j.type === 'fault' && !on ? ' alarm' : ''}${S.prio === r.id ? ' rush' : ''}${ui.coachRide === r.id ? ' coachme' : ''}" data-a="sel" data-id="${r.id}" data-fk="as-${r.id}" title="${esc(r.name)}: ${STAT[st][0]}"><b>${esc(r.short)}</b>${badge}<span class="st">${st === 'ok' ? Math.round(r.health) + '%' : st === 'signoff' ? `To reopen <em class="np">−${fmtMoney(L.hourly(S, r))}/h</em>` : STAT[st][0]}${on ? ' <em>crew</em>' : isStuck(j) ? ' <em class="np">no part</em>' : ''}</span><span class="bar c-${hc}"><span style="width:${Math.round(r.health)}%"></span></span></button>${soMine(r) ? `<button type="button" class="sgn" data-a="signopen" data-id="${r.id}" data-fk="sg-${r.id}">${S.seat === 'tech' ? (r.so.steps[r.so.i] === 'fit' ? 'Fit to run' : 'Padlock off') : r.so.steps[r.so.i] === 'review' ? 'Review' : 'Sign to reopen'}</button>` : ''}</div>`;
   }).join('');
 }
 function capHTML() {
@@ -4012,6 +4050,8 @@ function taskHTML() { // the technician's own steps at a job, big and in the mid
   if (!c || !c.on || ui.desk) return '';
   const r = c.target && L.ride(S, c.target), j = r && r.job;
   if (c.state === 'hurt') return `<div class="task bad" role="group" aria-label="Injury"><h3>You are hurt</h3><p>First aid, and back to work in ${c.hurt - S.clock} min. The incident has been reported.</p></div>`;
+  if (c.state === 'signoff' && r && r.so) { const o = r.so, fit = o.steps[o.i] === 'fit' && o.lead === c.id && !o.signedAt, pad = o.pads.includes(c.id);
+    return `<h3>${esc(r.short)} is fixed</h3><p>${fit ? `A test run, then sign it <b>fit to run</b>: ${Math.max(0, o.at + L.SO_SIGN - S.clock)} min before the supervisor has to do it for you. ` : o.signedAt > S.clock ? 'Test run… ' : ''}${pad ? 'Then take <b>your own padlock</b> off: the ride cannot reopen with it on.' : ''}</p><div class="row">${fit ? `<button type="button" class="btn go" data-a="fit" data-v="test" data-fk="t-fit">Test run, then sign</button><button type="button" class="btn" data-a="fit" data-v="now" data-fk="t-fitnow">Sign now, no test</button>` : ''}${pad ? `<button type="button" class="btn${fit ? '' : ' go'}" data-a="padoff" data-fk="t-pad">Padlock off</button>` : ''}</div>`; }
   if (!j) return '';
   if (c.state === 'prep') return `<h3>At ${esc(r.name)}: lock it out first</h3><p>Your own padlock on the isolator and a tag with your name, so nobody can start the ride while your hands are in it.${S.comp >= 50 ? ' <b>It has been a routine day, and you have done this a hundred times. That is when people get hurt.</b>' : ''}</p><div class="tgo">${cmd('lock', 'data-fk="t-lk"', 'Lock out and tag', '2 min, then find the cause', 'go')}${cmd('skiplock', 'data-fk="t-sk"', 'Skip the lockout', `Saves 2 min. ${Math.round(15 + S.comp / 4)}% chance of an injury`)}</div>`;
   if (c.state === 'lock') return `<h3>Locking out ${esc(r.short)}…</h3><p>Padlock on, tag on, test that it will not start.</p>`;
@@ -4043,6 +4083,9 @@ function selMe(c) { // you, the technician
       if (isStuck(j) && !S.crew.some(x => x.temp && x.target === r.id)) cm += cmd('ask', `data-k="callout" data-id="${r.id}" data-fk="a-co"`, 'Ask for a contractor', `${askWho('mgr', L.calloutCost(S))} decides`);
     }
   }
+  { const left = day && c.on && S.rides.find(x => x.so && x.so.pads.includes(c.id) && c.target !== x.id); // a padlock you left on a finished job
+    if (left) { const near = Math.hypot(c.x - left.x, c.y - left.y) < 70; info += `<div class="warnbox c-warn"><b><span aria-hidden="true">🔒</span> Your padlock is still on ${esc(left.short)}.</b> It cannot reopen until you take it off.</div>`;
+      cm += near ? cmd('padoff', 'data-fk="padoff-me"', 'Padlock off', esc(left.short), 'go') : cmd('padgo', `data-id="${left.id}" data-fk="padgo"`, `Back to ${esc(left.short)}`, 'Take your padlock off', 'go'); } }
   if (day && c.on && !c.target && !busy) {
     const jobs = S.rides.filter(x => x.job && x.job.type === 'fault' && (c.skills[x.job.trade] || x.job.rescue)).sort((a, b) => (b.job.rescue > 0) - (a.job.rescue > 0) || (S.crew.some(x => x.target === a.id)) - (S.crew.some(x => x.target === b.id)) || (b.job.sev === 'major') - (a.job.sev === 'major')).slice(0, 4);
     cm += jobs.map((x, i) => { const e = eta(c, x), n = S.crew.filter(y => y.target === x.id).length; return cmd('goride', `data-id="${x.id}" data-fk="j-${x.id}"`, `${x.job.rescue ? 'Rescue' : 'Take'}: ${esc(x.short)}`, `${e.walk} min walk${n ? ' · ' + n + ' there' : ''}`, i === 0 ? 'go' : ''); }).join('');
@@ -4115,6 +4158,33 @@ function selGroup(us) {
   cm += abilHTML(us) + cmd('stop', 'data-fk="stand"', 'Stop <kbd>S</kbd>', 'Drop current orders');
   return [shead(`<span class="av" style="--c:var(--sky)" aria-hidden="true">${us.length}</span>`, `${us.length} people selected`, 'Orders go to everyone who can do the job', true), info, cm];
 }
+/* a fixed ride waiting to be signed back into service: the steps, the job sheet, whose padlocks are on, and your buttons */
+const SO_STEPN = { fit: 'Fit to run', sup: 'Supervisor countersigns', mgr: 'Manager countersigns', dir: 'Director countersigns', review: 'Incident review', ops: 'Operations run it empty', insp: 'Inspector clears the red tag', power: 'Power restored', go: 'Back in service' };
+const CAUSE = { found: 'Cause found and written down', service: 'Planned service', reset: 'Reset; no cause needed', none: 'No cause written down', guess: 'Cause guessed, not checked' };
+const sheetGaps = o => [o.wr.cause === 'none' ? 'no cause' : o.wr.cause === 'guess' ? 'cause only guessed' : '', o.wr.test === false ? 'no test run' : '', o.wr.patch && o.safe ? 'a patch on a safety-critical part' : ''].filter(Boolean);
+function soHTML(r) {
+  const o = r.so, st = o.steps[o.i], w = o.wr, t = L.staff(S, w.tid), bad = L.soBad(o), mine = soMine(r);
+  const steps = o.steps.map((k, i) => `<li class="${i < o.i ? 'done' : i === o.i ? 'now' : ''}"><span aria-hidden="true">${i < o.i ? '✓' : i === o.i ? '▸' : '·'}</span> ${SO_STEPN[k]}${i < o.i && o.by[k] ? ` <small>${esc(o.by[k])}</small>` : ''}${i === o.i ? (o.esc ? ' <small class="hot">escalated</small>' : k === 'insp' && o.inspAt ? ` <small>${fmtClock(o.inspAt)}</small>` : '') : ''}</li>`).join('');
+  const sheet = `<ul class="wr"><li class="${w.cause === 'none' || w.cause === 'guess' ? 'gap' : 'okk'}">${CAUSE[w.cause]}</li><li>${w.part ? 'Part: ' + esc(L.SKU[w.part][0].toLowerCase()) : w.patch ? 'No part: patched' : 'No parts needed'}</li><li class="${w.test === false ? 'gap' : 'okk'}">${w.test === false ? 'No test run' : w.test ? 'Test run done' : 'Test run still to do'}</li><li class="${w.patch && o.safe ? 'gap' : ''}">${w.patch ? `Patch${o.safe ? ' on a safety-critical part' : ''}` : 'Full repair'}</li><li>By ${esc(w.who)}${t && !t.temp ? `, ${esc(L.GRADE[w.grade] || '').toLowerCase()}` : ''}</li></ul>`;
+  const pads = o.pads.length ? `<div class="warnbox c-warn"><b><span aria-hidden="true">🔒</span> Padlock${o.pads.length > 1 ? 's' : ''} still on:</b> ${o.pads.map(id => id === S.me && S.seat === 'tech' ? 'yours' : esc((L.staff(S, id) || {}).name || 'someone')).join(', ')}. It cannot reopen until each person takes their own off.</div>` : '';
+  let h = `<div class="warnbox c-warn so"><b>Fixed, waiting to reopen</b> <span class="chip c-dim">${esc(L.SO_NAME[o.k])}</span><br><span class="dim">Losing about ${fmtMoney(L.hourly(S, r))} an hour while it waits.</span><ol class="sos">${steps}</ol></div>${pads}<div class="sheet"><small class="cap">Job sheet</small>${sheet}</div>`, cm = '';
+  if (!mine) return [h, cm];
+  const left = Math.max(0, o.at + L.SO_SIGN - S.clock);
+  if (st === 'sup' || st === 'mgr' || st === 'dir') {
+    h = `<div class="warnbox c-work"><b>Yours to countersign: ${left} min</b> before it goes up a seat. Read the job sheet first.</div>` + h;
+    const gaps = sheetGaps(o);
+    cm += cmd('csign', `data-id="${r.id}" data-v="sign" data-fk="cs-sign"`, 'Sign to reopen', gaps.length ? `Sheet: ${gaps.join(', ')}. You share the fault` : `Sheet complete: ${w.cause === 'found' ? 'cause found, ' : ''}test run${w.part ? ', part fitted' : ''}`, bad ? '' : 'go')
+      + cmd('csign', `data-id="${r.id}" data-v="back" data-fk="cs-back"`, 'Send back', bad ? 'To the crew, to finish it properly' : 'Nothing wrong: costs time and goodwill', bad ? 'go' : '');
+  } else if (st === 'review') {
+    h = `<div class="warnbox c-bad"><b>Incident review: ${Math.max(0, o.at + L.SO_SIGN + 10 - S.clock)} min.</b> Someone was hurt on this job. Decide what changes, then countersign the reopening.</div>` + h;
+    cm += Object.entries(L.REVIEW).map(([k, [b, sub]], i) => cmd('review', `data-id="${r.id}" data-v="${k}" data-fk="rv-${k}"`, b, sub, i === 0 ? 'go' : '')).join('');
+  } else if (st === 'fit' && S.seat === 'tech') {
+    h = `<div class="warnbox c-work"><b>Yours to sign: ${left} min.</b> A test run, then "fit to run".</div>` + h;
+    cm += cmd('fit', 'data-v="test" data-fk="fit-test"', 'Test run, then sign', 'Two minutes: fit to run', 'go') + cmd('fit', 'data-v="now" data-fk="fit-now"', 'Sign now', 'No test run: a gap on the sheet');
+  }
+  if (S.seat === 'tech' && o.pads.includes(S.me)) cm += cmd('padoff', 'data-fk="padoff"', 'Padlock off', 'Your own, from the isolator', st === 'fit' ? '' : 'go');
+  return [h, cm];
+}
 function selRide(r) {
   const st = L.status(S, r), [sl, scc] = STAT[st], j = r.job, hc = r.health >= 60 ? 'ok' : r.health >= 35 ? 'warn' : 'bad', day = S.phase === 'day', tr = j ? j.trade : L.primary(r), stuck = isStuck(j);
   const hd = shead(`<span class="av c-${scc}" aria-hidden="true">${esc(r.short[0])}</span>`, esc(r.name), `<span class="chip c-${scc}">${sl}</span>${r.patched ? ' <span class="chip c-warn">Patched</span>' : ''}${r.ovh ? ' <span class="chip c-ok">Overhauled</span>' : ''}`, true);
@@ -4122,6 +4192,7 @@ function selRide(r) {
   if (r.sub) h += `<div class="kv"><div><small>Queue</small><b>${Math.round(r.q)}</b></div><div><small>Earning</small><b>${fmtMoney(r.rate * 60)}/h</b></div><div><small>Today</small><b>${fmtMoney(r.earn)}</b></div></div>`;
   else h += `<p class="note">Feeds ${S.rides.filter(x => x.sub === r.id).map(x => x.short).join(', ')}. If it fails, they all go dark.</p>`;
   if (day && S.clock > L.LH && r.sub) h += `<div class="meter c-warn"><span>Lantern</span><div class="bar"><span style="width:${Math.round(clamp(r.lh / L.LIT_MIN, 0, 1) * 100)}%"></span></div><b>${Math.floor(r.lh)}/${L.LIT_MIN}</b></div>`;
+  let soCm = ''; if (r.so) { const [sh, sc2] = soHTML(r); h = sh + h; soCm = sc2; }
   if (st === 'unstaffed') h += '<div class="warnbox c-bad">Nobody to run it. Each ride operator keeps two rides open. Hire more under Company, Operations.</div>';
   if (st === 'nopower') h += `<div class="warnbox c-bad">No power. Fix ${esc(L.ride(S, r.sub).name)} to bring it back.</div>`;
   if (r.warnAt && !j) h += `<div class="warnbox c-warn">Monitoring says it fails around ${fmtClock(r.warnAt)}. A service now prevents it.</div>`;
@@ -4146,7 +4217,8 @@ function selRide(r) {
     if (j && j.type === 'fault' && L.RANK[S.seat] >= 2 && L.onNow(S, 'sup') && S.pol.auto) h += `<p class="note" style="color:var(--lantern)">${esc(L.holder(S, 'sup'))} is running the shift. Sending people yourself goes over their head.</p>`;
     const rows = S.crew.filter(c => c.role === 'tech' && c.skills[tr]).map(c => { const e = eta(c, r); return { c, e, on: c.target === r.id, sum: (c.on ? 0 : 9999) + e.walk + e.work }; }).sort((a, b) => b.on - a.on || a.sum - b.sum);
     const first = rows.findIndex(x => !x.on && x.c.on && !x.c.target);
-    if (!rows.some(x => x.c.on)) h += `<div class="warnbox c-bad">Nobody qualified for ${L.TRADES[tr].toLowerCase()} work is on shift.</div>`;
+    if (r.so) rows.length = 0; // fixed and waiting to reopen: nobody to send
+    else if (!rows.some(x => x.c.on)) h += `<div class="warnbox c-bad">Nobody qualified for ${L.TRADES[tr].toLowerCase()} work is on shift.</div>`;
     else if (!j) h += `<p class="note">A service uses one kit (${S.stock.kit} in stores), closes the ride for about 45 minutes and resets health to 100%.</p>`;
     if (j && j.rescue) h = `<div class="warnbox c-bad"><b>Guests are stuck on it.</b> Get anyone there by ${fmtClock(j.rescue)}: ${j.rescue - S.clock} min.</div>` + h;
     if (j && j.type === 'fault' && may('rush')) cm += cmd('rush', `data-id="${r.id}" data-fk="rush"`, S.prio === r.id ? 'Rush job: on' : 'Rush job <kbd>R</kbd>', S.prio === r.id ? 'Tap to call it off' : 'Everyone who can help, now, pushed', S.prio === r.id ? '' : 'go', false, S.prio === r.id);
@@ -4167,6 +4239,7 @@ function selRide(r) {
       cm += canSpend(co) ? cmd('callout', `data-id="${r.id}" data-fk="co"`, 'Contractor', `${fmtMoney(co)} plus parts, 45 min`, '', !(S.cash >= co && !coming)) : cmd('ask', `data-k="callout" data-id="${r.id}" data-fk="co"`, 'Ask for a contractor', `${fmtMoney(co)}: ${askWho('mgr', co)} decides`, '', coming);
     }
   }
+  cm = soCm + cm;
   cm += cmd('focus', `data-x="${r.x}" data-y="${r.y}" data-fk="loc"`, 'Locate', 'Centre the map');
   return [hd, h, cm];
 }
@@ -4700,6 +4773,13 @@ function act(a, d, el, ev) {
     case 'pickme': ui.pickMe = d.t; ui.pick = 'tech'; break;
     case 'takeseat': L.setSeat(S, d.v, d.v === 'tech' ? ui.pickMe || S.me : null); ui.coach = null; coachStart(); ui.seats = false; ui.role = null; ui.units = []; ui.sel = null; unhold(); SFX.send(); { const m = L.me(S); if (m && m.on) focus(m.x, m.y); } break;
     case 'big': if (L.decideBig(S, +d.id, d.v, 'You')) SFX.send(); break;
+    // reopening fixed rides: open the card, countersign or send back, the incident review, your own "fit to run" and padlock
+    case 'signopen': ui.sel = d.id; ui.tech = null; break;
+    case 'csign': { const ok = L.countersign(S, d.id, d.v); if (ok === true) { SFX[d.v === 'sign' ? 'fix' : 'send'](); say(d.v === 'sign' ? 'Signed. It moves on to the next step.' : 'Sent back to the crew.', d.v === 'sign' ? 'var(--jade)' : 'var(--sky)'); } break; }
+    case 'review': if (L.review(S, d.id, d.v) === true) SFX.send(); break;
+    case 'fit': { const ok = L.signFit(S, d.v === 'test'); if (ok === true) SFX.fix(); else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'padoff': { const ok = L.padOff(S); if (ok === true) { SFX.send(); say('Padlock off.', 'var(--jade)'); } else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'padgo': { const t = L.me(S), r = L.ride(S, d.id); if (t && r && L.moveOrder(S, t, r.x + t.ox, r.y + t.oy)) SFX.send(); break; }
     case 'ans': { const it = S.inbox.find(x => x.id === +d.id); if (L.answer(S, +d.id, d.v)) { SFX.send(); if (it && d.v !== 'brief') PT.q.push((S.clock - it.at) / (TPS0 * S.speed)); } break; }
     case 'ptcopy': { // the old copy command first: it works inside a frame on another site (as itch.io shows games), the newer one needs that page's permission
       const ta = document.querySelector('.pt'); if (!ta) break; const hand = () => say('Selected: copy it with Ctrl+C, Cmd+C or a long press', 'var(--sky)');

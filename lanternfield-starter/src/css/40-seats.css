@@ -1,0 +1,21 @@
+/* ---------- active seats: reopen sign-offs ----------
+   A board tile sits in a wrapper, so the "Sign to reopen" button can lie over the bottom of the tile without changing
+   its size or rebuilding it. The sign-off card in the selection panel lists the steps and the job sheet. */
+.asw{position:relative;display:flex;min-width:0;min-height:0}
+.asw>.as{flex:1 1 auto;min-width:0}
+.sgn{position:absolute;left:7px;right:3px;bottom:3px;min-height:26px;padding:4px 6px;border:0;border-radius:7px;background:var(--lantern);color:#16122b;font:700 11.5px/1.1 var(--body);box-shadow:0 2px 0 #9a5a10;cursor:pointer}
+.sgn:hover,.sgn:focus-visible{background:#ffd27a;outline:2px solid var(--ink);outline-offset:1px}
+@media (pointer:coarse){.sgn{min-height:32px;font-size:12.5px}}
+.so .sos{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.so .sos li{color:var(--dim)}
+.so .sos li.done{color:var(--jade)}
+.so .sos li.now{color:var(--ink);font-weight:700}
+.so .sos small{font-weight:400;color:var(--dim)}
+.so .sos small.hot{color:var(--ember);font-weight:700}
+.sheet{border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.sheet .cap{display:block;margin-bottom:2px}
+.wr{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;font-size:13px}
+.wr li::before{content:'· ';color:var(--dim)}
+.wr li.okk::before{content:'✓ ';color:var(--jade)}
+.wr li.gap{color:var(--ember);font-weight:700}
+.wr li.gap::before{content:'✗ ';color:var(--ember)}
