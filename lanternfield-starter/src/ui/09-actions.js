@@ -51,7 +51,7 @@ function act(a, d, el, ev) {
     // reopening fixed rides: open the card, countersign or send back, the incident review, your own "fit to run" and padlock
     case 'signopen': ui.sel = d.id; ui.tech = null; break;
     case 'csign': { const ok = L.countersign(S, d.id, d.v); if (ok === true) { SFX[d.v === 'sign' ? 'fix' : 'send'](); say(d.v === 'sign' ? 'Signed. It moves on to the next step.' : 'Sent back to the crew.', d.v === 'sign' ? 'var(--jade)' : 'var(--sky)'); } break; }
-    case 'review': if (L.review(S, d.id, d.v) === true) SFX.send(); break;
+    case 'review': if (L.reviewInjury(S, d.id, d.v) === true) SFX.send(); break;
     case 'fit': { const ok = L.signFit(S, d.v === 'test'); if (ok === true) SFX.fix(); else if (ok) say(ok, 'var(--ember)'); break; }
     case 'padoff': { const ok = L.padOff(S); if (ok === true) { SFX.send(); say('Padlock off.', 'var(--jade)'); } else if (ok) say(ok, 'var(--ember)'); break; }
     case 'dcheck': { const ok = L.dailyCheck(S, d.id); if (ok === true) SFX.send(); else if (ok) say(ok, 'var(--ember)'); break; }

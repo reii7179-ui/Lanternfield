@@ -4,7 +4,8 @@
 // - an escalated request or sign-off is always settled: nothing waits past its time;
 // - anything over $20,000 goes to the board, from every seat, and the chief executive cannot approve it alone;
 // - crew traits and boss styles are the same for the same seed, and an old save gets the same ones every time;
-// - no number in the game state is ever NaN, and counts, stock, scores and gauges never go below zero.
+// - no number in the game state is ever NaN, and counts, stock, scores and gauges never go below zero;
+// - the director's incident review is recorded and never ends or reviews the season.
 //   node tests/engine/duties.js
 const { loadEngine } = require('./load.js');
 const L = loadEngine(), P = require('./players.js')(L);
@@ -122,5 +123,21 @@ for (const name of ['sup skilled', 'sup ignores everything', 'sup rubber stamp',
   check(!bad.length, `${name}: ${bad.slice(0, 4).join('; ')}`);
 }
 
+// --- 6. the director's incident review is recorded and moves the sign-off on; it never ends or reviews the season
+{
+  const s = L.newGame(4242); L.setSeat(s, 'dir'); L.startDay(s);
+  while (s.clock < 600) { L.step(s); s.fx.length = 0; }
+  const r = s.rides.find(x => x.sub && !x.job && !x.so), lead = s.crew.find(t => t.role === 'tech' && t.on && !t.temp);
+  r.so = { k: 'injury', steps: L.SO_STEPS.injury.slice(), i: 1, t0: s.clock, at: s.clock, lag: 0, esc: 0, x: null, wr: { cause: 'found', part: null, patch: false, test: true, who: lead.name, tid: lead.id, grade: 2 },
+    lead: lead.id, pads: [], safe: true, back: 0, by: { fit: lead.name }, ctr: false, job: { type: 'fault', title: 'Test fault', trade: 'mech', lock: true, mode: 'full', part: null, glitch: null, sev: 'major' } };
+  check(L.soSigner(s, 'dir', r.so) === 'dir', `the incident review in the scene is not the director's (${L.soSigner(s, 'dir', r.so)})`);
+  const season = L.review; let reviewed = 0; L.review = x => { reviewed++; return season(x); };
+  const day = s.day, reps = s.reports.length, ok = L.reviewInjury(s, r.id, 'retrain'); L.review = season;
+  check(ok === true, `the director's incident review was not accepted (${JSON.stringify(ok)})`);
+  check(r.so && r.so.by.review === 'You' && r.so.steps[r.so.i] === 'dir', `the incident review was not recorded, or the sign-off did not move on (${r.so && JSON.stringify({ by: r.so.by, step: r.so.steps[r.so.i] })})`);
+  check(!s.final && s.phase === 'day' && s.day === day && s.reports.length === reps && reviewed === 0, `the incident review ended or reviewed the season (final ${!!s.final}, phase ${s.phase}, season reviews ${reviewed})`);
+  check(L.reviewInjury(s, r.id, 'retrain') === false && !s.final, 'a second incident review on the same ride was accepted, or ended the season');
+}
+
 if (fails.length) { console.error(`DUTIES FAILED: ${fails.length} problem(s)`); for (const f of fails) console.error('  ' + f); process.exit(1); }
-console.log(`duties OK: ${MISTAKES.length} seat-card mistakes happen and cost, escalation always settles, $20,000+ goes to the board, traits and styles follow the seed, no NaN or negatives (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+console.log(`duties OK: ${MISTAKES.length} seat-card mistakes happen and cost, escalation always settles, $20,000+ goes to the board, traits and styles follow the seed, no NaN or negatives, the incident review never touches the season (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
