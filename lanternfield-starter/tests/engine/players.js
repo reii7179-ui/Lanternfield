@@ -104,7 +104,7 @@ module.exports = function makePlayers(L) {
       const so = r.so; if (!so || so.esc || s.clock - so.at < (o.delay || 0)) continue;
       const st = so.steps[so.i];
       if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(s, st, so) === s.seat) L.countersign(s, r.id, L.soBad(so) && !o.stamp ? 'back' : 'sign');
-      if (st === 'review' && L.soSigner(s, 'dir', so) === s.seat) L.review(s, r.id, 'retrain');
+      if (st === 'review' && L.soSigner(s, 'dir', so) === s.seat) L.reviewInjury(s, r.id, 'retrain');
     }
   }
 

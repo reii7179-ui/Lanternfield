@@ -1810,7 +1810,7 @@ function countersign(s, rid, v) { // you, as the countersigner: sign it back int
   sc.csSign = (sc.csSign || 0) + 1; if (bad) sc.csStamp = (sc.csStamp || 0) + 1; else if (s.clock - o.at <= 3) sc.csFast = (sc.csFast || 0) + 1;
   soSign(s, r, x, 'You'); return true;
 }
-function review(s, rid, v) { const r = ride(s, rid), o = r && r.so; if (!o || o.esc || soStep0(o) !== 'review' || (o.x || soSigner(s, 'dir', o)) !== s.seat) return false; onTime(s); return reviewDone(s, r, v, 'You'); }
+function reviewInjury(s, rid, v) { const r = ride(s, rid), o = r && r.so; if (!o || o.esc || soStep0(o) !== 'review' || (o.x || soSigner(s, 'dir', o)) !== s.seat) return false; onTime(s); return reviewDone(s, r, v, 'You'); }
 
 function complete(s, r) {
   const j = r.job, crew = s.crew.filter(t => t.target === r.id && t.on);
@@ -2933,7 +2933,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { JOBS_DAY, isProper, PROPER_CAUSE, TECH_CO, SPLIT, splitOf, CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { reviewInjury, JOBS_DAY, isProper, PROPER_CAUSE, TECH_CO, SPLIT, splitOf, CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2978,7 +2978,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+6a5479f8', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+a726b7c5', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -5259,7 +5259,7 @@ function act(a, d, el, ev) {
     // reopening fixed rides: open the card, countersign or send back, the incident review, your own "fit to run" and padlock
     case 'signopen': ui.sel = d.id; ui.tech = null; break;
     case 'csign': { const ok = L.countersign(S, d.id, d.v); if (ok === true) { SFX[d.v === 'sign' ? 'fix' : 'send'](); say(d.v === 'sign' ? 'Signed. It moves on to the next step.' : 'Sent back to the crew.', d.v === 'sign' ? 'var(--jade)' : 'var(--sky)'); } break; }
-    case 'review': if (L.review(S, d.id, d.v) === true) SFX.send(); break;
+    case 'review': if (L.reviewInjury(S, d.id, d.v) === true) SFX.send(); break;
     case 'fit': { const ok = L.signFit(S, d.v === 'test'); if (ok === true) SFX.fix(); else if (ok) say(ok, 'var(--ember)'); break; }
     case 'padoff': { const ok = L.padOff(S); if (ok === true) { SFX.send(); say('Padlock off.', 'var(--jade)'); } else if (ok) say(ok, 'var(--ember)'); break; }
     case 'dcheck': { const ok = L.dailyCheck(S, d.id); if (ok === true) SFX.send(); else if (ok) say(ok, 'var(--ember)'); break; }

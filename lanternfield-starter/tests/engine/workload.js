@@ -6,7 +6,7 @@
 const { loadEngine } = require('./load.js');
 const L = loadEngine(), N = +(process.argv[2] || 6);
 const ACTIONS = ['assign', 'moveOrder', 'rest', 'sprint', 'pushOn', 'rush', 'callIn', 'agency', 'vouch', 'orderService', 'fastLane', 'happyHour', 'briefChair', 'crowdPleaser',
-  'setMode', 'standDown', 'holdOver', 'callout', 'answer', 'lockout', 'diagnose', 'procedure', 'ask', 'talk', 'walk', 'setFocus', 'setBudget', 'signFit', 'padOff', 'countersign', 'review', 'dailyCheck'];
+  'setMode', 'standDown', 'holdOver', 'callout', 'answer', 'lockout', 'diagnose', 'procedure', 'ask', 'talk', 'walk', 'setFocus', 'setBudget', 'signFit', 'padOff', 'countersign', 'reviewInjury', 'dailyCheck'];
 const count = {};
 for (const k of ACTIONS) { const f = L[k]; if (typeof f !== 'function') continue;
   L[k] = (...a) => { const s = a[0], b0 = k === 'setBudget' || k === 'setFocus' ? s.budget + '|' + s.focus : '', r = f(...a);

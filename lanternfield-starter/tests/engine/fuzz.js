@@ -81,7 +81,7 @@ const dayCmds = s => [
   () => L.takeJob(s, pick(s.rides).id),
   () => L.leaveTools(s),
   () => L.countersign(s, pick(s.rides).id, pick(['sign', 'back', 'x'])),
-  () => L.review(s, pick(s.rides).id, pick(['retrain', 'stop', 'accept', 'x'])),
+  () => L.reviewInjury(s, pick(s.rides).id, pick(['retrain', 'stop', 'accept', 'x'])),
 ];
 
 function play(seed, style) {
