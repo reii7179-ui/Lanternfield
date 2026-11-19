@@ -565,7 +565,7 @@ function rest(s, t, ai) { // a proper break: energy comes back ten times faster 
 }
 function sprint(s, t) { if (!t || t.role !== 'tech' || !t.on || s.phase !== 'day' || s.clock < t.cdS) return false; t.sprint = s.clock + 25; t.cdS = s.clock + 120; return true; }
 function pushOn(s, t) { if (!t || t.role !== 'tech' || !t.on || t.temp || s.phase !== 'day' || s.clock < t.cdP) return false; t.push = s.clock + 30; t.cdP = s.clock + 150; t.morale = clamp(t.morale - 2, 0, 100); return true; }
-const RUSH_FREE = 3; // rush jobs a day before they count as going over the supervisor's head
+const RUSH_FREE = 7; // rush jobs a day before they count as going over the supervisor's head (tuned: 3 made rushing the most important fault, good play, cost too much)
 function rush(s, r, ai) { // manager and above: this one first, with everyone who can help, pushed
   if (!r || s.phase !== 'day' || !r.job || r.job.type !== 'fault') return false;
   if (!ai) boardroom(s);
@@ -576,7 +576,7 @@ function rush(s, r, ai) { // manager and above: this one first, with everyone wh
       const sc = s.sc[s.seat], sv = s.crew.find(t => t.role === 'sup' && t.on);
       sc.rushOver = (sc.rushOver || 0) + 1; sc.over++;
       if (sv) sv.morale = clamp(sv.morale - 2, 0, 100);
-      s.d.waitLag = Math.min(6, (s.d.waitLag || 0) + 1); // the crew learn to wait for you: unrushed jobs start later
+      s.d.waitLag = Math.min(8, (s.d.waitLag || 0) + 2); // the crew learn to wait for you: unrushed jobs start 2 minutes later each time
       if (!s.d.rushLog) { s.d.rushLog = 1; log(s, `That is rush job number ${s.d.rushN} today. Past ${RUSH_FREE} a day, each one goes over ${sv ? sv.name + "'s" : "the supervisor's"} head: their morale drops, and the crew learn to wait for you, so jobs nobody rushed start later.`, 'bad'); }
     }
   }
@@ -634,16 +634,16 @@ function callout(s, r) {
   const j = r && r.job;
   if (!j || j.type !== 'fault' || s.phase !== 'day' || s.cash < calloutCost(s) || s.crew.some(t => t.temp && t.target === r.id)) return false;
   const fee = calloutCost(s); spend(s, 'contract', fee);
-  const t = mkStaff(s, 'Contractor', 'tech', { [j.trade]: 2 }); t.temp = true; t.traits = []; t.arrive = s.clock + CALL_ETA; t.target = r.id; t.x = GATE.x; t.y = GATE.y; t.fee = fee;
+  const t = mkStaff(s, 'Contractor', 'tech', { [j.trade]: 3 }); t.temp = true; t.traits = []; t.arrive = s.clock + CALL_ETA; t.target = r.id; t.x = GATE.x; t.y = GATE.y; t.fee = fee; // a specialist, called for a major fault
   s.crew.push(t);
   log(s, `Contractor called out for ${r.name}. On site around ${fmtClock(t.arrive)}. If our own crew get to it first, they are stood down for a ${fmtMoney(CALL_OFF)} call-off fee.`, 'event');
   return true;
 }
 // a contractor still on the way does not hold the job: our own crew can still be sent, and a contractor whose job is
 // already in hand (or finished) is stood down for the call-off fee instead of the full call-out
-const CALL_OFF = 150, CALL_ETA = 30, enRoute = (s, c) => c.temp && s.clock < c.arrive;
+const CALL_OFF = 150, CALL_ETA = 25, enRoute = (s, c) => c.temp && s.clock < c.arrive;
 const attended = (s, r) => s.crew.some(c => c.target === r.id && !enRoute(s, c));
-function standDown(s) {
+function standDownCtr(s) { // a contractor still on the way goes home once our own crew have started the job
   for (const t of s.crew.slice()) {
     if (!enRoute(s, t)) continue;
     const r = ride(s, t.target), j = r && r.job;
@@ -1220,7 +1220,7 @@ const Who = (w, verb) => w + ' ' + verb;
 const me = s => s.seat === 'tech' ? staff(s, s.me) : null;
 // the maintenance budget: what a well-run park spends beyond its wage bill (set from the skilled manager's spending),
 // judged over a rolling week rather than a single day, so one bad breakdown day is not a failure
-const ALLOW = { uptime: 5500, safety: 5500, cost: 4000 }, ROLL = 7;
+const ALLOW = { uptime: 4800, safety: 4800, cost: 3300 }, ROLL = 7;
 const budgetFor = (s, f) => Math.round((s.crew.filter(t => !t.temp).reduce((a, t) => a + wage(t), 0) + (ALLOW[f] || ALLOW.uptime)) / 100) * 100;
 // the rolling week so far: the last six days plus today (spent and committed)
 function rolling(s) { const past = (s.budLog || []).slice(-(ROLL - 1)); return { spend: past.reduce((a, x) => a + x.spend, 0) + maintSpend(s), budget: past.reduce((a, x) => a + x.budget, 0) + s.budget, days: past.length + 1 }; }
@@ -1861,7 +1861,7 @@ function step(s) {
       else t.state = 'idle';
     }
   }
-  morning(s); plannedServices(s); toolsStep(s); micro(s); mgrRush(s); quietStep(s); standDown(s);
+  morning(s); plannedServices(s); toolsStep(s); micro(s); mgrRush(s); quietStep(s); standDownCtr(s);
   for (const r of s.rides) { const j = r.job; if (j && j.type === 'fault' && j.mode === 'full' && j.part && !partReady(j) && s.stock[j.part] < 1) s.d.partWait = (s.d.partWait || 0) + 1; } // a repair waiting for a part nobody has on the shelf
   if (s.seat === 'sup') for (const t of s.crew) { // break rotation: someone worn out and not resting is the supervisor's to send on a break
     if (t.role !== 'tech' || t.temp || t.agency || !t.on) { t.tiredAt = 0; continue; }
@@ -2148,7 +2148,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { CALL_ETA, CALL_OFF, attended, standDown, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);

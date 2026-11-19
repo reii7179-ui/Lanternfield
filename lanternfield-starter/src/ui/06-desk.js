@@ -121,8 +121,8 @@ const KC = { ok: 'jade', warn: 'lantern', bad: 'ember', dim: 'ink' };
 const MISTAKES = {
   tech: [['skip', 'Lockouts skipped'], ['guess', 'Causes guessed, not checked'], ['quiet', 'Long jobs gone quiet on'], ['gaveIn', 'Gave in to a push to cut a corner']],
   sup: [['took', 'Jobs you took on yourself'], ['wrong', 'Wrong person on a safety-critical job'], ['otYes', 'Overtime requests you said yes to'], ['padPull', 'People pulled off with their padlock on']],
-  mgr: [['rushOver', 'Rush jobs over the limit of 3 a day'], ['budIgnored', 'Spending approved over budget, not a priority'], ['oneTrade', 'Days one person carried a whole trade']],
-  dir: [['rushOver', 'Rush jobs over the limit of 3 a day'], ['prio', 'Priority changed after the gates opened'], ['overOk', 'Overspends approved'], ['vipLate', 'Disputes settled after the VIP arrived']],
+  mgr: [['rushOver', `Rush jobs over the limit of ${L.RUSH_FREE} a day`], ['budIgnored', 'Spending approved over budget, not a priority'], ['oneTrade', 'Days one person carried a whole trade']],
+  dir: [['rushOver', `Rush jobs over the limit of ${L.RUSH_FREE} a day`], ['prio', 'Priority changed after the gates opened'], ['overOk', 'Overspends approved'], ['vipLate', 'Disputes settled after the VIP arrived']],
   ceo: [['spin', 'Times you told the board what it wanted to hear'], ['empty', 'Key-post days left empty'], ['floor', 'Times you ran the shift from the boardroom']],
 };
 function seatKPIs(x) {
