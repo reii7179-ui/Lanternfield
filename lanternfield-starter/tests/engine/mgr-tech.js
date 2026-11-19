@@ -3,7 +3,8 @@
 // - a rush past the free limit counts as going over the supervisor's head; the free ones don't;
 // - a rush alone never makes a ride a spending priority (keySpend); a major fault, stuck guests or the VIP's ride do;
 // - the rolling budget is always a real number, covers at most ROLL days, and decides the days on budget;
-// - a contractor on the way does not hold the job, and is stood down for the call-off fee when our own crew start it.
+// - a contractor on the way does not hold the job, and is stood down for the call-off fee when our own crew start it;
+// - every contractor job needs the Manager's acceptance before it reopens.
 //   node tests/engine/mgr-tech.js
 const { loadEngine } = require('./load.js');
 const L = loadEngine();
@@ -76,5 +77,19 @@ const fault = (s, r, sev) => { if (r.job) r.job = null; r.so = null; L.createFau
     check(Math.abs((cash0 - s.cash) - L.CALL_OFF) < fee, `standing the contractor down did not refund the call-out (paid ${fee}, now ${cash0 - s.cash})`); }
 }
 
+// --- 5. every contractor job needs the Manager's acceptance before it reopens
+{
+  const M = require('./mgr-players.js')(L); let ctr = 0, signed = 0;
+  for (const [p, seed] of [['skilled', 404], ['casual', 505]]) {
+    const step0 = L.step, seen = new Map();
+    L.step = s => { const before = s.rides.map(r => r.so); step0(s);
+      s.rides.forEach((r, i) => { const o = before[i];
+        if (r.so && r.so.ctr && !seen.has(r.so)) { seen.set(r.so, 1); ctr++; check(r.so.steps.includes('mgr'), `${p}: a contractor's job had no Manager step (${r.so.steps.join(',')})`); }
+        if (o && o.ctr && !r.so && !r.job) { if (o.by.mgr) signed++; else check(false, `${p}: ${r.id} reopened after a contractor's job without the Manager's acceptance`); } }); };
+    M.season(seed, p, 'standard'); L.step = step0;
+  }
+  check(ctr > 0 && signed > 0, `no contractor job came up to check (${ctr} jobs, ${signed} accepted)`);
+}
+
 if (fails.length) { console.error(`MGR-TECH FAILED: ${fails.length} problem(s)`); for (const f of fails) console.error('  ' + f); process.exit(1); }
-console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance (${((Date.now() - t0) / 1000).toFixed(1)}s)`);

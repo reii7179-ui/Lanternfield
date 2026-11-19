@@ -885,7 +885,7 @@ function soKind(r, j, inj) {
 // what the job sheet says. A technician who finds the cause writes it down; a rushed or inexperienced one sometimes does not.
 function writeUp(s, r, j, lead) {
   const g = lead ? (lead.temp ? 2 : lead.role === 'sup' ? 3 : lead.skills[j.trade] || 1) : 2, mine = lead && s.seat === 'tech' && lead.id === s.me;
-  const cause = j.type === 'service' ? 'service' : j.glitch && !safetyJob(r, j) ? 'reset' : j.cause || (mine ? 'found' : hasT(lead, 'careful') ? 'found' : chance(s, ([0, .72, .9, .97][g] || .9) * (hasT(lead, 'quick') ? .65 : 1)) ? 'found' : 'none');
+  const cause = j.type === 'service' ? 'service' : j.glitch && !safetyJob(r, j) ? 'reset' : j.cause || (mine ? 'found' : hasT(lead, 'careful') ? 'found' : chance(s, lead && lead.temp ? .7 : ([0, .72, .9, .97][g] || .9) * (hasT(lead, 'quick') ? .65 : 1)) ? 'found' : 'none'); // a contractor's sheet is sloppier
   if (mine && j.cause === 'guess') s.sc.tech.guess = (s.sc.tech.guess || 0) + 1; // seat-card mistake: guessing at the cause instead of checking
   return { cause, part: j.type === 'service' ? 'kit' : j.mode === 'full' ? j.part : null, patch: j.type === 'fault' && j.mode === 'patch', test: null, who: lead ? lead.name : 'The crew', tid: lead ? lead.id : 0, grade: g };
 }
@@ -908,7 +908,10 @@ function soStart(s, r, j, crew, mt) {
   const inj = r.injAt === s.clock, k = soKind(r, j, inj), lead = staff(s, j.lead) || crew.find(t => !t.temp) || crew[0] || null;
   // the people finishing take their own padlocks off as they go (you take yours off yourself); anyone who left earlier must come back
   const pads = (j.pads || []).filter(id => { const t = staff(s, id); return t && t.on && !(crew.includes(t) && t !== mt); });
-  r.so = { k, steps: SO_STEPS[k], i: 0, t0: s.clock, at: s.clock, lag: 0, esc: 0, x: null, wr: writeUp(s, r, j, lead), lead: lead ? lead.id : 0, pads, safe: !!safetyJob(r, j), back: j.back || 0, by: {},
+  // a contractor worked on it: the manager who called them accepts the work before it reopens
+  const ctr = crew.some(t => t.temp) || !!(lead && lead.temp), steps = SO_STEPS[k].slice();
+  if (ctr && !steps.includes('mgr')) steps.splice(steps.indexOf('sup') >= 0 ? steps.indexOf('sup') + 1 : 1, 0, 'mgr');
+  r.so = { k, steps, i: 0, t0: s.clock, at: s.clock, lag: 0, esc: 0, x: null, wr: writeUp(s, r, j, lead), lead: lead ? lead.id : 0, pads, safe: !!safetyJob(r, j), back: j.back || 0, by: {}, ctr,
     job: { type: j.type, title: j.title, trade: j.trade, lock: !!j.lock, mode: j.mode, part: j.part, glitch: j.glitch || null, sev: j.sev } };
   if (j.self) r.so.self = j.self;
   if (s.seat === 'tech' && r.so.lead === s.me) pushTech(s, 'test', r);
@@ -970,7 +973,7 @@ function soStepAll(s) {
       const mine = s.seat === 'tech' && o.lead === s.me && !o.esc;
       if (mine) { if (o.signedAt) { if (s.clock >= o.signedAt) soNext(s, r); } else if (s.clock >= o.at + SO_SIGN) soEsc(s, r); continue; }
       if (!o.lag) o.lag = o.k === 'sub' ? 1 : RI(s, ...SO_LAG.tech);
-      if (s.clock >= o.at + o.lag) { if (o.wr.test == null) o.wr.test = true; o.by.fit = o.esc ? holder(s, o.x) : (staff(s, o.lead) || { name: 'The crew' }).name; soNext(s, r); }
+      if (s.clock >= o.at + o.lag) { if (o.wr.test == null) o.wr.test = o.ctr && (staff(s, o.lead) || {}).temp ? chance(s, .85) : true; o.by.fit = o.esc ? holder(s, o.x) : (staff(s, o.lead) || { name: 'The crew' }).name; soNext(s, r); }
       continue;
     }
     if (st === 'sup' || st === 'mgr' || st === 'dir') {
