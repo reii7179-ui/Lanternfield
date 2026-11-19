@@ -7,7 +7,8 @@
 // - every contractor job needs the Manager's acceptance before it reopens;
 // - the technician's grade is TECH_CO company, the rest their own work; every other seat stays 80/20;
 // - a job counts as done properly only with a lockout, the cause found and a test run;
-// - the same seed gives the same season.
+// - the same seed gives the same season;
+// - on Sharp a technician needs more jobs done properly for full marks and gets shorter windows; on Relaxed, fewer and longer.
 //   node tests/engine/mgr-tech.js
 const { loadEngine } = require('./load.js');
 const L = loadEngine();
@@ -134,5 +135,23 @@ const fault = (s, r, sev) => { if (r.job) r.job = null; r.so = null; L.createFau
   check(sum(T.season(1313, 'skilled', 'standard')) === sum(T.season(1313, 'skilled', 'standard')), 'the same seed gave two different Technician seasons');
 }
 
+// --- 9. difficulty reaches the technician's own work: more jobs for full marks and shorter windows on Sharp, fewer and longer on Relaxed
+{
+  const D = L.DIFF;
+  check(D.relaxed.jobs < D.standard.jobs && D.standard.jobs < D.sharp.jobs && D.standard.jobs === L.JOBS_DAY, `jobs for full marks do not rise with difficulty: ${D.relaxed.jobs}, ${D.standard.jobs}, ${D.sharp.jobs}`);
+  const part = (diff, n) => { const s = L.newGame(31); L.setSeat(s, 'tech'); s.diff = diff; Object.assign(s.sc.tech, { min: L.CLOSE - L.OPEN, days: 1, jobs: n, jobsOk: n });
+    return L.personal(s).parts.find(x => x[0] === 'Jobs done properly')[2]; };
+  const [pr, ps, pt] = ['relaxed', 'standard', 'sharp'].map(d => part(d, 2.8));
+  check(pr > ps && ps > pt, `the same 2.8 jobs a day did not score lower on harder difficulties (relaxed ${pr}, standard ${ps}, sharp ${pt})`);
+  for (const diff of ['relaxed', 'standard', 'sharp']) {
+    const s = L.newGame(4545); L.setDiff(s, diff); L.setSeat(s, 'tech'); L.startDay(s); let wo = null;
+    while (!wo && s.phase === 'day') { L.step(s); s.fx.length = 0; wo = s.inbox.find(x => x.k === 'wo'); }
+    const want = Math.round(15 * D[diff].win);
+    check(wo && wo.due - wo.at === want, `${diff}: a work order gave ${wo ? wo.due - wo.at : 'none'} minutes to answer, not ${want}`);
+  }
+  // the window multipliers: shorter on Sharp, longer on Relaxed, none on Standard (only the player's own technician has them)
+  check(L.DIFF.sharp.win < 1 && L.DIFF.relaxed.win > 1 && L.DIFF.standard.win === 1, 'the technician\'s window multipliers are not shorter on Sharp and longer on Relaxed');
+}
+
 if (fails.length) { console.error(`MGR-TECH FAILED: ${fails.length} problem(s)`); for (const f of fails) console.error('  ' + f); process.exit(1); }
-console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance, grade split, jobs done properly, same seed same season (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance, grade split, jobs done properly, same seed same season, difficulty in the technician's own work (${((Date.now() - t0) / 1000).toFixed(1)}s)`);

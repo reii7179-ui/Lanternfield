@@ -777,11 +777,14 @@ const HZ = .6, PRE = 495, OPEN = 540, CLOSE = 1320, LH = 1260, DAYS = 14, LIT_MI
 const FAST = 8; // a fault answered within this many minutes is caught early: the job is a fifth smaller
 // difficulty: how long the windows are and how much goes wrong. Standard is what the game was tuned on.
 const DIFF = {
-  relaxed: { name: 'Relaxed', fast: 14, gl: .6, esc: 10, hz: .85, resc: 40, txt: 'Longer windows to react, fewer glitches. For learning, or if real time is new to you.' },
-  standard: { name: 'Standard', fast: FAST, gl: 1, esc: 0, hz: 1, resc: 30, txt: 'The game as designed: about three seconds to catch a fault at 1×.' },
-  sharp: { name: 'Sharp', fast: 6, gl: 1.25, esc: -5, hz: 1.1, resc: 25, txt: 'Tighter windows, more glitches, less forgiving. For quick hands.' },
+  relaxed: { name: 'Relaxed', jobs: 2.6, win: 1.35, fast: 14, gl: .6, esc: 10, hz: .85, resc: 40, txt: 'Longer windows to react, fewer glitches. For learning, or if real time is new to you.' },
+  standard: { name: 'Standard', jobs: 2.9, win: 1, fast: FAST, gl: 1, esc: 0, hz: 1, resc: 30, txt: 'The game as designed: about three seconds to catch a fault at 1×.' },
+  sharp: { name: 'Sharp', jobs: 3.9, win: .7, fast: 6, gl: 1.25, esc: -5, hz: 1.1, resc: 25, txt: 'Tighter windows, more glitches, less forgiving. For quick hands.' },
 };
 const D = s => DIFF[s.diff] || DIFF.standard, fastOf = s => D(s).fast;
+// the technician's own work follows the difficulty too: jobs done properly a day for full marks, and a multiplier on the
+// technician's own windows (work orders, a push to cut a corner, signing a finished job fit to run)
+const techWin = (s, m) => Math.round(m * D(s).win);
 function setDiff(s, k) { if (!DIFF[k] || s.reports.length || s.phase !== 'plan' || s.day !== 1) return false; s.diff = k; return true; }
 const AGENCY = 1100, VOUCH = 300; // two agency technicians for three hours; goodwill vouchers for one closed ride
 const TRADES = { mech: 'Mechanical', elec: 'Electrical', ctrl: 'Controls' };
@@ -1505,7 +1508,7 @@ function pushTech(s, kind, r) {
   if (s.seat !== 'tech' || s.d.push || s.phase !== 'day' || !chance(s, .3)) return;
   s.d.push = 1;
   const who = pick(s, kind === 'lock' ? ['The supervisor', 'Operations'] : ['Operations', 'The VIP host', 'The supervisor']);
-  raise(s, 'push', { kind, rid: r.id, from: who, due: s.clock + (kind === 'lock' ? 6 : 8), txt: kind === 'lock' ? `${who}: "Skip the lockout on ${r.short}, it is only a sensor. Two minutes saved, we need it back."` : `${who}: "${r.short} looks fine to me. Sign it off now, never mind the test run."` });
+  raise(s, 'push', { kind, rid: r.id, from: who, due: s.clock + techWin(s, kind === 'lock' ? 6 : 8), txt: kind === 'lock' ? `${who}: "Skip the lockout on ${r.short}, it is only a sensor. Two minutes saved, we need it back."` : `${who}: "${r.short} looks fine to me. Sign it off now, never mind the test run."` });
 }
 // a micromanaging boss goes over your head now and then
 function micro(s) {
@@ -1738,8 +1741,8 @@ function soBack(s, r, who, x) {
 function soEsc(s, r) {
   const up = above(s, s.seat), o = r.so, x = up !== 'ceo' && up !== 'board' ? up : s.seat === 'dir' ? 'mgr' : 'dir'; // never the chief executive: with no one filled above, an acting director (or, above a director, their deputy) signs
   miss(s); const sc = s.sc[s.seat]; sc.esc = (sc.esc || 0) + 1; sc.csMiss = (sc.csMiss || 0) + 1; s.d.esc = (s.d.esc || 0) + 1;
-  o.esc = 1; o.x = x; o.at = s.clock; o.lag = ESC_DELAY[x] || 10;
-  log(s, `No signature from you in ${SO_SIGN} minutes: ${r.name} was escalated to ${seatWho(s, x)}, who will get to it in about ${o.lag} minutes. It stays shut until then.`, 'bad');
+  const waited = s.clock - o.at; o.esc = 1; o.x = x; o.at = s.clock; o.lag = ESC_DELAY[x] || 10;
+  log(s, `No signature from you in ${waited} minutes: ${r.name} was escalated to ${seatWho(s, x)}, who will get to it in about ${o.lag} minutes. It stays shut until then.`, 'bad');
   fx(s, 'warn', r.id, 'Escalated');
 }
 function soStepAll(s) {
@@ -1750,7 +1753,7 @@ function soStepAll(s) {
     const st = soStep0(o);
     if (st === 'fit') {
       const mine = s.seat === 'tech' && o.lead === s.me && !o.esc;
-      if (mine) { if (o.signedAt) { if (s.clock >= o.signedAt) soNext(s, r); } else if (s.clock >= o.at + SO_SIGN) soEsc(s, r); continue; }
+      if (mine) { if (o.signedAt) { if (s.clock >= o.signedAt) soNext(s, r); } else if (s.clock >= o.at + techWin(s, SO_SIGN)) soEsc(s, r); continue; }
       if (!o.lag) o.lag = o.k === 'sub' ? 1 : RI(s, ...SO_LAG.tech);
       if (s.clock >= o.at + o.lag) { if (o.wr.test == null) o.wr.test = o.ctr && (staff(s, o.lead) || {}).temp ? chance(s, .85) : true; o.by.fit = o.esc ? holder(s, o.x) : (staff(s, o.lead) || { name: 'The crew' }).name; soNext(s, r); }
       continue;
@@ -2377,7 +2380,7 @@ function answer(s, id, v) { const i = s.inbox.findIndex(x => x.id === id); if (i
   const it = s.inbox.splice(i, 1)[0]; settle(s, it, v, true, false); return true; }
 function workOrder(s, r, rescue) {
   const t = me(s), j = r.job; if (!t || !j || j.wo) return;
-  const it = raise(s, 'wo', { rid: r.id, rescue: !!rescue, from: holder(s, 'sup'), due: s.clock + 15,
+  const it = raise(s, 'wo', { rid: r.id, rescue: !!rescue, from: holder(s, 'sup'), due: s.clock + techWin(s, 15),
     txt: rescue ? `Guests are stuck on ${r.short}. Get there now!` : `${j.sev === 'major' ? 'Breakdown' : 'Fault'} on ${r.name}: ${j.title.toLowerCase()}.` });
   if (it) { j.wo = it.id; s.sc.tech.wo++; }
 }
@@ -2742,12 +2745,12 @@ function endDay(s) {
   if (has(s, 'store') && s.seat !== 'mgr') { let n = 0; for (const k in SKU) { const want = Math.max(s.min[k], s.rides.filter(r => r.job && r.job.part === k && r.job.ps === 'none' && (r.job.type !== 'fault' || r.job.mode === 'full')).length); let have = s.stock[k] + s.inbound.filter(o => o.sku === k).length; while (have < want && order(s, k, 'std') === true) { have++; n++; } } if (n) log(s, `Stores placed the overnight order: ${n} item${n > 1 ? 's' : ''} to reach your minimum levels.`); }
 }
 // how well you did your own job, 0 to 1, in the seat you spent most of the season in
-const JOBS_DAY = 2.9; // a technician's jobs done properly in a day for full marks: what a skilled technician reaches on a normal day (was 4 jobs of any kind)
+const JOBS_DAY = DIFF.standard.jobs; // a technician's jobs done properly in a day for full marks on Standard: what a skilled technician reaches on a normal day (was 4 jobs of any kind); DIFF has Relaxed's and Sharp's
 function personal(s) {
   const seat = LV.slice().sort((a, b) => s.sc[b].min - s.sc[a].min)[0], c = s.sc[seat], days = Math.max(1, c.days), r01 = (a, b, dflt) => a + b ? a / (a + b) : dflt;
   const req = r01(c.onTime + (c.bonus || 0), c.missW != null ? c.missW : c.missed, .5), parts = [];
   const add = (name, w, v) => { parts.push([name, w, clamp(v, 0, 1)]); };
-  if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs done properly', .3, (c.jobsOk || 0) / segDays / JOBS_DAY); add('Cause found first time', .15, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .2, r01(c.lock, c.skip, .5)); add('Work orders answered', .15, r01(c.woOk, c.woLate, .5)); add('Checks and sign-offs in time', .2, req); }
+  if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs done properly', .3, (c.jobsOk || 0) / segDays / D(s).jobs); add('Cause found first time', .15, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .2, r01(c.lock, c.skip, .5)); add('Work orders answered', .15, r01(c.woOk, c.woLate, .5)); add('Checks and sign-offs in time', .2, req); }
   else if (seat === 'sup') { const avg = c.respN ? c.resp / c.respN : 99; add('Response time', .3, (25 - avg) / 17); add('Fast responses', .2, c.respN ? (c.fast || 0) / c.respN : 0); add('Requests answered in time', .3, req); add('No guests left stuck', .2, 1 - c.stuck / 3); }
   else if (seat === 'mgr' || seat === 'dir') { const u = c.days ? c.upSum / c.days : 0; add('Uptime on your days', .35, (u - .7) / .2); add('Days on budget', .15, c.days ? c.budOk / days : 0);
     if (seat === 'mgr') add('Crew morale', .2, c.days ? (c.moraleSum / days - 35) / 30 : 0); else add('Days on strategy', .2, c.days ? 1 - c.off / days : 0); add('Requests answered in time', .3, req); }
@@ -2978,7 +2981,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+6a5479f8', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+9f3ac26c', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -4946,7 +4949,7 @@ const HOW = `<ol class="how">
 <li>Senior seats have their own levers. Manager and up: a rush job (R) puts everyone who can help on one ride. Director and up: agency crew for three hours, a prevention service on a worn ride, a fast lane on a healthy one. Chief executive: goodwill vouchers for a closed ride, a happy hour, a briefing to the chair. Walking the floor takes you away from your desk, and requests wait while you are gone.</li>
 <li>Toolbox talks have topics: Safety brings alertness back, Wellbeing restores energy and morale, Pace makes people faster for two hours. Each has its own cooldown, and anyone you pull out misses it.</li>
 <li>Glitches come in three kinds: a quick reset gets worse after 15 minutes, a standard glitch after 25, and an intermittent one clears itself if left, then fails properly within the hour unless serviced.</li>
-<li>Your grade is 80% the company's result and 20% your own work in the seat you played most. A Technician's is ${Math.round(L.TECH_CO * 100)}% the company's and ${100 - Math.round(L.TECH_CO * 100)}% their own work: on the tools, your own work is most of what you control. Difficulty (chosen at the start) changes the reaction windows and how much goes wrong; ½× speed is there whenever you need it.</li>
+<li>Your grade is 80% the company's result and 20% your own work in the seat you played most. A Technician's is ${Math.round(L.TECH_CO * 100)}% the company's and ${100 - Math.round(L.TECH_CO * 100)}% their own work: on the tools, your own work is most of what you control. The difficulty reaches a technician's own work too: on Sharp your windows for work orders and sign-offs are shorter and full marks need ${L.DIFF.sharp.jobs} jobs done properly a day (${L.DIFF.standard.jobs} on Standard, ${L.DIFF.relaxed.jobs} on Relaxed). Difficulty (chosen at the start) changes the reaction windows and how much goes wrong; ½× speed is there whenever you need it.</li>
 <li>Between days the planning desk shows what your colleagues decided overnight. At 21:00 Lantern Hour starts, and after 14 days the board reviews the company, while each seat you played gets its own scorecard.</li>
 </ol>`;
 function finalHTML() {

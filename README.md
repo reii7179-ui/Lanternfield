@@ -45,8 +45,11 @@ fewest and the heaviest.
 - **Your grade is mostly your own work:** 35% the company's result and 65% your own (every other seat is 80/20). The
   end screen shows it, for example "Company 72 × 35% + your own work 92 × 65% = 85".
 - **Jobs done properly.** A job counts only when you locked out first, the cause was found and written down, and it had
-  a test run before you signed it fit to run. Full marks come at 2.9 a day, what a skilled technician reaches on a
-  normal day. Your seat card shows the jobs you finished and how many were done properly.
+  a test run before you signed it fit to run. Full marks come at 2.9 a day on Standard, what a skilled technician reaches
+  on a normal day. Your seat card shows the jobs you finished and how many were done properly.
+- **Difficulty reaches your own work.** On Sharp, full marks need 3.9 jobs done properly a day, and your windows for work
+  orders, a push to cut a corner and signing a job fit to run are 30% shorter. On Relaxed, 2.6 jobs and windows 35%
+  longer. A skilled technician scores about 4 to 6 points lower on Sharp than on Standard.
 - **A hard season above you** no longer sinks good work. When the company scores under 60 and your own work is 80 or
   more, the end screen says so.
 
