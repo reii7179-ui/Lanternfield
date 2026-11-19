@@ -1,6 +1,6 @@
 'use strict';
 // End-of-season screen: plays a whole season inside the page, then checks the score breakdown,
-// "your own work", the seat's counts (on time, missed, escalated, countersigns, its mistakes), the playtest record and its Copy button.
+// "your own work" (and, as a technician, their own company/own-work split), the seat's counts (on time, missed, escalated, countersigns, its mistakes), the playtest record and its Copy button.
 //   node tests/browser/final-screen.js
 const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
 (async () => {
@@ -26,6 +26,18 @@ const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
   await shot(page, 'final-screen-seats');
   const copy = page.locator('[data-a=ptcopy]');
   if (await copy.count()) { await copy.click(); await page.waitForTimeout(300); } else problems.push('no Copy button for the playtest record');
+  // as a technician the score is split differently: TECH_CO company, the rest your own work
+  { const { page: tp, errors: te } = await openGame(browser);
+    await tp.evaluate(() => { LFUI.act('pickseat', { v: 'tech' }); LFUI.act('begin', {}); const S = LFUI.state;
+      while (!S.final) { if (S.phase === 'plan') { LF.startDay(S); continue; } LF.step(S); S.fx.length = 0; }
+      LFUI.ui.reportAt = 0; LFUI.act('objt', {}); });
+    await tp.waitForTimeout(500);
+    const t = await tp.evaluate(() => ({ co: LF.TECH_CO, seat: LFUI.state.final.own.seat, line: ((document.querySelector('.dialog .own .num') || {}).innerText || '').replace(/\s+/g, ' ') }));
+    const co = Math.round(t.co * 100);
+    if (t.seat !== 'tech') problems.push(`technician season was judged in the ${t.seat} seat`);
+    else if (!new RegExp(`Company \\d+ × ${co}% \\+ your own work \\d+ × ${100 - co}% = \\d+`).test(t.line)) problems.push(`technician end screen does not show the ${co}/${100 - co} split: "${t.line}"`);
+    await shot(tp, 'final-screen-tech');
+    problems.push(...(await gameErrors(tp, te)).map(e => `technician: ${e}`)); await tp.close(); }
   report('final screen', problems.concat(await gameErrors(page, errors)));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

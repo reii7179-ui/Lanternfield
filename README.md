@@ -23,6 +23,33 @@ fewest and the heaviest.
 | Director | The morning review that sets the day's priority, disputes between Operations and Engineering, spending up to $5,000, overspends, the review after an injury |
 | Chief executive | The board's target and its questions, the regulator, the press, key posts, spending from $5,000 to $20,000 |
 
+### The Engineering Manager
+- **Rush jobs are a choice.** The first 7 a day are yours to call. Each one after that goes over the supervisor's head:
+  their morale drops, the crew learn to wait (every dispatch is a little slower for the rest of the day), the rush loses
+  its place at the front of the queue, and it counts as a mistake. The end screen shows "Rush jobs over the limit".
+- **A budget you can keep.** The director sets each day's budget at the wage bill plus $4,800 ($3,300 when costs come
+  first), about what a well-run park spends. "On budget" is judged over a rolling 7 days, shown on your card ("Spend,
+  N days"), at the desk and in the night report. Approving spending that isn't a priority over that rolling total is a
+  mistake.
+- **Spending that pays back.** A contractor comes for a major fault when nobody of that trade is free. They arrive in 25
+  minutes for $400, plus parts at 30% more. If our own crew start the job first, the contractor is stood down for a
+  $150 call-off fee. On a major fault on a busy ride with the crew tied up, a contractor, overtime or an express part
+  pays back. On a quiet ride, waiting is still right.
+- **You accept a contractor's work.** Before the ride reopens, "Sign to reopen" on its card shows the contractor's job
+  sheet. Their write-ups are sometimes thin, with no cause written down or no test run: send those back. In any other
+  seat, the computer Manager does this.
+- **Spares on the shelf.** The night report shows how long repairs waited for parts today, with a link to the Stores
+  tab when it's 2 hours or more.
+
+### The Technician
+- **Your grade is mostly your own work:** 35% the company's result and 65% your own (every other seat is 80/20). The
+  end screen shows it, for example "Company 72 × 35% + your own work 92 × 65% = 85".
+- **Jobs done properly.** A job counts only when you locked out first, the cause was found and written down, and it had
+  a test run before you signed it fit to run. Full marks come at 2.9 a day, what a skilled technician reaches on a
+  normal day. Your seat card shows the jobs you finished and how many were done properly.
+- **A hard season above you** no longer sinks good work. When the company scores under 60 and your own work is 80 or
+  more, the end screen says so.
+
 ### Escalation
 Every request has a timer. Answer it in time, and five answers on time in a row lift office morale. Let it run out and
 the request is **escalated** to the seat above. That seat decides 10 to 20 minutes later, and whatever the request was
@@ -42,8 +69,9 @@ Spending needs a signature from the right level:
 | Over $20,000 | The board, which answers at the end of the day |
 
 Ask for more than your limit and the purchase waits for that signature ("Waiting for the manager, about 12 min"). A weak
-request is refused with a reason: money for a minor fault on a quiet ride once the day's budget is spent, for example.
-A closed ride, a rush job or guests stuck on a ride are never weak. Now and then a big repair grows out of earlier
+request is refused with a reason: money for a minor fault on a quiet ride once the week's budget is spent, for example.
+A major fault, guests stuck on a ride or the VIP's ride today are never weak. A rush on its own doesn't make a ride a
+priority. Now and then a big repair grows out of earlier
 choices, such as a ride patched three times. It waits at the planning desk for whoever's limit it falls in.
 
 ### Reopening a ride: countersigns and padlocks
@@ -114,7 +142,7 @@ browser tests.
 | Command | What it checks | Time |
 |---|---|---|
 | `npm test` | Everything below, plus a check that `index.html` matches `src/` | ~7 min |
-| `npm run test:engine` | The golden master, a test that sends random commands looking for crashes, the reopen rules, and the seat duties (every seat-card mistake, escalation, the board's limit, traits and styles) | ~1 min |
+| `npm run test:engine` | The golden master, a test that sends random commands looking for crashes, the reopen rules, the seat duties (every seat-card mistake, escalation, the board's limit, traits and styles), and the Manager and Technician rules (rush limit, rolling budget, contractors, grade split, jobs done properly) | ~1 min |
 | `npm run test:browser` | The game in a real browser: layout at 16 screen sizes, saves, motion, sound, speed on a slowed phone, every seat's duties, coaching | ~8 min |
 
 **The golden master** is the check that gameplay hasn't changed. Scripted players play 35 seasons from fixed starting

@@ -7,7 +7,7 @@ module.exports = function makePlayers(L) {
   const techs = s => s.crew.filter(t => t.role === 'tech' && !t.temp && !t.agency);
   const en = t => (t.en == null ? 100 : t.en);
   const dist = (c, r) => Math.hypot(c.x - r.x, c.y - r.y);
-  const unsent = s => s.rides.filter(r => r.job && r.job.type === 'fault' && !s.crew.some(c => c.target === r.id));
+  const unsent = s => s.rides.filter(r => r.job && r.job.type === 'fault' && !(L.attended ? L.attended(s, r) : s.crew.some(c => c.target === r.id))); // a contractor still on the way does not hold the job
 
   function cover(s) { // trades with nobody on one half of the day
     const gaps = [];
@@ -112,7 +112,7 @@ module.exports = function makePlayers(L) {
     for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; }
       if (o && o.stamp) { let vs = []; try { vs = Q.opts(s, it).map(x => x.v); } catch (e) { /* no options */ } v = ['yes', 'ok', 'give', 'std', 'sign'].find(x => vs.includes(x)) || vs[0] || v; L.answer(s, it.id, v); continue; }
       // a manager keeps to the budget: once the day is over it, only a closed ride, a rush job or stuck guests get money spent on them
-      if (s.seat === 'mgr' && L.keySpend && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && L.maintSpend(s) > s.budget && !L.keySpend(s, it.rid && L.ride(s, it.rid))) v = it.k === 'express' ? 'wait' : 'no';
+      if (s.seat === 'mgr' && L.keySpend && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && (L.overBudget ? L.overBudget(s) : L.maintSpend(s) > s.budget) && !L.keySpend(s, it.rid && L.ride(s, it.rid))) v = it.k === 'express' ? 'wait' : 'no';
       // overtime only to get a closed ride back, not for every job still open at 17:00
       if (it.k === 'hold' && v === 'yes' && L.keySpend && !it.tids.some(id => { const t = s.crew.find(c => c.id === id); return t && t.target && L.keySpend(s, L.ride(s, t.target)); })) v = 'go';
       L.answer(s, it.id, v); }
@@ -135,7 +135,7 @@ module.exports = function makePlayers(L) {
       }
     }
     if (o.play === 'dir' && s.clock % 3 === 0) {
-      if (L.maintSpend(s) > s.budget * 0.85) L.setBudget(s, 500);
+      if (L.rolling ? (w => w.spend > w.budget * 0.85)(L.rolling(s)) : L.maintSpend(s) > s.budget * 0.85) L.setBudget(s, 500);
       if (s.focus !== s.strategy && !s.gates) L.setFocus(s, s.strategy); // the priority is set before the gates open, not changed during the day
       if (unsent(s).length >= 3) L.agency(s);
       if (s.glow < 60) L.crowdPleaser(s);

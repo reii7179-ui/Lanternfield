@@ -8,7 +8,7 @@ const ROLE = {
     alone: ['How to find the cause and carry out the repair', 'Locking out and tagging a ride before touching it', 'Stopping any job that is not safe'],
     recommends: ['Patch or full repair', 'Which parts are needed', 'When a ride needs a service', 'When they need a second pair of hands'],
     approves: 'Nothing that costs money. Draws parts from stores.', hiring: 'None. Sometimes shows a candidate round the workshop.',
-    judged: ['First-time fix rate', 'Working safely, every time', 'Answering work orders quickly', 'Repairs that stay fixed'],
+    judged: ['Jobs done properly: locked out, cause found, test run', 'First-time fix rate', 'Working safely, every time', 'Answering work orders quickly'],
     mistakes: 'Skipping the lockout to save two minutes. Guessing at the cause instead of checking. Going quiet instead of asking for help.' },
   sup: { lvl: 'First-line manager', title: 'Maintenance Supervisor', short: 'Supervisor',
     line: 'Run the shift: turn faults into jobs and put the right person on each one.',

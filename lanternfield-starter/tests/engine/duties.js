@@ -45,8 +45,9 @@ const MISTAKES = [
   ['mgr', 'budIgnored', 'ignoring the budget', null, { stamp: true }, s => L.setBudget(s, -9000)],
   ['mgr', 'oneTrade', 'letting one person carry a whole trade', null, null, s => { const ctrl = s.crew.filter(c => c.role === 'tech' && c.skills.ctrl); for (const c of ctrl.slice(1)) delete c.skills.ctrl; if (!ctrl.length) { const c = s.crew.find(c => c.role === 'tech'); c.skills.ctrl = 1; } }],
   ['dir', 'prio', 'changing the priority during the day', s => { if (s.gates && s.clock === L.OPEN + 60) L.setFocus(s, s.focus === 'cost' ? 'uptime' : 'cost'); }],
-  ['dir', 'overOk', 'approving every overspend', s => answerAll(s, 'budget', 'ok'), null, s => L.setBudget(s, -9000), 12],
-  ['dir', 'vipLate', 'settling a dispute after the VIP arrives', s => { for (const it of s.inbox.slice()) if (it.k === 'vip') it.due = Math.min(it.due, s.clock); }],
+  ['dir', 'overOk', 'approving every overspend', s => answerAll(s, 'budget', 'ok'), { play: null }, s => L.setBudget(s, -15000), 12], // a director who leaves the low budget alone
+  ['dir', 'vipLate', 'settling a dispute after the VIP arrives', s => { for (const e of s.events) if (e.k === 'vip' && !e.done && !e.q && s.clock === e.at - 115) { const r = L.ride(s, e.ride); if (r && !r.job) r.health = Math.min(r.health, 55); } // a worn VIP ride, so the dispute comes up
+    for (const it of s.inbox.slice()) if (it.k === 'vip') it.due = Math.min(it.due, s.clock); }],
   ['ceo', 'spin', 'telling the board what it wants to hear', s => answerAll(s, 'board', 'spin')],
   ['ceo', 'empty', 'leaving key posts empty', null, { plan: false }],
   ['ceo', 'floor', 'running the shift from the boardroom', s => { const r = unsent(s)[0]; if (r && !s.prio) L.rush(s, r); }],

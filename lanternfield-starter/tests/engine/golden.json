@@ -19,58 +19,58 @@
  "results": {
   "sup human / 101": {
    "grade": "C",
-   "total": 68,
-   "company": 67,
+   "total": 67,
+   "company": 66,
    "own": 0.708,
-   "cash": 75222,
-   "lanterns": 138,
+   "cash": 74073,
+   "lanterns": 133,
    "injuries": 0,
    "days": 14,
-   "digest": "c054476f2ce66005"
+   "digest": "784e10f2aabae74e"
   },
   "sup human / 202": {
    "grade": "C",
-   "total": 69,
+   "total": 68,
    "company": 67,
-   "own": 0.739,
-   "cash": 73728,
-   "lanterns": 129,
+   "own": 0.736,
+   "cash": 71646,
+   "lanterns": 130,
    "injuries": 0,
    "days": 14,
-   "digest": "48979bf66c32a7dd"
+   "digest": "c4b18f941dc8da18"
   },
   "sup human / 303": {
    "grade": "A",
    "total": 85,
    "company": 86,
    "own": 0.792,
-   "cash": 110071,
-   "lanterns": 145,
+   "cash": 110062,
+   "lanterns": 146,
    "injuries": 0,
    "days": 14,
-   "digest": "feb4805c533092d1"
+   "digest": "a172937c1aad8c77"
   },
   "sup human / 404": {
    "grade": "B",
-   "total": 74,
-   "company": 76,
-   "own": 0.686,
-   "cash": 96352,
-   "lanterns": 126,
+   "total": 77,
+   "company": 78,
+   "own": 0.723,
+   "cash": 105638,
+   "lanterns": 131,
    "injuries": 0,
    "days": 14,
-   "digest": "8c23417a8783cfa8"
+   "digest": "789cd24397d8defb"
   },
   "sup human / 505": {
    "grade": "B",
-   "total": 76,
-   "company": 75,
-   "own": 0.813,
-   "cash": 104993,
-   "lanterns": 132,
+   "total": 75,
+   "company": 77,
+   "own": 0.668,
+   "cash": 90126,
+   "lanterns": 141,
    "injuries": 0,
    "days": 14,
-   "digest": "74b26889fed1dc2e"
+   "digest": "a8842dfdb78236cb"
   },
   "sup skilled / 101": {
    "grade": "B",
@@ -81,29 +81,29 @@
    "lanterns": 148,
    "injuries": 0,
    "days": 14,
-   "digest": "70437d801d01f21f"
+   "digest": "5f73a53bc170b0c1"
   },
   "sup skilled / 202": {
    "grade": "B",
-   "total": 83,
-   "company": 80,
-   "own": 0.932,
-   "cash": 113696,
-   "lanterns": 143,
+   "total": 82,
+   "company": 81,
+   "own": 0.877,
+   "cash": 105513,
+   "lanterns": 140,
    "injuries": 0,
    "days": 14,
-   "digest": "f2bd749b1ee6d00d"
+   "digest": "8ccc8afec9a87e2c"
   },
   "sup skilled / 303": {
    "grade": "A",
-   "total": 93,
-   "company": 93,
-   "own": 0.945,
-   "cash": 125665,
-   "lanterns": 153,
+   "total": 92,
+   "company": 92,
+   "own": 0.937,
+   "cash": 116718,
+   "lanterns": 157,
    "injuries": 0,
    "days": 14,
-   "digest": "652ab24da742ac8d"
+   "digest": "b6ee8c53333cb2fd"
   },
   "sup skilled / 404": {
    "grade": "A",
@@ -114,293 +114,293 @@
    "lanterns": 150,
    "injuries": 0,
    "days": 14,
-   "digest": "80f9ee6c9bd13d00"
+   "digest": "ffccf05da59f1db5"
   },
   "sup skilled / 505": {
    "grade": "A",
-   "total": 88,
-   "company": 85,
-   "own": 0.998,
-   "cash": 118816,
-   "lanterns": 152,
-   "injuries": 0,
-   "days": 14,
-   "digest": "1151005362cf4dca"
-  },
-  "sup human sharp / 101": {
-   "grade": "B",
-   "total": 75,
-   "company": 78,
-   "own": 0.616,
-   "cash": 107641,
-   "lanterns": 137,
-   "injuries": 0,
-   "days": 14,
-   "digest": "0c2cbbecf8befcb2"
-  },
-  "sup human sharp / 202": {
-   "grade": "D",
-   "total": 53,
-   "company": 51,
-   "own": 0.598,
-   "cash": 52656,
-   "lanterns": 115,
-   "injuries": 0,
-   "days": 14,
-   "digest": "b208e23be28b3e1b"
-  },
-  "sup human sharp / 303": {
-   "grade": "B",
-   "total": 76,
-   "company": 76,
-   "own": 0.771,
-   "cash": 98055,
-   "lanterns": 121,
-   "injuries": 0,
-   "days": 14,
-   "digest": "ca445b7d2b8ab7ed"
-  },
-  "sup human sharp / 404": {
-   "grade": "C",
-   "total": 59,
-   "company": 58,
-   "own": 0.62,
-   "cash": 78416,
-   "lanterns": 124,
-   "injuries": 0,
-   "days": 14,
-   "digest": "fafc0dfe4d37482d"
-  },
-  "sup human sharp / 505": {
-   "grade": "D",
-   "total": 49,
-   "company": 51,
-   "own": 0.41,
-   "cash": 55670,
-   "lanterns": 124,
-   "injuries": 0,
-   "days": 14,
-   "digest": "ca916f9204ae5880"
-  },
-  "tech active / 101": {
-   "grade": "B",
-   "total": 76,
-   "company": 73,
-   "own": 0.873,
-   "cash": 66182,
-   "lanterns": 137,
-   "injuries": 0,
-   "days": 14,
-   "digest": "e894fa75415e52df"
-  },
-  "tech active / 202": {
-   "grade": "C",
-   "total": 57,
-   "company": 48,
-   "own": 0.93,
-   "cash": 7839,
-   "lanterns": 130,
-   "injuries": 0,
-   "days": 14,
-   "digest": "1ec815642f2f90ce"
-  },
-  "tech active / 303": {
-   "grade": "B",
-   "total": 77,
-   "company": 72,
-   "own": 0.936,
-   "cash": 68236,
-   "lanterns": 134,
-   "injuries": 0,
-   "days": 14,
-   "digest": "d2ea16ceaac3aedb"
-  },
-  "tech active / 404": {
-   "grade": "C",
-   "total": 62,
-   "company": 54,
-   "own": 0.919,
-   "cash": 26814,
-   "lanterns": 122,
-   "injuries": 0,
-   "days": 14,
-   "digest": "2648f7672ee935cc"
-  },
-  "tech active / 505": {
-   "grade": "C",
-   "total": 69,
-   "company": 65,
-   "own": 0.884,
-   "cash": 51031,
-   "lanterns": 128,
-   "injuries": 0,
-   "days": 14,
-   "digest": "dedac01f299a07d8"
-  },
-  "mgr active / 101": {
-   "grade": "B",
-   "total": 81,
-   "company": 79,
-   "own": 0.89,
-   "cash": 88694,
-   "lanterns": 136,
-   "injuries": 0,
-   "days": 14,
-   "digest": "5c8415609329523f"
-  },
-  "mgr active / 202": {
-   "grade": "B",
-   "total": 79,
-   "company": 77,
-   "own": 0.848,
-   "cash": 82159,
-   "lanterns": 141,
-   "injuries": 0,
-   "days": 14,
-   "digest": "63c8d97cce139bcd"
-  },
-  "mgr active / 303": {
-   "grade": "B",
-   "total": 79,
-   "company": 77,
-   "own": 0.887,
-   "cash": 74275,
+   "total": 85,
+   "company": 82,
+   "own": 0.949,
+   "cash": 112163,
    "lanterns": 143,
    "injuries": 0,
    "days": 14,
-   "digest": "45b4172740eb7f6c"
+   "digest": "91082621407f254d"
   },
-  "mgr active / 404": {
-   "grade": "A",
-   "total": 90,
-   "company": 90,
-   "own": 0.901,
-   "cash": 110625,
-   "lanterns": 151,
-   "injuries": 0,
-   "days": 14,
-   "digest": "7b0fb3aec237bda5"
-  },
-  "mgr active / 505": {
+  "sup human sharp / 101": {
    "grade": "B",
-   "total": 79,
-   "company": 76,
-   "own": 0.905,
-   "cash": 75983,
-   "lanterns": 141,
+   "total": 76,
+   "company": 75,
+   "own": 0.76,
+   "cash": 97153,
+   "lanterns": 135,
    "injuries": 0,
    "days": 14,
-   "digest": "6429c09262750127"
+   "digest": "238ff2a80d6feb19"
   },
-  "dir active / 101": {
-   "grade": "B",
-   "total": 73,
-   "company": 72,
-   "own": 0.783,
-   "cash": 65226,
-   "lanterns": 146,
+  "sup human sharp / 202": {
+   "grade": "D",
+   "total": 50,
+   "company": 46,
+   "own": 0.623,
+   "cash": 61810,
+   "lanterns": 120,
    "injuries": 0,
    "days": 14,
-   "digest": "1a02c71905fed9c6"
+   "digest": "a933d584910ba587"
   },
-  "dir active / 202": {
-   "grade": "A",
-   "total": 86,
-   "company": 86,
-   "own": 0.882,
-   "cash": 97358,
-   "lanterns": 151,
+  "sup human sharp / 303": {
+   "grade": "C",
+   "total": 66,
+   "company": 68,
+   "own": 0.589,
+   "cash": 84732,
+   "lanterns": 127,
    "injuries": 0,
    "days": 14,
-   "digest": "b676f2c09cb5a5b8"
+   "digest": "b246ce222d1102a8"
   },
-  "dir active / 303": {
+  "sup human sharp / 404": {
+   "grade": "C",
+   "total": 67,
+   "company": 67,
+   "own": 0.68,
+   "cash": 85339,
+   "lanterns": 123,
+   "injuries": 0,
+   "days": 14,
+   "digest": "31199bbb85f5aac7"
+  },
+  "sup human sharp / 505": {
    "grade": "C",
    "total": 68,
-   "company": 67,
-   "own": 0.744,
-   "cash": 49446,
-   "lanterns": 136,
+   "company": 71,
+   "own": 0.57,
+   "cash": 83405,
+   "lanterns": 134,
    "injuries": 0,
    "days": 14,
-   "digest": "cabd6f2b46fc7372"
+   "digest": "81d9952235a3cdb9"
   },
-  "dir active / 404": {
+  "tech active / 101": {
+   "grade": "A",
+   "total": 85,
+   "company": 73,
+   "own": 0.916,
+   "cash": 65868,
+   "lanterns": 140,
+   "injuries": 0,
+   "days": 14,
+   "digest": "9ca947908c3a640e"
+  },
+  "tech active / 202": {
+   "grade": "A",
+   "total": 88,
+   "company": 81,
+   "own": 0.911,
+   "cash": 90222,
+   "lanterns": 144,
+   "injuries": 0,
+   "days": 14,
+   "digest": "21842b7d1a0e25bb"
+  },
+  "tech active / 303": {
+   "grade": "B",
+   "total": 76,
+   "company": 53,
+   "own": 0.888,
+   "cash": 24391,
+   "lanterns": 122,
+   "injuries": 0,
+   "days": 14,
+   "digest": "ad865e964d07d8cf"
+  },
+  "tech active / 404": {
+   "grade": "A",
+   "total": 85,
+   "company": 76,
+   "own": 0.898,
+   "cash": 85808,
+   "lanterns": 132,
+   "injuries": 0,
+   "days": 14,
+   "digest": "6334faceac19fc06"
+  },
+  "tech active / 505": {
+   "grade": "B",
+   "total": 82,
+   "company": 67,
+   "own": 0.897,
+   "cash": 62297,
+   "lanterns": 120,
+   "injuries": 0,
+   "days": 14,
+   "digest": "d4e192dd04d57493"
+  },
+  "mgr active / 101": {
+   "grade": "A",
+   "total": 86,
+   "company": 85,
+   "own": 0.897,
+   "cash": 100616,
+   "lanterns": 142,
+   "injuries": 0,
+   "days": 14,
+   "digest": "e6220c1a05f97493"
+  },
+  "mgr active / 202": {
    "grade": "B",
    "total": 81,
    "company": 81,
-   "own": 0.836,
-   "cash": 96033,
-   "lanterns": 135,
+   "own": 0.819,
+   "cash": 91675,
+   "lanterns": 137,
    "injuries": 0,
    "days": 14,
-   "digest": "9fa8905bc78af709"
+   "digest": "856397066c19e597"
+  },
+  "mgr active / 303": {
+   "grade": "B",
+   "total": 84,
+   "company": 84,
+   "own": 0.836,
+   "cash": 96180,
+   "lanterns": 146,
+   "injuries": 0,
+   "days": 14,
+   "digest": "ab578926f95c3908"
+  },
+  "mgr active / 404": {
+   "grade": "A",
+   "total": 89,
+   "company": 89,
+   "own": 0.885,
+   "cash": 116342,
+   "lanterns": 143,
+   "injuries": 0,
+   "days": 14,
+   "digest": "8cfc1a682f2bedca"
+  },
+  "mgr active / 505": {
+   "grade": "B",
+   "total": 83,
+   "company": 82,
+   "own": 0.879,
+   "cash": 104595,
+   "lanterns": 136,
+   "injuries": 0,
+   "days": 14,
+   "digest": "be4e76131be47c8f"
+  },
+  "dir active / 101": {
+   "grade": "B",
+   "total": 82,
+   "company": 80,
+   "own": 0.897,
+   "cash": 85123,
+   "lanterns": 143,
+   "injuries": 0,
+   "days": 14,
+   "digest": "e240352f9baa38c4"
+  },
+  "dir active / 202": {
+   "grade": "B",
+   "total": 79,
+   "company": 76,
+   "own": 0.897,
+   "cash": 70802,
+   "lanterns": 144,
+   "injuries": 0,
+   "days": 14,
+   "digest": "59aac8d4e134f3b3"
+  },
+  "dir active / 303": {
+   "grade": "B",
+   "total": 83,
+   "company": 81,
+   "own": 0.9,
+   "cash": 86511,
+   "lanterns": 143,
+   "injuries": 0,
+   "days": 14,
+   "digest": "8a72acdce63638fe"
+  },
+  "dir active / 404": {
+   "grade": "B",
+   "total": 74,
+   "company": 71,
+   "own": 0.852,
+   "cash": 64146,
+   "lanterns": 137,
+   "injuries": 0,
+   "days": 14,
+   "digest": "a68bcdbf88804864"
   },
   "dir active / 505": {
    "grade": "B",
-   "total": 78,
-   "company": 78,
-   "own": 0.801,
-   "cash": 76703,
-   "lanterns": 145,
+   "total": 76,
+   "company": 73,
+   "own": 0.877,
+   "cash": 72709,
+   "lanterns": 130,
    "injuries": 0,
    "days": 14,
-   "digest": "1a830221554af871"
+   "digest": "2e44f0d16c49cc1c"
   },
   "ceo active / 101": {
    "grade": "A",
-   "total": 88,
-   "company": 86,
-   "own": 0.969,
-   "cash": 100974,
-   "lanterns": 145,
+   "total": 85,
+   "company": 82,
+   "own": 0.972,
+   "cash": 85245,
+   "lanterns": 148,
    "injuries": 0,
    "days": 14,
-   "digest": "01b3f8a75f17f4ce"
+   "digest": "403bdc254de00228"
   },
   "ceo active / 202": {
-   "grade": "B",
-   "total": 76,
-   "company": 72,
-   "own": 0.896,
-   "cash": 64952,
-   "lanterns": 135,
+   "grade": "A",
+   "total": 89,
+   "company": 87,
+   "own": 0.981,
+   "cash": 95979,
+   "lanterns": 153,
    "injuries": 0,
    "days": 14,
-   "digest": "9d3f5d144b7ea39e"
+   "digest": "01462693ae3e09db"
   },
   "ceo active / 303": {
-   "grade": "B",
-   "total": 82,
-   "company": 79,
-   "own": 0.947,
-   "cash": 83231,
-   "lanterns": 137,
+   "grade": "A",
+   "total": 86,
+   "company": 84,
+   "own": 0.945,
+   "cash": 95055,
+   "lanterns": 148,
    "injuries": 0,
    "days": 14,
-   "digest": "e9e74ddb1ff54177"
+   "digest": "27a7c25b65714407"
   },
   "ceo active / 404": {
-   "grade": "B",
-   "total": 81,
-   "company": 77,
-   "own": 0.953,
-   "cash": 79705,
-   "lanterns": 137,
+   "grade": "A",
+   "total": 88,
+   "company": 85,
+   "own": 0.993,
+   "cash": 100245,
+   "lanterns": 144,
    "injuries": 0,
    "days": 14,
-   "digest": "7f1068872b93f03f"
+   "digest": "b1184eb84ed0af18"
   },
   "ceo active / 505": {
    "grade": "A",
-   "total": 85,
-   "company": 82,
-   "own": 0.942,
-   "cash": 83730,
-   "lanterns": 156,
+   "total": 86,
+   "company": 83,
+   "own": 0.968,
+   "cash": 93123,
+   "lanterns": 145,
    "injuries": 0,
    "days": 14,
-   "digest": "0435bede50997f80"
+   "digest": "86e8ee5a6c27e2ed"
   }
  }
 }

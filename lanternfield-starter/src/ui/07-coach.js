@@ -67,7 +67,7 @@ const COACHES = {
     { wait: 150, when: () => signWait('mgr'), pick: () => signWait('mgr').id, ride: () => ui.coach.rid, until: 12, done: () => { const r = CR(); return !r || !r.so || r.so.esc || r.so.steps[r.so.i] !== 'mgr'; }, el: '#board [data-a=signopen]',
       text: () => `${esc((CR() || {}).name || 'A ride')} was red-tagged, and it needs your countersign before the inspector can clear it. ${tapOr('Tap', 'Click')} Sign to reopen on its card, read the job sheet, then Sign or Send back.` },
     { btn: 'Next', el: '#selp [data-a=walk]', text: () => 'Walking the floor lifts morale and alertness, but you are away from your desk for 20 minutes and requests wait. Go when your inbox is empty.' },
-    { btn: 'Done', until: 30, text: () => `At night the planning desk is yours: rosters, hiring, training and minimum stock. Keep every trade covered on both shifts: one person carrying a whole trade wears them down. ${bossLine('mgr')}` },
+    { btn: 'Done', until: 30, text: () => `At night the planning desk is yours: rosters, hiring, training and minimum stock. Spares on the shelf matter most: a repair with no part in stores waits for a delivery, so keep the minimums up in Stores. Keep every trade covered on both shifts: one person carrying a whole trade wears them down. ${bossLine('mgr')}` },
   ],
   dir: [
     { hold: true, btn: 'Show me', text: () => 'You are the Operations Director: the day\'s priority, the budget, and the bigger calls when things go wrong.' },
