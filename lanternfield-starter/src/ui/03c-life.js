@@ -37,7 +37,7 @@ function lifeStep(dt, pm, n, wx) {
   const lhNow = !ui.title && S.phase === 'day' && S.clock > L.LH;
   for (const r of S.rides) {
     const v = VIS.ride[r.id] || (VIS.ride[r.id] = { ph: hashOf(r.id), puff: 0 }), st = rideSt(r), j = r.job;
-    if (!reduce) v.ph += (RIDE_SPEED[r.id] || .1) * RUNOF[st] * pm;
+    if (!reduce) v.ph += (RIDE_SPEED[r.id] || .1) * (RUNOF[st] || 0) * pm;
     if (reduce || !pm) continue;
     // a broken ride: smoke for mechanical faults, sparks for electrical ones (a control fault flashes a lamp instead)
     if (j && j.type === 'fault' && (st === 'down' || st === 'degraded')) {

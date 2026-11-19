@@ -100,7 +100,7 @@ function ambTick(now) {
   ambStart(); if (!AMB) return;
   const t = AC.currentTime, s = (node, v, tc) => node.gain.setTargetAtTime(v, t, tc || 1.2), day = S.phase === 'day' && !ui.title, clock = ui.title ? 1290 : S.clock, n = nightOf(clock), w = weatherNow();
   const duck = !ui.title && (S.paused || !VIS.run) ? .45 : 1, open = day ? 1 : ui.title ? .5 : .15;
-  const running = S.rides.filter(r => r.sub && RUNOF[rideSt(r)] > 0).length / L.N_RIDES;
+  const running = S.rides.filter(r => r.sub && (RUNOF[rideSt(r)] || 0) > 0).length / L.N_RIDES;
   s(AMB.crowd.g, duck * open * (.05 + .1 * Math.min(1.3, ui.title ? .6 : S.att || 0)) * (1 - .45 * n));
   AMB.crowd.fl.frequency.setTargetAtTime(650 + Math.random() * 250, t, .8);
   s(AMB.sea.g, duck * (.06 + .04 * Math.sin(now / 2600)), 2);

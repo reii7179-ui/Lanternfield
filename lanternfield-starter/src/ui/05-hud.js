@@ -11,11 +11,13 @@ function inboxHTML() {
     const hint = it.brief ? '' : kd === 'str' ? `<small class="rqn">${KIND.str[1]}</small>` : L.ALIGN[it.k] ? `<small class="rqn">Priority today: ${L.FOCUS[S.focus].toLowerCase()}.</small>` : '';
     const brief = it.brief ? `<p class="brief">${esc(it.brief)}</p>` : '';
     const note = it.lvl !== S.seat && it.lvl !== 'tech' ? `<small class="rqn">Normally the ${L.SEATNAME[it.lvl]}'s call. Nobody is in that post right now, so it comes to you.</small>` : '';
-    return `<div data-key="rq-${it.id}" class="req${it.k === 'wo' ? ' wo' : ''}${hot ? ' hot' : ''}" role="group" aria-label="Request from ${esc(it.from)}"><div class="rqh"><span>${esc(it.from)}</span><span class="num">${left} min</span></div><small class="kind k-${kd}">${KIND[kd][0]} decision</small><p>${esc(it.txt)}</p>${brief}${hint}${note}<div class="rqo">${o.map(x => `<button type="button" class="cmd${x.go && (it.k === 'wo' || it.k === 'stay') ? ' go' : ''}"${S.away > S.clock ? ' disabled' : ''} data-a="ans" data-id="${it.id}" data-v="${x.v}" data-fk="rq-${it.id}-${x.v}"><b>${esc(x.b)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</button>`).join('')}</div><i style="width:${Math.round(f * 100)}%"></i></div>`;
+    return `<div data-key="rq-${it.id}" class="req${it.k === 'wo' ? ' wo' : ''}${hot ? ' hot' : ''}" role="group" aria-label="Request from ${esc(it.from)}"><div class="rqh"><span>${esc(it.from)}</span><span class="num">${left} min</span></div><small class="kind k-${kd}">${KIND[kd][0]} decision</small>${it.cs ? `<small class="kind k-cs"><span aria-hidden="true">✍</span> Countersign: on hold until signed</small>` : ''}<p>${esc(it.txt)}</p>${brief}${hint}${note}<div class="rqo">${o.map(x => `<button type="button" class="cmd${x.go && (it.k === 'wo' || it.k === 'stay') ? ' go' : ''}"${S.away > S.clock ? ' disabled' : ''} data-a="ans" data-id="${it.id}" data-v="${x.v}" data-fk="rq-${it.id}-${x.v}"><b>${esc(x.b)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</button>`).join('')}</div><i style="width:${Math.round(f * 100)}%"></i></div>`;
   }).join('');
-  const sent = S.asks.map(a => { let t = ''; try { t = ASKTXT[a.k](a.o); } catch (e) { t = 'a decision'; } return `<div class="sent">You asked <b>${esc(lc(L.holder(S, a.x)))}</b> for ${esc(t)}. Answer in about ${Math.max(1, a.due - S.clock)} min.</div>`; }).join('');
-  const away = S.away > S.clock ? `<div class="sent"><b>You are out of the office until ${fmtClock(S.away)}.</b> Requests wait for you, and their clocks keep running.</div>` : '';
-  return cards || sent ? `<div class="inbox${away ? ' away' : ''}" aria-live="polite">${away}${cards}${items.length > 3 ? `<div class="more">${items.length - 3} more waiting</div>` : ''}${sent}</div>` : '';
+  const sent = S.asks.map(a => { const n = Math.max(1, a.due - S.clock);
+    if (a.esc) return `<div class="sent esc" data-key="esc-${a.id}"><b><span aria-hidden="true">⤴</span> Escalated to ${esc(lc(L.holder(S, a.x)))}</b>: ${esc(a.it.k === 'wo' ? 'your work order' : a.it.from + '\'s request')}${a.it.rid ? ' on ' + esc(L.ride(S, a.it.rid).short) : ''}. Waiting for their decision, about ${n} min.</div>`;
+    let t = ''; try { t = ASKTXT[a.k](a.o); } catch (e) { t = 'a decision'; } return `<div class="sent" data-key="ask-${a.id}">Waiting for <b>${esc(lc(L.holder(S, a.x)))}</b>, about ${n} min: you asked for ${esc(t)}.</div>`; }).join('');
+  const away = S.tools ? `<div class="sent esc" data-key="tools"><b>You are on the tools at ${esc(L.ride(S, S.tools.rid).short)}.</b> Nobody is running the shift: requests wait, then escalate. <button type="button" class="btn sm" data-a="leavetools" data-fk="lt">Back to the shift</button></div>` : S.away > S.clock ? `<div class="sent"><b>You are out of the office until ${fmtClock(S.away)}.</b> Requests wait for you, and their clocks keep running.</div>` : '';
+  return cards || sent || away ? `<div class="inbox${away ? ' away' : ''}" data-key="inbox" aria-live="polite">${away}${cards}${items.length > 3 ? `<div class="more">${items.length - 3} more waiting</div>` : ''}${sent}</div>` : '';
 }
 // a fault still inside its fast-response window: the card beats faster as the window closes (three steps, so it does not restart)
 const fastBeat = id => { const r = id && L.ride(S, id), j = r && r.job, age = j ? S.clock - j.t0 : 99; if (!j || j.first || age > L.FAST) return ''; const f = (L.FAST - age) / L.FAST; return f > .5 ? '1.1s' : f > .25 ? '.75s' : '.5s'; };
@@ -23,6 +25,8 @@ const fastLeft = id => { const r = id && L.ride(S, id), j = r && r.job; const ag
 function objHTML() {
   const day = S.phase === 'day', evs = [];
   for (const e of S.events) if (!e.done) evs.push([e.at, e.k === 'vip' ? `VIP party rides ${L.ride(S, e.ride).short}` : 'Inspector walks the park']);
+  if (S.phase === 'day' && !S.gates) { const n = S.rides.filter(r => r.sub && r.chk === S.day).length, all = S.rides.filter(r => r.sub).length; evs.push([L.OPEN, `Gates open · ${n} of ${all} rides checked`]); }
+  if (S.phase === 'day' && !S.gates && (S.dplan || []).length) evs.push([Math.max(S.clock, L.PRE + 5), `Planned services before the gates: ${S.dplan.map(id => L.ride(S, id).short).join(', ')}`]);
   for (const [at, txt] of [[L.SHIFT.late[0], 'Late shift clocks on'], [L.SHIFT.early[1], 'Early shift goes home'], [L.LH, 'Lantern Hour begins'], [L.CLOSE, 'Park closes']]) if (S.clock < at) evs.push([at, txt]);
   for (const o of S.inbound) if (o.at) evs.push([o.at, `Express: ${L.SKU[o.sku][0].toLowerCase()}`]);
   for (const w of S.waves || []) if (!w.hit && w.warned) evs.push([w.at, `Squall hits: about ${w.size} breakdowns`]);
@@ -35,8 +39,8 @@ function objHTML() {
   const al = L.alerts(S).slice(0, 4).map(a => { const left = a.due - S.clock, f = clamp(left / Math.max(1, a.due - a.t0), 0, 1);
     const beat = a.k === 'open' ? fastBeat(a.id) : '';
     return `<button type="button" class="alert a-${a.k}${beat ? ' fast' : ''}"${beat ? ` style="--beat:${beat}"` : ''} data-a="alert" data-id="${a.id || ''}" data-fk="al-${a.k}-${a.id}"><b>${esc(a.txt)}</b><span class="num">${a.k === 'open' ? fastLeft(a.id) : left + ' min'}</span><i style="width:${Math.round(f * 100)}%"></i></button>`; }).join('');
-  return `<button type="button" class="ohead" data-a="objt" data-fk="objt" aria-expanded="${ui.obj}"><span>${S.inbox.length ? 'Inbox' : 'Objectives'}</span><em>${S.inbox.length ? `<span class="count">${S.inbox.length}</span>` : ''}Day ${Math.min(L.DAYS, upcoming())}/${L.DAYS}</em><i aria-hidden="true">${ui.obj ? '▾' : '▸'}</i></button>${inboxHTML()}${al ? `<div class="alerts">${al}</div>` : ''}
-${ui.obj ? `<div class="obody"><div class="oitem main"><i aria-hidden="true">★</i><span>${esc(L.MEMOS[(S.forecast || {}).memo] || 'Keep the rides open.')}</span></div>
+  return `<button type="button" class="ohead" data-a="objt" data-fk="objt" aria-expanded="${ui.obj}"><span>${S.inbox.length ? 'Inbox' : 'Objectives'}</span><em>${S.inbox.length ? `<span class="count">${S.inbox.length}</span>` : ''}Day ${Math.min(L.DAYS, upcoming())}/${L.DAYS}</em><i aria-hidden="true">${ui.obj ? '▾' : '▸'}</i></button>${inboxHTML()}${al ? `<div class="alerts" data-key="alerts">${al}</div>` : ''}
+${ui.obj ? `<div class="obody" data-key="obody"><div class="oitem main"><i aria-hidden="true">★</i><span>${esc(L.MEMOS[(S.forecast || {}).memo] || 'Keep the rides open.')}</span></div>
 ${day && S.clock > L.LH ? `<div class="oitem main"><i aria-hidden="true">✦</i><span>Lanterns earned tonight: ${lit} of ${L.N_RIDES}</span></div>` : ''}
 ${evs.slice(0, 4).map(([at, txt]) => `<div class="oitem"><time>${fmtClock(at)}</time><span>${esc(txt)}</span></div>`).join('')}
 ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}</div>` : ''}`;
@@ -49,11 +53,20 @@ function railHTML() {
     return `<button type="button" class="unit t-${rk(c)}${ui.coachUnit === c.id ? ' coachme' : ''}${ui.units.includes(c.id) ? ' on' : ''}${c.on ? '' : ' off'}${tech && c.on && !c.target && day && S.rides.some(r => r.job && r.job.type === 'fault' && c.skills[r.job.trade] && !S.crew.some(x => x.target === r.id)) ? ' call' : ''}" data-a="tech" data-id="${c.id}" data-fk="u-${c.id}" aria-pressed="${ui.units.includes(c.id)}" title="${esc(c.name)}, ${title(c)}: ${esc(staffLine(c))}${tech && !c.temp && !c.agency ? ', energy ' + Math.round(L.enOf(c)) : ''}"><span class="ul" aria-hidden="true">${esc(c.name[0])}</span>${key ? `<kbd>${key}</kbd>` : ''}<span class="un">${esc(c.name)}</span>${tech && !c.temp && !c.agency ? `<span class="ue" aria-hidden="true"><i style="height:${Math.round(L.enOf(c))}%;background:var(--${enCol(c)})"></i></span>` : ''}<i class="us" style="background:var(--${s})"></i></button>`;
   }).join('');
 }
+/* a fixed ride waiting for you: your countersign, your incident review, your "fit to run", or your padlock still on it */
+function soMine(r) {
+  const o = r && r.so; if (!o || o.esc || S.phase !== 'day') return false;
+  const st = o.steps[o.i];
+  if (st === 'fit' && S.seat === 'tech' && o.lead === S.me && !o.signedAt) return true;
+  if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(S, st, o) === S.seat) return true;
+  if (st === 'review' && L.soSigner(S, 'dir', o) === S.seat) return true;
+  return S.seat === 'tech' && o.pads.includes(S.me);
+}
 function boardHTML() {
   return S.rides.map(r => {
     const st = L.status(S, r), j = r.job, on = S.crew.some(c => c.target === r.id), hc = r.health >= 60 ? 'ok' : r.health >= 35 ? 'warn' : 'bad';
     const badge = j ? (j.type === 'fault' ? `<i class="bd t-${j.trade}">${L.TRADES[j.trade][0]}</i>` : '<i class="bd c-work">S</i>') : r.warnAt ? '<i class="bd c-warn">!</i>' : r.patched ? '<i class="bd c-dim">P</i>' : '';
-    return `<button type="button" class="as c-${STAT[st][1]}${ui.sel === r.id ? ' on' : ''}${j && j.type === 'fault' && !on ? ' alarm' : ''}${S.prio === r.id ? ' rush' : ''}${ui.coachRide === r.id ? ' coachme' : ''}" data-a="sel" data-id="${r.id}" data-fk="as-${r.id}" title="${esc(r.name)}: ${STAT[st][0]}"><b>${esc(r.short)}</b>${badge}<span class="st">${st === 'ok' ? Math.round(r.health) + '%' : STAT[st][0]}${on ? ' <em>crew</em>' : isStuck(j) ? ' <em class="np">no part</em>' : ''}</span><span class="bar c-${hc}"><span style="width:${Math.round(r.health)}%"></span></span></button>`;
+    return `<div class="asw" data-key="asw-${r.id}"><button type="button" class="as c-${STAT[st][1]}${ui.sel === r.id ? ' on' : ''}${j && j.type === 'fault' && !on ? ' alarm' : ''}${S.prio === r.id ? ' rush' : ''}${ui.coachRide === r.id ? ' coachme' : ''}" data-a="sel" data-id="${r.id}" data-fk="as-${r.id}" title="${esc(r.name)}: ${STAT[st][0]}"><b>${esc(r.short)}</b>${badge}<span class="st">${st === 'ok' ? Math.round(r.health) + '%' : st === 'signoff' ? `To reopen <em class="np">−${fmtMoney(L.hourly(S, r))}/h</em>` : STAT[st][0]}${on ? ' <em>crew</em>' : isStuck(j) ? ' <em class="np">no part</em>' : ''}</span><span class="bar c-${hc}"><span style="width:${Math.round(r.health)}%"></span></span></button>${soMine(r) ? `<button type="button" class="sgn" data-a="signopen" data-id="${r.id}" data-fk="sg-${r.id}">${S.seat === 'tech' ? (r.so.steps[r.so.i] === 'fit' ? 'Fit to run' : 'Padlock off') : r.so.steps[r.so.i] === 'review' ? 'Review' : 'Sign to reopen'}</button>` : ''}</div>`;
   }).join('');
 }
 function capHTML() {
@@ -71,11 +84,14 @@ const SEATTIP = {
   dir: () => 'Set the priority and the budget here; managers work to them. On a bad day, bring in agency crew or make a breakdown a rush job (R). Disputes and big spends come to your inbox, top left.',
   ceo: () => 'The board, the press and anything nobody below you can decide come to your inbox, top left. When a big ride closes, goodwill vouchers stop it hurting the glow, and a rush job (R) gets it fixed first. Empty posts push more work up to you: fill them at the desk.',
 };
+// the seeded style of the person above you this season
+const bossNote = () => { const bx = L.above(S, S.seat), st = bx !== 'board' && S.styles && S.styles[bx]; return st ? `<p class="note boss"><b>Your boss, ${esc(lc(L.holder(S, bx)))}: ${esc(L.STYLE[st][0].toLowerCase())}.</b> ${esc(L.STYLE[st][1])}.</p>` : ''; };
 function selPark() {
   const x = S.seat === 'tech' ? 'sup' : S.seat, R0 = ROLE[S.seat], day = S.phase === 'day', faults = S.rides.filter(r => r.job && r.job.type === 'fault').length, free = S.crew.filter(c => c.on && c.role === 'tech' && !c.target).length;
   const boss = S.seat === 'ceo' ? 'the board' : lc(L.holder(S, L.BOSS[S.seat]));
   const hd = shead(`<span class="av" style="--c:var(--lantern)" aria-hidden="true">${R0.short[0]}</span>`, `You: ${R0.title}`, `${R0.lvl} · answers to ${esc(boss)}`, false);
   let info = '', cm = '';
+  info += bossNote(); // learn to work with them
   const up = day && S.d.upT ? S.d.upW / S.d.upT : null, chip = (t, c) => `<span class="chip c-${c}">${t}</span>`;
   if (day) {
     const row = [];
@@ -120,6 +136,11 @@ function taskHTML() { // the technician's own steps at a job, big and in the mid
   if (!c || !c.on || ui.desk) return '';
   const r = c.target && L.ride(S, c.target), j = r && r.job;
   if (c.state === 'hurt') return `<div class="task bad" role="group" aria-label="Injury"><h3>You are hurt</h3><p>First aid, and back to work in ${c.hurt - S.clock} min. The incident has been reported.</p></div>`;
+  if (c.state === 'signoff' && r && r.so) { const o = r.so, fit = o.steps[o.i] === 'fit' && o.lead === c.id && !o.signedAt, pad = o.pads.includes(c.id);
+    return `<h3>${esc(r.short)} is fixed</h3><p>${fit ? `A test run, then sign it <b>fit to run</b>: ${Math.max(0, o.at + L.SO_SIGN - S.clock)} min before the supervisor has to do it for you. ` : o.signedAt > S.clock ? 'Test run… ' : ''}${pad ? 'Then take <b>your own padlock</b> off: the ride cannot reopen with it on.' : ''}</p><div class="row">${fit ? `<button type="button" class="btn go" data-a="fit" data-v="test" data-fk="t-fit">Test run, then sign</button><button type="button" class="btn" data-a="fit" data-v="now" data-fk="t-fitnow">Sign now, no test</button>` : ''}${pad ? `<button type="button" class="btn${fit ? '' : ' go'}" data-a="padoff" data-fk="t-pad">Padlock off</button>` : ''}</div>`; }
+  if (!c.target) { const list = L.myChecks(S); if (list.length || c.chkUntil) { // the morning round: your share of the daily checks
+    const near = list.find(x => Math.hypot(c.x - x.x, c.y - x.y) < 70), doing = c.chkUntil && L.ride(S, c.chkRun);
+    return `<h3>${doing ? `Checking ${esc(doing.short)}: ${Math.max(0, c.chkUntil - S.clock)} min` : 'Morning checks'}</h3><p>${list.length ? `Yours before the gates open at ${fmtClock(L.OPEN)}: <b>${list.map(x => esc(x.short)).join(', ')}</b>. A ride not checked stays shut.` : 'Last one.'}${S.gates && list.length ? ` <b>The gates are open: ${S.clock >= L.OPEN + 10 ? 'they have gone to the supervisor' : `in ${L.OPEN + 10 - S.clock} min they go to the supervisor`}.</b>` : ''}</p><div class="row">${!doing && near ? `<button type="button" class="btn go" data-a="dcheck" data-id="${near.id}" data-fk="dc-${near.id}">Check ${esc(near.short)}</button>` : ''}${doing ? '' : list.filter(x => x !== near).slice(0, near ? 2 : 3).map((x, i) => `<button type="button" class="btn${!near && i === 0 ? ' go' : ''}" data-a="chkgo" data-id="${x.id}" data-fk="cg-${x.id}">Go to ${esc(x.short)}</button>`).join('')}</div>`; } }
   if (!j) return '';
   if (c.state === 'prep') return `<h3>At ${esc(r.name)}: lock it out first</h3><p>Your own padlock on the isolator and a tag with your name, so nobody can start the ride while your hands are in it.${S.comp >= 50 ? ' <b>It has been a routine day, and you have done this a hundred times. That is when people get hurt.</b>' : ''}</p><div class="tgo">${cmd('lock', 'data-fk="t-lk"', 'Lock out and tag', '2 min, then find the cause', 'go')}${cmd('skiplock', 'data-fk="t-sk"', 'Skip the lockout', `Saves 2 min. ${Math.round(15 + S.comp / 4)}% chance of an injury`)}</div>`;
   if (c.state === 'lock') return `<h3>Locking out ${esc(r.short)}…</h3><p>Padlock on, tag on, test that it will not start.</p>`;
@@ -128,12 +149,13 @@ function taskHTML() { // the technician's own steps at a job, big and in the mid
   return '';
 }
 function selOther(c) { // a colleague, seen from the technician's seat
-  const info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span></div>${c.role === 'tech' ? `<div class="row sk">${skillsHTML(c)}</div>` : ''}<p class="note">${c.role === 'sup' ? 'Your supervisor. Work orders come from here.' : 'A colleague. Only the supervisor can send them anywhere.'}</p>`;
+  const info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span></div>${c.role === 'tech' ? `<div class="row sk">${skillsHTML(c)}</div>${c.traits && c.traits.length ? `<div class="row">${traitsHTML(c)}</div>` : ''}` : ''}<p class="note">${c.role === 'sup' ? 'Your supervisor. Work orders come from here.' : 'A colleague. Only the supervisor can send them anywhere.'}</p>`;
   return [shead(avHTML(c), esc(c.name), title(c), true), info, (c.on ? cmd('focus', `data-x="${Math.round(c.x)}" data-y="${Math.round(c.y)}" data-fk="loc"`, 'Locate', 'Centre the map') : '') + cmd('me', 'data-fk="me"', 'Back to you', 'Select yourself', 'go')];
 }
 function selMe(c) { // you, the technician
   const day = S.phase === 'day', r = c.target && L.ride(S, c.target), j = r && r.job, busy = ['prep', 'lock', 'diag', 'check', 'hurt'].includes(c.state);
   let info = `<div class="row"><span class="chip c-${!c.on ? 'dim' : c.state === 'work' ? 'work' : c.target ? 'warn' : 'ok'}">${esc(staffLine(c))}</span><span class="chip c-dim">${esc(shiftLine(c))}</span><span class="chip c-${c.morale >= 55 ? 'ok' : c.morale >= 30 ? 'warn' : 'bad'}">Morale ${Math.round(c.morale)}</span><span class="chip c-${S.comp < 45 ? 'ok' : S.comp < 60 ? 'warn' : 'bad'}">Alertness ${100 - Math.round(S.comp)}</span></div><div class="row sk">${skillsHTML(c)}</div>`, cm = '';
+  if (!day || !c.target) info += bossNote(); // between jobs: who you work for this season
   if (!day) info += '<p class="note">Between days the managers plan. Look at the desk to see what they decided last night.</p>';
   else if (!c.on) info += `<div class="warnbox c-dim">${c.sick ? 'You are off sick today.' : S.clock < L.SHIFT[c.shift][0] ? `Your shift starts at ${fmtClock(L.SHIFT[c.shift][0])}. Watch, or speed up the clock.` : 'Your shift is over. Watch the park, speed up the clock, or take another seat for the evening.'}</div>`;
   else if (c.state === 'hurt') info += `<div class="warnbox c-bad"><b>Hurt.</b> First aid, back in ${c.hurt - S.clock} min.</div>`;
@@ -151,6 +173,9 @@ function selMe(c) { // you, the technician
       if (isStuck(j) && !S.crew.some(x => x.temp && x.target === r.id)) cm += cmd('ask', `data-k="callout" data-id="${r.id}" data-fk="a-co"`, 'Ask for a contractor', `${askWho('mgr', L.calloutCost(S))} decides`);
     }
   }
+  { const left = day && c.on && S.rides.find(x => x.so && x.so.pads.includes(c.id) && c.target !== x.id); // a padlock you left on a finished job
+    if (left) { const near = Math.hypot(c.x - left.x, c.y - left.y) < 70; info += `<div class="warnbox c-warn"><b><span aria-hidden="true">🔒</span> Your padlock is still on ${esc(left.short)}.</b> It cannot reopen until you take it off.</div>`;
+      cm += near ? cmd('padoff', 'data-fk="padoff-me"', 'Padlock off', esc(left.short), 'go') : cmd('padgo', `data-id="${left.id}" data-fk="padgo"`, `Back to ${esc(left.short)}`, 'Take your padlock off', 'go'); } }
   if (day && c.on && !c.target && !busy) {
     const jobs = S.rides.filter(x => x.job && x.job.type === 'fault' && (c.skills[x.job.trade] || x.job.rescue)).sort((a, b) => (b.job.rescue > 0) - (a.job.rescue > 0) || (S.crew.some(x => x.target === a.id)) - (S.crew.some(x => x.target === b.id)) || (b.job.sev === 'major') - (a.job.sev === 'major')).slice(0, 4);
     cm += jobs.map((x, i) => { const e = eta(c, x), n = S.crew.filter(y => y.target === x.id).length; return cmd('goride', `data-id="${x.id}" data-fk="j-${x.id}"`, `${x.job.rescue ? 'Rescue' : 'Take'}: ${esc(x.short)}`, `${e.walk} min walk${n ? ' · ' + n + ' there' : ''}`, i === 0 ? 'go' : ''); }).join('');
@@ -182,7 +207,7 @@ function selUnit(c) {
     cm += abilHTML([c]);
     if (c.target || c.post) cm += cmd('stop', 'data-fk="stand"', 'Stop <kbd>S</kbd>', 'Drop the current order');
   }
-  if (tech) info += `<div class="row sk">${skillsHTML(c)}</div>`;
+  if (tech) info += `<div class="row sk">${skillsHTML(c)}</div>${c.traits && c.traits.length ? `<div class="row">${traitsHTML(c)}</div>` : ''}`;
   if (c.role === 'store') {
     const parts = [...new Set(S.rides.filter(r => isStuck(r.job) && !L.incoming(S, r.job.part)).map(r => r.job.part))];
     cm += parts.slice(0, 3).map(k => { const p = L.price(S, k, 'exp'), rr = S.rides.find(r => isStuck(r.job) && r.job.part === k); return canSpend(p) ? cmd('order', `data-k="${k}" data-v="exp" data-fk="ex-${k}"`, `Express ${esc(L.SKU[k][0].toLowerCase())}`, `${fmtMoney(p)}, in by ${fmtClock(L.expressEta(S))}`, 'go', !day || S.cash < p) : cmd('ask', `data-k="express" data-id="${rr.id}" data-sku="${k}" data-fk="ex-${k}"`, `Ask for express ${esc(L.SKU[k][0].toLowerCase())}`, `${fmtMoney(p)}: ${askWho('sup', p)} decides`, '', !day); }).join('');
@@ -223,6 +248,33 @@ function selGroup(us) {
   cm += abilHTML(us) + cmd('stop', 'data-fk="stand"', 'Stop <kbd>S</kbd>', 'Drop current orders');
   return [shead(`<span class="av" style="--c:var(--sky)" aria-hidden="true">${us.length}</span>`, `${us.length} people selected`, 'Orders go to everyone who can do the job', true), info, cm];
 }
+/* a fixed ride waiting to be signed back into service: the steps, the job sheet, whose padlocks are on, and your buttons */
+const SO_STEPN = { fit: 'Fit to run', sup: 'Supervisor countersigns', mgr: 'Manager countersigns', dir: 'Director countersigns', review: 'Incident review', ops: 'Operations run it empty', insp: 'Inspector clears the red tag', power: 'Power restored', go: 'Back in service' };
+const CAUSE = { found: 'Cause found and written down', service: 'Planned service', reset: 'Reset; no cause needed', none: 'No cause written down', guess: 'Cause guessed, not checked' };
+const sheetGaps = o => [o.wr.cause === 'none' ? 'no cause' : o.wr.cause === 'guess' ? 'cause only guessed' : '', o.wr.test === false ? 'no test run' : '', o.wr.patch && o.safe ? 'a patch on a safety-critical part' : ''].filter(Boolean);
+function soHTML(r) {
+  const o = r.so, st = o.steps[o.i], w = o.wr, t = L.staff(S, w.tid), bad = L.soBad(o), mine = soMine(r);
+  const steps = o.steps.map((k, i) => `<li class="${i < o.i ? 'done' : i === o.i ? 'now' : ''}"><span aria-hidden="true">${i < o.i ? '✓' : i === o.i ? '▸' : '·'}</span> ${SO_STEPN[k]}${i < o.i && o.by[k] ? ` <small>${esc(o.by[k])}</small>` : ''}${i === o.i ? (o.esc ? ' <small class="hot">escalated</small>' : k === 'insp' && o.inspAt ? ` <small>${fmtClock(o.inspAt)}</small>` : '') : ''}</li>`).join('');
+  const sheet = `<ul class="wr"><li class="${w.cause === 'none' || w.cause === 'guess' ? 'gap' : 'okk'}">${CAUSE[w.cause]}</li><li>${w.part ? 'Part: ' + esc(L.SKU[w.part][0].toLowerCase()) : w.patch ? 'No part: patched' : 'No parts needed'}</li><li class="${w.test === false ? 'gap' : 'okk'}">${w.test === false ? 'No test run' : w.test ? 'Test run done' : 'Test run still to do'}</li><li class="${w.patch && o.safe ? 'gap' : ''}">${w.patch ? `Patch${o.safe ? ' on a safety-critical part' : ''}` : 'Full repair'}</li><li>By ${esc(w.who)}${t && !t.temp ? `, ${esc(L.GRADE[w.grade] || '').toLowerCase()}` : ''}</li></ul>`;
+  const pads = o.pads.length ? `<div class="warnbox c-warn"><b><span aria-hidden="true">🔒</span> Padlock${o.pads.length > 1 ? 's' : ''} still on:</b> ${o.pads.map(id => id === S.me && S.seat === 'tech' ? 'yours' : esc((L.staff(S, id) || {}).name || 'someone')).join(', ')}. It cannot reopen until each person takes their own off.</div>` : '';
+  let h = `<div class="warnbox c-warn so"><b>Fixed, waiting to reopen</b> <span class="chip c-dim">${esc(L.SO_NAME[o.k])}</span><br><span class="dim">Losing about ${fmtMoney(L.hourly(S, r))} an hour while it waits.</span><ol class="sos">${steps}</ol></div>${pads}<div class="sheet"><small class="cap">Job sheet</small>${sheet}</div>`, cm = '';
+  if (!mine) return [h, cm];
+  const left = Math.max(0, o.at + L.SO_SIGN - S.clock);
+  if (st === 'sup' || st === 'mgr' || st === 'dir') {
+    h = `<div class="warnbox c-work"><b>Yours to countersign: ${left} min</b> before it goes up a seat. Read the job sheet first.</div>` + h;
+    const gaps = sheetGaps(o);
+    cm += cmd('csign', `data-id="${r.id}" data-v="sign" data-fk="cs-sign"`, 'Sign to reopen', gaps.length ? `Sheet: ${gaps.join(', ')}. You share the fault` : `Sheet complete: ${w.cause === 'found' ? 'cause found, ' : ''}test run${w.part ? ', part fitted' : ''}`, bad ? '' : 'go')
+      + cmd('csign', `data-id="${r.id}" data-v="back" data-fk="cs-back"`, 'Send back', bad ? 'To the crew, to finish it properly' : 'Nothing wrong: costs time and goodwill', bad ? 'go' : '');
+  } else if (st === 'review') {
+    h = `<div class="warnbox c-bad"><b>Incident review: ${Math.max(0, o.at + L.SO_SIGN + 10 - S.clock)} min.</b> Someone was hurt on this job. Decide what changes, then countersign the reopening.</div>` + h;
+    cm += Object.entries(L.REVIEW).map(([k, [b, sub]], i) => cmd('review', `data-id="${r.id}" data-v="${k}" data-fk="rv-${k}"`, b, sub, i === 0 ? 'go' : '')).join('');
+  } else if (st === 'fit' && S.seat === 'tech') {
+    h = `<div class="warnbox c-work"><b>Yours to sign: ${left} min.</b> A test run, then "fit to run".</div>` + h;
+    cm += cmd('fit', 'data-v="test" data-fk="fit-test"', 'Test run, then sign', 'Two minutes: fit to run', 'go') + cmd('fit', 'data-v="now" data-fk="fit-now"', 'Sign now', 'No test run: a gap on the sheet');
+  }
+  if (S.seat === 'tech' && o.pads.includes(S.me)) cm += cmd('padoff', 'data-fk="padoff"', 'Padlock off', 'Your own, from the isolator', st === 'fit' ? '' : 'go');
+  return [h, cm];
+}
 function selRide(r) {
   const st = L.status(S, r), [sl, scc] = STAT[st], j = r.job, hc = r.health >= 60 ? 'ok' : r.health >= 35 ? 'warn' : 'bad', day = S.phase === 'day', tr = j ? j.trade : L.primary(r), stuck = isStuck(j);
   const hd = shead(`<span class="av c-${scc}" aria-hidden="true">${esc(r.short[0])}</span>`, esc(r.name), `<span class="chip c-${scc}">${sl}</span>${r.patched ? ' <span class="chip c-warn">Patched</span>' : ''}${r.ovh ? ' <span class="chip c-ok">Overhauled</span>' : ''}`, true);
@@ -230,6 +282,7 @@ function selRide(r) {
   if (r.sub) h += `<div class="kv"><div><small>Queue</small><b>${Math.round(r.q)}</b></div><div><small>Earning</small><b>${fmtMoney(r.rate * 60)}/h</b></div><div><small>Today</small><b>${fmtMoney(r.earn)}</b></div></div>`;
   else h += `<p class="note">Feeds ${S.rides.filter(x => x.sub === r.id).map(x => x.short).join(', ')}. If it fails, they all go dark.</p>`;
   if (day && S.clock > L.LH && r.sub) h += `<div class="meter c-warn"><span>Lantern</span><div class="bar"><span style="width:${Math.round(clamp(r.lh / L.LIT_MIN, 0, 1) * 100)}%"></span></div><b>${Math.floor(r.lh)}/${L.LIT_MIN}</b></div>`;
+  let soCm = ''; if (r.so) { const [sh, sc2] = soHTML(r); h = sh + h; soCm = sc2; }
   if (st === 'unstaffed') h += '<div class="warnbox c-bad">Nobody to run it. Each ride operator keeps two rides open. Hire more under Company, Operations.</div>';
   if (st === 'nopower') h += `<div class="warnbox c-bad">No power. Fix ${esc(L.ride(S, r.sub).name)} to bring it back.</div>`;
   if (r.warnAt && !j) h += `<div class="warnbox c-warn">Monitoring says it fails around ${fmtClock(r.warnAt)}. A service now prevents it.</div>`;
@@ -254,7 +307,8 @@ function selRide(r) {
     if (j && j.type === 'fault' && L.RANK[S.seat] >= 2 && L.onNow(S, 'sup') && S.pol.auto) h += `<p class="note" style="color:var(--lantern)">${esc(L.holder(S, 'sup'))} is running the shift. Sending people yourself goes over their head.</p>`;
     const rows = S.crew.filter(c => c.role === 'tech' && c.skills[tr]).map(c => { const e = eta(c, r); return { c, e, on: c.target === r.id, sum: (c.on ? 0 : 9999) + e.walk + e.work }; }).sort((a, b) => b.on - a.on || a.sum - b.sum);
     const first = rows.findIndex(x => !x.on && x.c.on && !x.c.target);
-    if (!rows.some(x => x.c.on)) h += `<div class="warnbox c-bad">Nobody qualified for ${L.TRADES[tr].toLowerCase()} work is on shift.</div>`;
+    if (r.so) rows.length = 0; // fixed and waiting to reopen: nobody to send
+    else if (!rows.some(x => x.c.on)) h += `<div class="warnbox c-bad">Nobody qualified for ${L.TRADES[tr].toLowerCase()} work is on shift.</div>`;
     else if (!j) h += `<p class="note">A service uses one kit (${S.stock.kit} in stores), closes the ride for about 45 minutes and resets health to 100%.</p>`;
     if (j && j.rescue) h = `<div class="warnbox c-bad"><b>Guests are stuck on it.</b> Get anyone there by ${fmtClock(j.rescue)}: ${j.rescue - S.clock} min.</div>` + h;
     if (j && j.type === 'fault' && may('rush')) cm += cmd('rush', `data-id="${r.id}" data-fk="rush"`, S.prio === r.id ? 'Rush job: on' : 'Rush job <kbd>R</kbd>', S.prio === r.id ? 'Tap to call it off' : 'Everyone who can help, now, pushed', S.prio === r.id ? '' : 'go', false, S.prio === r.id);
@@ -275,6 +329,9 @@ function selRide(r) {
       cm += canSpend(co) ? cmd('callout', `data-id="${r.id}" data-fk="co"`, 'Contractor', `${fmtMoney(co)} plus parts, 45 min`, '', !(S.cash >= co && !coming)) : cmd('ask', `data-k="callout" data-id="${r.id}" data-fk="co"`, 'Ask for a contractor', `${fmtMoney(co)}: ${askWho('mgr', co)} decides`, '', coming);
     }
   }
+  if (day && S.seat !== 'tech' && L.RANK[S.seat] >= 1 && ((j && j.type === 'service' && j.plan && !j.started) || (S.dplan || []).includes(r.id))) cm += cmd('postpone', `data-id="${r.id}" data-fk="pp"`, 'Postpone the service', 'To tomorrow: frees the crew for breakdowns');
+  if (day && S.seat === 'sup' && j && j.type === 'fault' && !S.tools && !S.crew.some(c => c.target === r.id && c.on)) cm += cmd('takejob', `data-id="${r.id}" data-fk="tj"`, 'Take it myself', 'Fast and skilled, but nobody runs the shift meanwhile');
+  cm = soCm + cm;
   cm += cmd('focus', `data-x="${r.x}" data-y="${r.y}" data-fk="loc"`, 'Locate', 'Centre the map');
   return [hd, h, cm];
 }

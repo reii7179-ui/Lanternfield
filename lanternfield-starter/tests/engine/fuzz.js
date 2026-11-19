@@ -26,11 +26,17 @@ function check(s, w) {
     if (t.agency && s.phase === 'plan') note('agency staff kept overnight', w);
   }
   if (s.prio && !(L.ride(s, s.prio) || {}).job) note('rush job on a ride with nothing wrong', w);
+  for (const ri of s.rides) {
+    if (ri.so && ri.job) note('a ride waiting to reopen also has a job open', w);
+    if (ri.so && !Array.isArray(ri.so.pads)) note('sign-off without a padlock list', w);
+    if (ri.so && !(ri.so.i >= 0 && ri.so.i < ri.so.steps.length)) note('sign-off step out of range', w);
+  }
   if (s.seat === 'tech' && !L.staff(s, s.me)) note('technician seat with no technician', w);
   if (s.final && !Number.isFinite(s.final.total)) note('final score not a number', w);
 }
 
 const planCmds = s => [
+  () => s.big && s.big.length && L.decideBig(s, pick(s.big).id, pick(['yes', 'no', 'settle', 'contest']), pick(['You', 'The board'])),
   () => s.cands.length && L.hire(s, Math.floor(r() * s.cands.length)),
   () => L.order(s, pick(Object.keys(L.SKU)), 'std'),
   () => L.setSeat(s, pick(L.LV), pick(s.crew).id),
@@ -69,6 +75,13 @@ const dayCmds = s => [
   () => L.briefChair(s),
   () => L.standDown(s, pick(s.crew)),
   () => L.holdOver(s, pick(s.crew)),
+  () => L.signFit(s, r() < 0.7),
+  () => L.padOff(s),
+  () => L.postpone(s, pick(s.rides).id),
+  () => L.takeJob(s, pick(s.rides).id),
+  () => L.leaveTools(s),
+  () => L.countersign(s, pick(s.rides).id, pick(['sign', 'back', 'x'])),
+  () => L.review(s, pick(s.rides).id, pick(['retrain', 'stop', 'accept', 'x'])),
 ];
 
 function play(seed, style) {

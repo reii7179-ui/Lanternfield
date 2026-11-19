@@ -30,23 +30,30 @@ module.exports = function makePlayers(L) {
     for (const [k, v] of Object.entries({ kit: 3, sensor: 2, contactor: 2, bearing: 2, seal: 2, tyres: 1, chain: 1, relay: 1, breaker: 1, brake: 1, iocard: 1 })) s.min[k] = v;
     if (!L.has(s, 'store')) for (const k in s.min) { const have = s.stock[k] + s.inbound.filter(x => x.sku === k).length; for (let n = have; n < s.min[k]; n++) L.order(s, k, 'std'); }
     if (techs(s).some(t => t.morale < 45)) L.teamMeal(s);
+    // a director or chief executive fills the key posts below them, so the work lands on the right desks (seat-card mistake 14)
+    if (s.seat === 'dir' || s.seat === 'ceo') { const i = s.cands.findIndex(c => !c.gone && c.role === 'eng'); if (!L.has(s, 'eng') && i >= 0 && s.cash > 4000) L.hire(s, i); }
+    if (s.seat === 'ceo' && !((s.org.opsdir || 0) + (s.org.engdir || 0)) && s.cash > 6000 && L.hireOrg) L.hireOrg(s, 'opsdir');
   }
 
   function dispatch(s, o) { // the supervisor's hands
-    const freeT = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !(c.hurt > s.clock) && !(c.wake > s.clock));
+    const padded = id => s.rides.some(r => r.so && r.so.pads.includes(id)); // let them go back for their padlock first
+    const round = new Set(); if (s.chk) for (const r of s.rides) if (r.sub && r.chk !== s.day && s.chk[r.id] && !r.job && !r.so) round.add(s.chk[r.id]); // (an older engine, as in the speed test's baseline, has no morning checks) // let the morning round finish first
+    const freeT = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !padded(c.id) && !round.has(c.id) && !(c.hurt > s.clock) && !(c.wake > s.clock));
+    const freeAny = () => s.crew.filter(c => c.role === 'tech' && c.on && !c.temp && !c.target && !c.post && !(c.hurt > s.clock) && !(c.wake > s.clock)); // stranded guests: anyone at all
     for (const r of s.rides) { // guests stuck: anyone, now
       const j = r.job; if (!j || !j.rescue || s.clock - j.t0 < o.delay) continue;
       if (s.crew.some(c => c.on && c.role === 'tech' && (c.target === r.id || (c.post && Math.hypot(c.post.x - r.x, c.post.y - r.y) < 60)))) continue;
-      const f = freeT().sort((a, b) => dist(a, r) - dist(b, r))[0]; if (!f) continue;
+      const f = freeAny().sort((a, b) => dist(a, r) - dist(b, r))[0]; if (!f) continue;
       if (f.skills[j.trade]) L.assign(s, f, r); else L.moveOrder(s, f, r.x + f.ox, r.y + f.oy); L.sprint(s, f);
     }
+    if (o.tools && !s.tools && L.takeJob) { const r = unsent(s).find(r => r.job.sev === 'major' && s.clock - r.job.t0 >= 2 && !freeT().some(c => c.skills[r.job.trade])); if (r) L.takeJob(s, r.id); }
     const jobs = unsent(s).filter(r => s.clock - r.job.t0 >= o.delay).sort((a, b) => ((!a.sub) - (!b.sub) ? (!b.sub) - (!a.sub) : (b.job.sev === 'major') - (a.job.sev === 'major') || b.w - a.w));
     for (const r of jobs) {
       const j = r.job;
       if (j.mode === 'full' && j.part && j.ps === 'none' && s.stock[j.part] < 1 && !L.incoming(s, j.part)) { if (L.order(s, j.part, 'exp') !== true && !j.lock) L.setMode(s, r, 'patch'); }
       let f = freeT().filter(c => c.skills[j.trade]);
       if (o.smart) { const fresh = f.filter(c => en(c) >= 30); if (fresh.length) f = fresh; }
-      const score = c => c.skills[j.trade] * 60 - dist(c, r) / 6 + (o.smart ? en(c) / 3 : 0);
+      const safe = L.safetyJob && L.safetyJob(r, j), score = c => c.skills[j.trade] * 60 - dist(c, r) / 6 + (o.smart ? en(c) / 3 : 0) - (safe && L.hasT(c, 'quick') ? 100 : 0); // the right person for a safety-critical job, not just the nearest
       f.sort((a, b) => score(b) - score(a));
       if (f[0]) L.assign(s, f[0], r);
     }
@@ -63,6 +70,11 @@ module.exports = function makePlayers(L) {
     if (o.smart) { // breaks for tired people when nothing in their trade is waiting
       const waiting = tr => unsent(s).some(r => r.job.trade === tr);
       for (const c of freeT()) if (!c.brk && !c.talk && en(c) < 45 && !Object.keys(c.skills).some(waiting)) L.rest(s, c);
+      // the break rotation: someone worn out goes for a break before the 20 minutes are up, with a fresh hand on their job if there is one
+      for (const c of s.crew) if (c.tiredAt && c.on && !c.brk && !c.talk && s.clock - c.tiredAt >= (c.target ? 5 : 0)) {
+        const r = c.target && L.ride(s, c.target), j = r && r.job, sub = j && freeT().filter(x => x !== c && x.skills[j.trade] && en(x) >= 50).sort((a, b) => dist(a, r) - dist(b, r))[0];
+        if (!c.target || sub || s.clock - c.tiredAt >= 15) { L.rest(s, c); if (sub) L.assign(s, sub, r); }
+      }
     }
     if (o.talk === 'often' && s.clock % 30 === 0) L.walk(s, 'safety');
     if (o.talk === 'quiet') { // a safety talk when alertness is low and the crew is mostly free
@@ -71,8 +83,39 @@ module.exports = function makePlayers(L) {
     }
   }
 
-  function answerAll(s) { // the computer's own pick for every request
-    for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; } L.answer(s, it.id, v); }
+  function desk(s) { // big decisions that wait at the desk for this seat: approve a fix the cash can carry, settle a claim if it can
+    for (const b of s.big.slice()) {
+      if (!(b.x === s.seat || (b.x === 'board' && s.seat === 'ceo'))) continue;
+      L.decideBig(s, b.id, b.k === 'claim' ? (s.cash > b.cost + 10000 ? 'settle' : 'contest') : L.worthIt(s, b) ? 'yes' : 'no', 'You');
+    }
+  }
+
+  function signOffs(s, o) { // a fixed ride waiting for this seat: the technician signs it fit to run and takes their padlock off;
+    // a countersigner reads the write-up after o.delay minutes and sends a weak one back; the director does the incident review
+    if (!L.signFit) return; // an older engine, with no sign-offs
+    const m = L.me(s);
+    if (m && m.on && !m.target && !m.chkUntil) { // the technician's morning round: walk to the nearest ride on the sheet and check it
+      const r = L.myChecks(s).sort((a, b) => Math.hypot(m.x - a.x, m.y - a.y) - Math.hypot(m.x - b.x, m.y - b.y))[0];
+      if (r) { if (Math.hypot(m.x - r.x, m.y - r.y) < 60) L.dailyCheck(s, r.id); else if (!m.post) L.moveOrder(s, m, r.x + m.ox, r.y + m.oy); }
+    }
+    if (m && m.state === 'signoff') { L.signFit(s, true); L.padOff(s); }
+    if (m && !m.target && !m.post) { const r = s.rides.find(r => r.so && r.so.pads.includes(m.id)); if (r) { if (Math.hypot(m.x - r.x, m.y - r.y) < 60) L.padOff(s); else L.moveOrder(s, m, r.x + m.ox, r.y + m.oy); } }
+    for (const r of s.rides) {
+      const so = r.so; if (!so || so.esc || s.clock - so.at < (o.delay || 0)) continue;
+      const st = so.steps[so.i];
+      if ((st === 'sup' || st === 'mgr' || st === 'dir') && L.soSigner(s, st, so) === s.seat) L.countersign(s, r.id, L.soBad(so) && !o.stamp ? 'back' : 'sign');
+      if (st === 'review' && L.soSigner(s, 'dir', so) === s.seat) L.review(s, r.id, 'retrain');
+    }
+  }
+
+  function answerAll(s, o) { // the computer's own pick for every request (a rubber stamp says yes to all of them)
+    for (const it of s.inbox.slice()) { const Q = L.REQ[it.k]; let v; try { v = Q.pick ? Q.pick(s, it) : 'yes'; } catch (e) { v = Q.def; }
+      if (o && o.stamp) { let vs = []; try { vs = Q.opts(s, it).map(x => x.v); } catch (e) { /* no options */ } v = ['yes', 'ok', 'give', 'std', 'sign'].find(x => vs.includes(x)) || vs[0] || v; L.answer(s, it.id, v); continue; }
+      // a manager keeps to the budget: once the day is over it, only a closed ride, a rush job or stuck guests get money spent on them
+      if (s.seat === 'mgr' && L.keySpend && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && L.maintSpend(s) > s.budget && !L.keySpend(s, it.rid && L.ride(s, it.rid))) v = it.k === 'express' ? 'wait' : 'no';
+      // overtime only to get a closed ride back, not for every job still open at 17:00
+      if (it.k === 'hold' && v === 'yes' && L.keySpend && !it.tids.some(id => { const t = s.crew.find(c => c.id === id); return t && t.target && L.keySpend(s, L.ride(s, t.target)); })) v = 'go';
+      L.answer(s, it.id, v); }
   }
 
   function seatPlay(s, o) {
@@ -85,7 +128,7 @@ module.exports = function makePlayers(L) {
         const j = m.target && L.ride(s, m.target).job;
         if (m.state === 'prep') L.lockout(s, false);
         else if (m.state === 'diag' && j && j.opts) { const tried = j.out || []; L.diagnose(s, !tried.includes(j.gut) ? j.gut : [0, 1, 2].find(k => !tried.includes(k))); }
-        else if (!m.target && !m.post && !(m.wake > s.clock)) {
+        else if (!m.target && !m.post && !(m.wake > s.clock) && !m.chkUntil && !(L.myChecks && L.myChecks(s).length && s.clock < L.OPEN + 10)) {
           const r = unsent(s).filter(r => m.skills[r.job.trade]).sort((a, b) => dist(m, a) - dist(m, b))[0];
           if (r && L.enOf(m) >= 20) L.assign(s, m, r); else if (L.enOf(m) < 40 && !m.brk) L.rest(s, m);
         }
@@ -93,7 +136,7 @@ module.exports = function makePlayers(L) {
     }
     if (o.play === 'dir' && s.clock % 3 === 0) {
       if (L.maintSpend(s) > s.budget * 0.85) L.setBudget(s, 500);
-      if (s.focus !== s.strategy) L.setFocus(s, s.strategy);
+      if (s.focus !== s.strategy && !s.gates) L.setFocus(s, s.strategy); // the priority is set before the gates open, not changed during the day
       if (unsent(s).length >= 3) L.agency(s);
       if (s.glow < 60) L.crowdPleaser(s);
       const w = s.rides.filter(r => !r.job && !r.svcReq && r.health < 40 && L.status(s, r) !== 'nopower').sort((a, b) => a.health - b.health)[0]; if (w) L.orderService(s, w);
@@ -104,7 +147,7 @@ module.exports = function makePlayers(L) {
       const up = s.d.upW / Math.max(1, s.d.upT);
       if (s.clock >= 700 && up >= 0.88) L.briefChair(s);
       if (s.clock >= 570 && s.clock < 660 && !s.rides.some(r => r.job && r.job.type === 'fault')) L.happyHour(s);
-      const r = s.rides.filter(r => r.sub && r.job && r.job.type === 'fault' && r.job.sev === 'major' && !(r.vouch > s.clock)).sort((a, b) => b.w - a.w)[0]; if (r && r.w > 14) L.vouch(s, r);
+      const r = s.rides.filter(r => r.sub && r.job && r.job.type === 'fault' && r.job.sev === 'major' && !(r.vouch > s.clock)).sort((a, b) => b.w - a.w)[0]; if (r && r.w > 14 && s.clock - r.job.t0 >= 20) L.vouch(s, r); // goodwill for a busy ride shut a while, not for every short closure
       if (s.glow < 60) L.crowdPleaser(s);
     }
   }
@@ -114,9 +157,10 @@ module.exports = function makePlayers(L) {
     if (o.seat) L.setSeat(s, o.seat);
     if (o.diff) L.setDiff(s, o.diff);
     while (!s.final) {
-      if (s.phase === 'plan') { if (o.plan) plan(s); L.startDay(s); continue; }
+      if (s.phase === 'plan') { if (o.plan) plan(s); if (o.inbox) desk(s); L.startDay(s); continue; }
       if (o.hands && (!o.every || s.clock % o.every === 0)) dispatch(s, o);
-      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) answerAll(s);
+      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) answerAll(s, o);
+      if (o.inbox && (!o.inboxEvery || s.clock % o.inboxEvery === 0)) signOffs(s, o);
       seatPlay(s, o);
       L.step(s); s.fx.length = 0;
     }
@@ -135,6 +179,10 @@ module.exports = function makePlayers(L) {
     'sup human sharp': { ...sup, smart: true, talk: 'quiet', delay: 5, every: 3, inboxEvery: 4, diff: 'sharp', about: 'Attentive player on Sharp' },
     'sup human 2x': { ...sup, smart: true, talk: 'quiet', delay: 10, every: 6, inboxEvery: 8, about: 'Same reflexes as sup human, playing at 2x' },
     'sup human 2x relaxed': { ...sup, smart: true, talk: 'quiet', delay: 10, every: 6, inboxEvery: 8, diff: 'relaxed', about: 'Same, at 2x on Relaxed' },
+    'sup ignores everything': { ...sup, smart: true, talk: 'quiet', inbox: false, about: 'Dispatches well, but never answers a request or signs anything' },
+    'sup answers fast': { ...sup, smart: true, talk: 'quiet', delay: 4, every: 3, about: 'Floor reflexes of sup human, but every request answered the minute it lands' },
+    'sup rubber stamp': { ...sup, smart: true, talk: 'quiet', stamp: true, about: 'Dispatches well, signs every sheet and says yes to everything' },
+    'sup on the tools': { ...sup, smart: true, talk: 'quiet', tools: true, about: 'Dispatches well, but picks up a spanner whenever a breakdown waits' },
     'tech idle': { seat: 'tech', plan: true, about: 'Technician who never answers a work order' },
     'tech active': { seat: 'tech', plan: true, inbox: true, inboxEvery: 3, play: 'tech', about: 'Takes work orders, locks out, diagnoses, rests' },
     'mgr idle': { seat: 'mgr', about: 'Manager who does nothing at all' },
@@ -142,7 +190,7 @@ module.exports = function makePlayers(L) {
     'dir idle': { seat: 'dir', about: 'Director who does nothing at all' },
     'dir active': { seat: 'dir', plan: true, inbox: true, inboxEvery: 3, play: 'dir', walk: true, rush: true, about: 'Budget, focus, agency, services, fast lanes, rush jobs' },
     'ceo idle': { seat: 'ceo', about: 'Chief executive who does nothing at all' },
-    'ceo active': { seat: 'ceo', plan: true, inbox: true, inboxEvery: 3, play: 'ceo', walk: true, rush: true, about: 'Vouchers, happy hour, briefings, rush jobs' },
+    'ceo active': { seat: 'ceo', plan: true, inbox: true, inboxEvery: 3, play: 'ceo', walk: true, about: 'Fills key posts, the board and the big decisions, vouchers, happy hour, briefings; no floor work' },
   };
-  return { season, PLAYERS };
+  return { season, PLAYERS, plan, dispatch, answerAll, signOffs, seatPlay };
 };

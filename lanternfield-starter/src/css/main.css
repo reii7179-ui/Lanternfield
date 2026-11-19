@@ -397,7 +397,7 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
   .selp{grid-area:selp}
   .tilesg{display:flex;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
   .tilesg::-webkit-scrollbar{display:none}
-  .as{flex:0 0 106px}
+  .asw{flex:0 0 106px}
   .as b{-webkit-line-clamp:1}
   .as:has(.bd) .st{padding-right:19px}
 }
@@ -526,6 +526,8 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .req>i{position:absolute;left:0;bottom:0;height:3px;background:var(--c)}
 .sent{font-size:11.5px;color:var(--dim);border:1px dashed var(--line);border-radius:6px;padding:4px 7px;line-height:1.25}
 .sent b{color:var(--ink);font-weight:700}
+.sent.esc{border-style:solid;border-color:var(--ember);color:var(--ink)}
+.sent.esc b{color:var(--ember)}
 .more{font-size:11.5px;color:var(--dim);text-align:center}
 .ohead .count{margin-right:6px}
 .kmeter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px}

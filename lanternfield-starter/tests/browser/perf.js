@@ -32,7 +32,7 @@ async function busyPhone(file) {
     for (;;) { // the scripted attentive supervisor plays up to day 2, 14:30
       if (S.phase === 'plan') { P.plan(S); LFUI.act('go', {}); S.paused = true; continue; }
       if (S.day >= 2 && S.clock >= 870) break;
-      if (S.clock % 3 === 0) P.dispatch(S, o); if (S.clock % 4 === 0) P.answerAll(S); P.seatPlay(S, o);
+      if (S.clock % 3 === 0) P.dispatch(S, o); if (S.clock % 4 === 0) { P.answerAll(S, o); if (P.signOffs) P.signOffs(S, o); } P.seatPlay(S, o); // signs off fixed rides as an attentive supervisor does (older players have no sign-offs)
       L.step(S); S.fx.length = 0;
       if (S.phase !== 'day' && S.phase !== 'plan') break;
     }

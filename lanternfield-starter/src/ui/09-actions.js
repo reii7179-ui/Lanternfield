@@ -47,13 +47,26 @@ function act(a, d, el, ev) {
     case 'setdiff': L.setDiff(S, d.v); break;
     case 'pickme': ui.pickMe = d.t; ui.pick = 'tech'; break;
     case 'takeseat': L.setSeat(S, d.v, d.v === 'tech' ? ui.pickMe || S.me : null); ui.coach = null; coachStart(); ui.seats = false; ui.role = null; ui.units = []; ui.sel = null; unhold(); SFX.send(); { const m = L.me(S); if (m && m.on) focus(m.x, m.y); } break;
+    case 'big': if (L.decideBig(S, +d.id, d.v, 'You')) SFX.send(); break;
+    // reopening fixed rides: open the card, countersign or send back, the incident review, your own "fit to run" and padlock
+    case 'signopen': ui.sel = d.id; ui.tech = null; break;
+    case 'csign': { const ok = L.countersign(S, d.id, d.v); if (ok === true) { SFX[d.v === 'sign' ? 'fix' : 'send'](); say(d.v === 'sign' ? 'Signed. It moves on to the next step.' : 'Sent back to the crew.', d.v === 'sign' ? 'var(--jade)' : 'var(--sky)'); } break; }
+    case 'review': if (L.review(S, d.id, d.v) === true) SFX.send(); break;
+    case 'fit': { const ok = L.signFit(S, d.v === 'test'); if (ok === true) SFX.fix(); else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'padoff': { const ok = L.padOff(S); if (ok === true) { SFX.send(); say('Padlock off.', 'var(--jade)'); } else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'dcheck': { const ok = L.dailyCheck(S, d.id); if (ok === true) SFX.send(); else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'chkgo': { const t = L.me(S), r = L.ride(S, d.id); if (t && r && L.moveOrder(S, t, r.x + t.ox, r.y + t.oy)) SFX.send(); break; }
+    case 'postpone': if (L.postpone(S, d.id)) SFX.send(); break;
+    case 'takejob': { const ok = L.takeJob(S, d.id); if (ok === true) SFX.send(); else if (ok) say(ok, 'var(--ember)'); break; }
+    case 'leavetools': if (L.leaveTools(S)) SFX.send(); break;
+    case 'padgo': { const t = L.me(S), r = L.ride(S, d.id); if (t && r && L.moveOrder(S, t, r.x + t.ox, r.y + t.oy)) SFX.send(); break; }
     case 'ans': { const it = S.inbox.find(x => x.id === +d.id); if (L.answer(S, +d.id, d.v)) { SFX.send(); if (it && d.v !== 'brief') PT.q.push((S.clock - it.at) / (TPS0 * S.speed)); } break; }
     case 'ptcopy': { // the old copy command first: it works inside a frame on another site (as itch.io shows games), the newer one needs that page's permission
       const ta = document.querySelector('.pt'); if (!ta) break; const hand = () => say('Selected: copy it with Ctrl+C, Cmd+C or a long press', 'var(--sky)');
       ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* not supported */ }
       if (ok) say('Copied', 'var(--jade)'); else if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => say('Copied', 'var(--jade)'), hand); else hand();
       break; }
-    case 'ask': { const r = L.ask(S, d.k, { rid: d.id, sku: d.sku, tr: d.tr, k: d.pk, id: d.oid }); if (r === true) { SFX.send(); say('Asked. The answer comes in a few minutes; it shows top left meanwhile.', 'var(--sky)'); } else say(r, /said yes/.test(r) ? 'var(--jade)' : 'var(--ember)'); break; }
+    case 'ask': { const r = L.ask(S, d.k, { rid: d.id, sku: d.sku, tr: d.tr, k: d.pk, id: d.oid }); if (r === true) { SFX.send(); const a = S.asks[S.asks.length - 1]; say(a && !a.esc && S.phase === 'day' ? `Waiting for ${lc(L.holder(S, a.x))}, about ${Math.max(1, a.due - S.clock)} min. It shows top left meanwhile.` : 'Asked. The board answers at the end of the day.', 'var(--sky)'); } else say(r, /said yes/.test(r) ? 'var(--jade)' : 'var(--ember)'); break; }
     case 'lock': if (L.lockout(S, false)) SFX.send(); break;
     case 'skiplock': L.lockout(S, true); break;
     case 'dx': L.diagnose(S, +d.i); break;
@@ -70,7 +83,7 @@ function act(a, d, el, ev) {
     case 'goride': orderRide(L.ride(S, d.id)); break;
     case 'pause': if (day) S.paused = !S.paused; break;
     case 'speed': S.speed = +d.v; if (day) S.paused = false; break;
-    case 'alert': if (d.id) { const r = L.ride(S, d.id); ui.sel = r.id; ui.units = []; focus(r.x, r.y, cam.z > cam.fit * 1.05); } break;
+    case 'alert': if (d.id) { const t = L.staff(S, d.id); if (t) { ui.units = [t.id]; ui.sel = null; if (t.on) focus(t.x, t.y, cam.z > cam.fit * 1.05); break; } const r = L.ride(S, d.id); if (r) { ui.sel = r.id; ui.units = []; focus(r.x, r.y, cam.z > cam.fit * 1.05); } } break; // a worn-out person: select them, so B sends them on a break
     case 'nearest': sendNearest(L.ride(S, d.id)); break;
     case 'gsend': orderRide(L.ride(S, d.id)); break;
     case 'sprint': if (selUnits().map(c => L.sprint(S, c)).some(Boolean)) SFX.send(); break;
@@ -254,7 +267,8 @@ function drainFx(t) {
   S.fx.length = 0;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* no storage: the week simply does not carry over */ } }
-const saneSave = s => !!(s && s.v === 7 && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
+// an older save is brought up to date by the engine first (L.migrate), then checked
+const saneSave = s => !!(s && (L.migrate(s), s.v === L.SAVE_V) && Array.isArray(s.rides) && s.rides.length >= L.N_RIDES && s.rides.every(r => r && r.id && Number.isFinite(r.health)) && Array.isArray(s.crew) && s.org && s.sc && L.LV.every(x => s.sc[x]) && (s.phase === 'plan' || s.phase === 'day') && Number.isFinite(s.clock) && Number.isFinite(s.day) && Number.isFinite(s.cash) && Array.isArray(s.reports) && Array.isArray(s.feed) && Array.isArray(s.inbox));
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return saneSave(s) ? s : null; } catch (e) { return null; } }
 
 let last = 0, acc = 0, lastUI = 0, lastSave = 0, lastMini = 0;

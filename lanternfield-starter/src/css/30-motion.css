@@ -76,3 +76,12 @@
 
 /* the playtest note on the title screen (playtest builds only) */
 .ptnote{max-width:62ch;border:1px solid var(--lantern);border-left-width:4px;border-radius:10px;padding:8px 12px;background:color-mix(in srgb,var(--lantern) 10%,transparent);font-size:14px}
+
+/* countersign items and the big decisions at the desk (step 2 of the active seats) */
+.kind.k-cs{color:var(--lantern);border-color:var(--lantern)}
+.bigs{gap:8px}
+.bigd{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px 12px}
+.bigd.mine{border-left-color:var(--lantern)}
+.bigd>div:first-child{display:flex;flex-direction:column;gap:2px;flex:1 1 260px;min-width:0}
+.bigd small{font-size:13px}
+.bigd .btn small{display:block;font-weight:400;font-size:12px;opacity:.85}

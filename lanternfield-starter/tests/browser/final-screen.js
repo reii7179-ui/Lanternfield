@@ -1,6 +1,6 @@
 'use strict';
 // End-of-season screen: plays a whole season inside the page, then checks the score breakdown,
-// "your own work", the playtest record and its Copy button.
+// "your own work", the seat's counts (on time, missed, escalated, countersigns, its mistakes), the playtest record and its Copy button.
 //   node tests/browser/final-screen.js
 const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
 (async () => {
@@ -20,8 +20,10 @@ const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
   });
   await page.waitForTimeout(500);
   const txt = (await page.evaluate(() => (document.querySelector('.dialog') || {}).innerText || '')).toLowerCase();
-  for (const want of ['how the score is made', 'your own work', 'playtest record', 'run another season']) if (!txt.includes(want)) problems.push(`final screen is missing "${want}"`);
+  for (const want of ['how the score is made', 'your own work', 'playtest record', 'run another season', 'on time / missed / escalated', 'countersigns: signed / sent back / missed', 'jobs you took on yourself', 'people pulled off with their padlock on']) if (!txt.includes(want)) problems.push(`final screen is missing "${want}"`);
   await shot(page, 'final-screen');
+  await page.evaluate(() => { const c = document.querySelector('.dialog .cards'); if (c) c.scrollIntoView(); }); await page.waitForTimeout(1500);
+  await shot(page, 'final-screen-seats');
   const copy = page.locator('[data-a=ptcopy]');
   if (await copy.count()) { await copy.click(); await page.waitForTimeout(300); } else problems.push('no Copy button for the playtest record');
   report('final screen', problems.concat(await gameErrors(page, errors)));

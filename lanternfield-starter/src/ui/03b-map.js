@@ -21,7 +21,7 @@ const palA = n => ({
   beacon: '#fff0b0', smoke: '#eef0f6', hum: '#79c2ff',
 });
 const ZONES = [[40, 70, 330, 560], [330, 30, 400, 190], [360, 240, 300, 420], [650, 150, 330, 420]];
-const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed: 0 };
+const RUNOF = { ok: 1, degraded: .4, down: 0, service: 0, nopower: 0, unstaffed: 0, signoff: 0, restart: 0, unchecked: 0, ready: 0 }; // a state missing here would stop the ride's phase being a number
 const ART_SCALE = 1.2;
 const rideSt = r => ui.title ? 'ok' : L.status(S, r);
 const hashOf = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997; return h / 997; };
@@ -188,9 +188,10 @@ function drawGround(n, now, tint) {
 }
 /* draw a cached image of the park box (wx, wy, ww, wh) painted at k pixels per unit. When k matches the current zoom it is
    copied to whole device pixels, which is far cheaper than resampling it; otherwise (mid-pinch) it is scaled. */
+let blitBatch = false; // inside a batch the transform is already the identity, so a crisp blit needs no save and restore
 function blitWorld(img, wx, wy, ww, wh, k) {
   const d = dprNow();
-  if (Math.abs(k - sc * d) < 1e-6) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(img, Math.round((ox + wx * sc) * d), Math.round((oy + wy * sc) * d)); ctx.restore(); }
+  if (Math.abs(k - sc * d) < 1e-6) { if (blitBatch) { ctx.drawImage(img, Math.round((ox + wx * sc) * d), Math.round((oy + wy * sc) * d)); return; } ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(img, Math.round((ox + wx * sc) * d), Math.round((oy + wy * sc) * d)); ctx.restore(); }
   else { ctx.save(); ctx.setTransform(d, 0, 0, d, 0, 0); ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.drawImage(img, wx, wy, ww, wh); ctx.restore(); }
 }
 
@@ -236,7 +237,7 @@ function rideFrame(r, n, st, idx) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.drawImage(base.c, 0, 0);
   g.setTransform(k, 0, 0, k, -SPR_BOX.x * k, -SPR_BOX.y * k);
   if (rock) { g.translate(0, -6); g.rotate(Math.sin((VIS.vt || 0) * 2.6 + ph * 6) * .035); g.translate(0, 6); } // stuck with guests on: it rocks
-  g.save(); g.scale(ART_SCALE, ART_SCALE); g.lineCap = 'round'; g.lineJoin = 'round'; g.globalAlpha = shown ? 1 : .7; ART[r.id].move(g, palOf(n), ph, RUNOF[st]); g.restore();
+  g.save(); g.scale(ART_SCALE, ART_SCALE); g.lineCap = 'round'; g.lineJoin = 'round'; g.globalAlpha = shown ? 1 : .7; ART[r.id].move(g, palOf(n), ph, RUNOF[st] || 0); g.restore();
   paintLights(g, ART_SCALE, n, on, st === 'degraded' ? .5 : 1);
   if (top) { g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(top.c, 0, 0); }
   f.key = key; f.ph = ph; f.k = k;
@@ -245,7 +246,7 @@ function rideFrame(r, n, st, idx) {
 function drawRide(r, n, st, idx) { const f = rideFrame(r, n, st, idx); blitWorld(f.c, r.x + SPR_BOX.x, r.y + SPR_BOX.y, SPR_BOX.w, SPR_BOX.h, f.k); }
 
 /* ride names: a pill, with a status word when the ride is not running (so colour is never the only signal) */
-const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW' };
+const STWORD = { degraded: '½ SPEED', down: 'CLOSED', service: 'SERVICE', nopower: 'NO POWER', unstaffed: 'NO CREW', signoff: 'TO SIGN', signme: 'SIGN NOW', restart: 'RESTART', unchecked: 'NOT CHECKED' };
 const pills = {};
 function namePill(r, st) {
   const fs = Math.max(12.5, labelPx() / sc), k = sc * dprNow(), word = ui.title ? '' : STWORD[st] || '', key = `${fs.toFixed(2)}|${k.toFixed(3)}|${word}|${st === 'nopower'}|${fontsReady()}`;
@@ -305,6 +306,30 @@ function infoSprite(r, b) {
   Object.assign(s, { key, k, x0, y0, w: x1 - x0, h: y1 - y0 });
   return s;
 }
+// what a ride waiting to reopen is costing an hour: worked out once a park minute, drawn from a small cached image
+const costTags = {};
+function costTag(r) {
+  const t0 = costTags[r.id], k = sc * dprNow(), fr = fontsReady();
+  if (t0 && t0.clock === S.clock && t0.k === k && t0.fr === fr) return t0;
+  const lost = L.hourly(S, r), txt = lost > 0 ? `−${fmtMoney(lost)}/h` : '';
+  if (t0 && t0.txt === txt && t0.k === k && t0.fr === fr) { t0.clock = S.clock; return t0; }
+  const fs = 10.5 * clamp(.82 / sc, 1, 1.45), font = `700 ${fs}px "Familjen Grotesk", system-ui, sans-serif`, c = (t0 && t0.c) || document.createElement('canvas'), g = c.getContext('2d');
+  g.font = font; const w = txt ? g.measureText(txt).width + 8 : 1, h = fs * 1.6;
+  c.width = Math.ceil(w * k) + 2; c.height = Math.ceil(h * k) + 2; g.setTransform(k, 0, 0, k, k, k);
+  if (txt) { g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 4; g.strokeStyle = 'rgba(10,13,34,.85)'; g.strokeText(txt, w / 2, h / 2); g.fillStyle = '#ffd27a'; g.fillText(txt, w / 2, h / 2); }
+  return (costTags[r.id] = { c, w, h, k, fs, txt, fr, clock: S.clock });
+}
+// the VIP marker over a ride: a cached image per time and size (setting a font and drawing text every frame was costly on phones)
+const vipTags = {};
+function vipTag(v, b) {
+  const k = sc * dprNow(), fr = fontsReady(), txt = 'VIP ' + fmtClock(v.at), key = `${txt}|${b.toFixed(3)}|${k.toFixed(3)}|${fr}`, t0 = vipTags[v.ride];
+  if (t0 && t0.key === key) return t0;
+  const vw = 58 * b, vh = 19 * b, w = vw + 2, h = vh + 2, c = (t0 && t0.c) || document.createElement('canvas'), g = c.getContext('2d');
+  c.width = Math.ceil(w * k) + 1; c.height = Math.ceil(h * k) + 1; g.setTransform(k, 0, 0, k, 0, 0);
+  g.fillStyle = '#ffd27a'; g.strokeStyle = '#05071a'; g.lineWidth = 2; g.beginPath(); g.roundRect(1, 1, vw, vh, 6); g.fill(); g.stroke();
+  g.fillStyle = '#2a1700'; g.font = `700 ${10.5 * b}px "Familjen Grotesk", system-ui, sans-serif`; g.textAlign = 'center'; g.fillText(txt, 1 + vw / 2, 1 + vh * .7);
+  return (vipTags[v.ride] = { c, w, h, k, key });
+}
 function rideInfo(r, t, st, names) {
   const j = ui.title ? null : r.job, b = boost(), cx = r.x, cy = r.y - 6, R = 37, top = -Math.PI / 2;
   const inf = infoSprite(r, b); blitWorld(inf.c, cx + inf.x0, cy + inf.y0, inf.w, inf.h, inf.k);
@@ -329,11 +354,12 @@ function rideInfo(r, t, st, names) {
   if (ui.coachRide === r.id && !reduce) { ctx.setLineDash([6, 6]); ring(cx, cy, R + 26 * b, 0, 7, 3 * b, rgba('#ffb347', .55 + .45 * Math.sin(t * 7)), false); ctx.setLineDash([]); }
   ctx.lineCap = 'round';
   if (r.sub && !ui.title && r.q > 1) { const q = Math.min(9, Math.ceil(r.q / (r.cap * S.qtol) * 9)); ctx.fillStyle = r.jam ? '#ff5d4a' : rgba('#f7edd8', .8); ctx.beginPath(); for (let i = 0; i < q; i++) { const qx = cx - (q - 1) * 3 * b + i * 6 * b, qy = r.y + 37 + 3 * b; ctx.moveTo(qx + 2 * b, qy); ctx.arc(qx, qy, 2 * b, 0, 7); } ctx.fill(); }
-  const p = namePill(r, st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
+  const p = namePill(r, st === 'signoff' && soMine(r) ? 'signme' : st), ly = r.y + 33 + 21.5 * b + p.h / 2; names.push(() => blitWorld(p.c, cx - p.w / 2, ly - p.h / 2, p.w, p.h, p.k));
+  if (st === 'signoff' && !ui.title) { const tg = costTag(r); if (tg.txt) { const yc = ly + p.h / 2 + 8 - tg.fs * .35; names.push(() => blitWorld(tg.c, cx - tg.w / 2, yc - tg.h / 2, tg.w, tg.h, tg.k)); } } // what the wait is costing
   mapLabels.push({ id: r.id, x: ox + (cx - p.w / 2) * sc, y: oy + (ly - p.h / 2) * sc, w: p.w * sc, h: p.h * sc }); // where each name is on screen (for the layout test)
   if (ui.title) return;
   const vip = S.events.find(e => e.k === 'vip' && !e.done && e.ride === r.id && e.warned);
-  if (vip) { const vw = 58 * b, vh = 19 * b, vx = cx - R - vw * .7, vy = cy - R - 4; ctx.fillStyle = '#ffd27a'; ctx.strokeStyle = '#05071a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(vx, vy, vw, vh, 6); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#2a1700'; ctx.font = `700 ${10.5 * b}px "Familjen Grotesk", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText('VIP ' + fmtClock(vip.at), vx + vw / 2, vy + vh * .7); }
+  if (vip) { const tg = vipTag(vip, b), vw = 58 * b, vh = 19 * b, vx = cx - R - vw * .7, vy = cy - R - 4; blitWorld(tg.c, vx - 1, vy - 1, tg.w, tg.h, tg.k); } // the VIP's time, drawn from a cached image
 }
 
 /* guests: one fill per colour */
@@ -376,7 +402,7 @@ function draw(now, frac) {
   drawParts();
   drawWeather(w, VIS.vt || 0); // rain and wind under the game's information: names, rings, badges and people stay crisp in a squall
 
-  const names = []; mapLabels.length = 0; for (const r of S.rides) rideInfo(r, t, rideSt(r), names); for (const f of names) f();
+  const names = []; mapLabels.length = 0; for (const r of S.rides) rideInfo(r, t, rideSt(r), names); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); blitBatch = true; try { for (const f of names) f(); } finally { blitBatch = false; ctx.restore(); }
   drawBursts(now);
   drawCrew(t, frac, pm > 0 ? dt : 0);
   for (let i = pings.length - 1; i >= 0; i--) { const p = pings[i], a = (now - p.t0) / 600; if (a >= 1) { pings.splice(i, 1); continue; } ctx.strokeStyle = rgba(p.col, 1 - a); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 6 + 22 * a, 0, 7); ctx.stroke(); }

@@ -25,9 +25,14 @@ A real-time maintenance-management browser game. It ships as one self-contained 
       - an optional original waltz (`musicTick`).
       Buses for effects, park and music feed a master volume, a makeup gain and a compressor. Keep music voices plain (no filters): audio shares the phone's processor.
   - `src/fonts/`: Bagel Fat One and Familjen Grotesk (Latin subsets, SIL Open Font License).
-- Saves are kept in localStorage under `keep-lanternfield-lit-v7` (`state.v === 7`) and checked by `saneSave()` in the UI. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys:
+- Saves are kept in localStorage under `keep-lanternfield-lit-v7` (the key stays; the saved state is version `SAVE_V`, now 8). `saneSave()` in the UI runs the engine's `migrate()` first, which brings older saves up to date, then checks them. When the saved state changes, bump `SAVE_V` and teach `migrate()` the step. Coach-done flags are stored as `kll-coached-<seat>` and `kll-coached-desk`. Player settings that are not part of the game live in their own keys:
   - `kll-motion` (`auto`, `reduce` or `full`);
   - `kll-sound` (`{ on, master, sfx, amb, music }`). Sound is off until the player turns it on. The audio graph is built only then, after a click or key.
+- **Active seats** (every seat has real duties; work in progress, see the commits on `claude/active-seats`), all in the engine:
+  - Escalation: a request you leave past its time goes to the computer in the seat above (`escalate`, `ESC_DELAY`), counts as missed, and its subject waits. At most `INBOX_CAP` (3) open items.
+  - Money: signing bands in `LIMIT` (supervisor $300, manager $1,500, director $5,000, chief executive $20,000, then the board). Big-ticket items (`BIG`) wait at the desk.
+  - Reopening: a finished job leaves the ride "fixed, waiting to reopen" (`r.so`) until its sign-offs are done (`SO_STEPS` by level: quick reset, normal, safety-critical, red tag, injury, substation) and every padlock is off. `soStepAll` moves them on each minute. The job sheet (`writeUp`) decides whether a countersign is a good one (`soBad`). The UI shows "Sign to reopen" on the board tile (`.asw` wrapper, `.sgn`) and the map pill.
+  - Character: every mistake on the seat cards can happen and costs something in the park, and is counted in `s.sc[seat]` and charged in `personal()` (`mist`). Crew traits (`TRAIT`, `traitsFor`) and boss styles (`STYLE`, `s.styles`) come from the seed through `hashOf(s.salt…)`, so they are the same every time for the same game. With you above the manager, the computer manager makes an unattended fault a rush job (`mgrRush`), so the seats above never need floor work. Planned services (`plannedServices`) are done before the gates. The computer approves its own crew's spending (`pick`); only your requests going up can be turned down as weak (`weakAsk`, `keySpend`).
 - **Playtest builds** (phase 7, see `PLAYTEST.md`): `npm run package:itch` builds with `--playtest` and zips `index.html` for itch.io in `dist/`.
   - Every build carries a stamp, `BUILD` in the UI: the `package.json` version plus a short hash of `src/`. It depends only on the sources, so `build:check` stays stable.
   - `PLAYTEST` is true only in playtest builds. It adds the note on the title screen.
@@ -64,7 +69,8 @@ A real-time maintenance-management browser game. It ships as one self-contained 
 
 ## Before calling a change done
 1. Run `npm run test:engine` (golden master and random-input test).
-2. Run `npm run test:browser` (smoke, layout, saves, motion, sound, perf, dusk, end screen, playtest, coach).
+2. Run `npm run test:browser` (smoke, layout, saves, motion, sound, perf, dusk, end screen, playtest, seats, coach).
+   While the golden master is expected to fail (gameplay changing on purpose), run `npm run test:fuzz` and `npm run test:rules` directly: `npm test` stops at the first failure.
 3. Look at the screenshots in `tests/browser/out/` for whatever you changed.
 
 ## Working with the user

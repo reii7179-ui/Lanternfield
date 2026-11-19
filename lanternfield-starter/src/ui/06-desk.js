@@ -110,11 +110,19 @@ function dirHTML() { // the director's levers, visible to everyone
 <div class="row"><span class="seg3" role="group" aria-label="Strategy">${Object.keys(L.STRATEGY).map(k => `<button type="button" data-a="setstrat" data-v="${k}" data-fk="ds-${k}" aria-pressed="${S.strategy === k}"${ce ? '' : ' disabled'}>${L.STRATEGY[k][0]}</button>`).join('')}</span></div>
 <p class="note">${L.STRATEGY[S.strategy][1]} A strategic choice: it lasts all season, and changing it after the first day costs board confidence and office morale. The director's daily priority is expected to follow it.</p></div>
 <div class="sect"><h2 class="cap">Direction for ${S.phase === 'plan' ? L.dow(upcoming()) : 'today'} <span class="chip c-dim">${ed ? 'yours to set' : 'set by the ' + L.SEATNAME.dir}</span></h2>
-<div class="row"><span class="seg3" role="group" aria-label="Priority">${Object.keys(L.FOCUS).map(f => `<button type="button" data-a="setfocus" data-v="${f}" data-fk="df-${f}" aria-pressed="${S.focus === f}"${ed ? '' : ' disabled'}>${L.FOCUS[f]}</button>`).join('')}</span>
+${S.phase === 'day' && S.gates ? '<p class="note" style="color:var(--lantern)">The gates are open: changing the priority now means an hour of slower work, and the managers are unsettled.</p>' : ''}<div class="row"><span class="seg3" role="group" aria-label="Priority">${Object.keys(L.FOCUS).map(f => `<button type="button" data-a="setfocus" data-v="${f}" data-fk="df-${f}" aria-pressed="${S.focus === f}"${ed ? '' : ' disabled'}>${L.FOCUS[f]}</button>`).join('')}</span>
 <span class="step"><button type="button" data-a="budget" data-v="-250" data-fk="db-dn" aria-label="Lower the maintenance budget"${ed ? '' : ' disabled'}>−</button><b class="num" style="min-width:120px;text-align:center">${fmtMoney(S.budget)} a day</b><button type="button" data-a="budget" data-v="250" data-fk="db-up" aria-label="Raise the maintenance budget"${ed ? '' : ' disabled'}>+</button></span></div>
 <p class="note">The priority steers every manager: with uptime first they pay for express parts and contractors, with costs first they wait for stock, with safety first nobody patches. The maintenance budget covers crew wages, overtime, parts and contractors, and the Engineering Manager is judged against it.</p></div>`;
 }
 const KC = { ok: 'jade', warn: 'lantern', bad: 'ember', dim: 'ink' };
+// the mistakes on each seat card, as the end screen counts them
+const MISTAKES = {
+  tech: [['skip', 'Lockouts skipped'], ['guess', 'Causes guessed, not checked'], ['quiet', 'Long jobs gone quiet on'], ['gaveIn', 'Gave in to a push to cut a corner']],
+  sup: [['took', 'Jobs you took on yourself'], ['wrong', 'Wrong person on a safety-critical job'], ['otYes', 'Overtime requests you said yes to'], ['padPull', 'People pulled off with their padlock on']],
+  mgr: [['budIgnored', 'Spending approved over budget, not a priority'], ['oneTrade', 'Days one person carried a whole trade']],
+  dir: [['prio', 'Priority changed after the gates opened'], ['overOk', 'Overspends approved'], ['vipLate', 'Disputes settled after the VIP arrived']],
+  ceo: [['spin', 'Times you told the board what it wanted to hear'], ['empty', 'Key-post days left empty'], ['floor', 'Times you ran the shift from the boardroom']],
+};
 function seatKPIs(x) {
   const c = S.sc[x], pct = (a, b) => b ? Math.round(a / b * 100) : null, P = v => v == null ? '·' : v + '%';
   const rate = (v, good, ok, low) => v == null ? 'dim' : (low ? v <= good : v >= good) ? 'ok' : (low ? v <= ok : v >= ok) ? 'warn' : 'bad';
@@ -126,7 +134,10 @@ function seatKPIs(x) {
   if (x === 'mgr' || x === 'dir') { const b = pct(c.budOk, c.days); out.push(['Days on budget', P(b), rate(b, 70, 40)]); }
   if (x === 'mgr' && c.days) { const m = Math.round(c.moraleSum / c.days); out.push(['Crew morale at closing', m, rate(m, 55, 35)]); }
   if (x === 'ceo' && c.days) out.push(['Profit on your days', fmtMoney(c.netSum), c.netSum >= 0 ? 'ok' : 'bad'], ['Board confidence change', ((c.confD || 0) > 0 ? '+' : '') + (c.confD || 0), (c.confD || 0) >= 0 ? 'ok' : 'bad']);
-  out.push(['Requests answered in time', P(dec), rate(dec, 85, 60)]);
+  out.push(['Requests answered in time', P(dec), rate(dec, 85, 60)], ['On time / missed / escalated', `${c.onTime} / ${c.missed} / ${c.esc || 0}`, c.missed ? (c.missed > 5 ? 'bad' : 'warn') : 'ok']);
+  if (x === 'tech') out.push(['Daily checks done / missed', `${c.chk || 0} / ${c.chkMiss || 0}`, c.chkMiss ? 'warn' : 'ok'], ['Signed fit to run / without a test run', `${c.fit || 0} / ${c.noTest || 0}`, c.noTest ? 'warn' : 'ok']);
+  if (x === 'sup' || x === 'mgr' || x === 'dir') out.push(['Countersigns: signed / sent back / missed', `${c.csSign || 0} / ${c.csBack || 0} / ${c.csMiss || 0}`, c.csMiss || c.csStamp ? 'warn' : 'ok']);
+  for (const [k, label] of MISTAKES[x] || []) { const n = c[k] || 0; out.push([label, n, n ? (n > 3 ? 'bad' : 'warn') : 'ok']); }
   out.push(['Decisions: operational / tactical / strategic', `${c.op} / ${c.tac} / ${c.str}`, 'dim']);
   if (x === 'tech') out.push(['Procedures checked', c.proc || 0, 'dim']);
   if (x === 'sup' || x === 'mgr' || x === 'dir') { const a = pct(c.al, c.al + c.mis); out.push(['Calls in line with the priority', P(a), rate(a, 80, 55)]); }
@@ -143,7 +154,7 @@ function seatReport(rep) {
 }
 /* the seat picker and the real-life role card */
 function seatCards(sel, act) {
-  return `<div class="seats" role="radiogroup" aria-label="Seats">${L.LV.slice().reverse().map(x => `<button type="button" class="seat${x === sel ? ' on' : ''}" role="radio" aria-checked="${x === sel}" data-a="${act}" data-v="${x}" data-fk="st-${x}">${x === S.seat && !ui.title ? '<em>You</em>' : ''}<small>${ROLE[x].lvl}</small><b>${ROLE[x].title}</b><span>${ROLE[x].line}</span></button>`).join('')}</div>`;
+  return `<div class="seats" role="radiogroup" aria-label="Seats">${L.LV.slice().reverse().map(x => `<button type="button" class="seat${x === sel ? ' on' : ''}" role="radio" aria-checked="${x === sel}" data-a="${act}" data-v="${x}" data-fk="st-${x}">${x === S.seat && !ui.title ? '<em>You</em>' : ''}<small>${ROLE[x].lvl}</small><b>${ROLE[x].title}</b><span>${ROLE[x].line}</span>${x !== S.seat && S.styles && S.styles[x] ? `<span class="sty"><b>This season: ${esc(L.STYLE[S.styles[x]][0])}.</b> ${esc(L.STYLE[S.styles[x]][1])}</span>` : ''}</button>`).join('')}</div>`;
 }
 function whoPick(sel) { // which technician to be
   const techs = S.crew.filter(c => c.role === 'tech' && !c.temp);
@@ -237,12 +248,21 @@ function finalHTML() {
   let kk = 0; const kpi = (n, v, max, txt) => `<div class="kpi" style="--k:${kk++}"><span>${n}<br><span class="dim">${txt}</span></span><div class="bar c-${v / max >= .8 ? 'ok' : v / max >= .5 ? 'warn' : 'bad'}"><span style="width:${Math.round(v / Math.max(1e-9, max) * 100)}%"></span></div><b class="num" style="text-align:right">${Math.round(v)} / ${max}</b></div>`;
   return `<div class="scrim soft final"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="f-t">
 <div class="row" style="gap:24px;align-items:flex-end"><div class="grade" aria-hidden="true">${f.grade}</div><div style="flex:1;min-width:220px"><h2 class="title" id="f-t" style="font-size:clamp(28px,5vw,44px)">${verdict}</h2><p class="lede">${f.broke ? 'The overdraft passed $20,000 and the bank called it in.' : f.fired ? 'Their confidence in you ran out before the season did.' : `<span class="cnt" aria-hidden="true" style="--to:${f.total};--dur:1.3s;--delay:.55s;--ease:cubic-bezier(.2,.8,.3,1)"></span><span class="sr">${f.total}</span> points out of 100. You ended with ` + f.heads + ' people on the payroll.'}</p><p class="note">${L.DIFF[f.diff || 'standard'].name} difficulty.</p></div></div>
-${f.own ? `<div class="own"><div class="row" style="justify-content:space-between"><b>How the score is made</b><span class="num">Company ${f.company} × 80% + your own work ${Math.round(f.own.p * 20)} / 20 = ${f.total}</span></div><p class="note">Your own work is judged in the seat you spent most of the season in: ${ROLE[f.own.seat].title.toLowerCase()}.</p><div class="sect" style="gap:8px">${f.own.parts.map(([n, w, v]) => kpi(n, v * w * 20, Math.round(w * 20), Math.round(v * 100) + '%')).join('')}</div></div>` : ''}
+${f.own ? `<div class="own"><div class="row" style="justify-content:space-between"><b>How the score is made</b><span class="num">Company ${f.company} × 80% + your own work ${Math.round(f.own.p * 20)} / 20 = ${f.total}</span></div><p class="note">Your own work is judged in the seat you spent most of the season in: ${ROLE[f.own.seat].title.toLowerCase()}.${f.own.mist > 0 ? ` Mistakes on the seat card cost you ${(f.own.mist * 20).toFixed(1)} of the 20 (counted under The seats you played).` : ''}</p><div class="sect" style="gap:8px">${f.own.parts.map(([n, w, v]) => kpi(n, v * w * 20, Math.round(w * 20), Math.round(v * 100) + '%')).join('')}</div></div>` : ''}
 <div class="sect" style="gap:12px">${kpi('Uptime', f.pts.up, 20, Math.round(f.up * 100) + '% across the season')}${kpi('Profit after tax', f.pts.net, 30, fmtMoney(f.net) + ' after ' + fmtMoney(f.tax) + ' tax and a ' + fmtMoney(f.auditFee) + ' audit')}${kpi('Lanterns', f.pts.lit, 20, f.lit + ' of ' + L.N_RIDES * L.DAYS)}${kpi('Safety', f.pts.safe, 15, f.patches + ' patches, ' + f.tags + ' red tags')}${kpi('Board confidence', f.pts.conf, 15, f.conf + ' out of 100')}</div>
 <div class="days" style="grid-template-columns:repeat(${S.reports.length},minmax(0,1fr))">${S.reports.map(r => `<div><b>${r.n}</b><span style="height:${r.n / L.N_RIDES * 100}%"></span>${L.dow(r.day).slice(0, 2)}</div>`).join('')}</div>
 <p class="note">The company score (out of 100) is above. Grades: A from 85, B from 70, C from 55. Full company marks need 95% uptime, ${fmtMoney(100000)} profit after tax, 160 lanterns, no patches and a confident board.</p>
 <div class="sect"><h2 class="cap">The seats you played</h2><div class="cards">${L.LV.filter(x => S.sc[x].min > 0).map(x => `<div class="scard"><h3>${ROLE[x].title}</h3>${kpiRows(x)}</div>`).join('')}</div></div>
 ${ptHTML()}<div class="row"><button type="button" class="btn go big" data-a="restart" data-fk="again">Run another season</button></div></div></div>`;
+}
+/* the big decisions of the season wait at the desk for whoever's limit they fall in */
+function bigHTML() {
+  const mine = b => b.x === S.seat || (b.x === 'board' && S.seat === 'ceo');
+  const rows = S.big.map(b => `<div class="bigd${mine(b) ? ' mine' : ''}" data-key="big-${b.id}"><div><b>${esc(b.t)}</b> <span class="num">${fmtMoney(b.cost)}</span><small>${esc(b.why)}</small>
+<small class="dim">${mine(b) ? (b.x === 'board' ? 'Over your $20,000 limit: propose it, and the board answers at the end of tomorrow. Undecided when the gates open, the board drops it.' : 'Yours to decide before you open the gates, or the board decides it, and trusts you less.') : `For ${esc(lc(L.holder(S, b.x === 'board' ? 'ceo' : b.x)))} to decide tonight.`}</small></div>
+${mine(b) && S.phase === 'plan' ? `<div class="row">${L.bigOpts(b).map(o => `<button type="button" class="btn${o.go ? ' go' : ''}" data-a="big" data-id="${b.id}" data-v="${o.v}" data-fk="big-${b.id}-${o.v}">${esc(o.b)}<small>${esc(o.sub)}</small></button>`).join('')}</div>` : ''}</div>`).join('');
+  const board = S.boardQ.map(b => `<div class="bigd" data-key="bq-${b.id}"><div><b>With the board: ${esc(b.t || 'your request')}</b> <span class="num">${fmtMoney(b.cost)}</span><small>It answers at the end of ${b.day <= S.day && S.phase === 'day' ? 'today' : b.day <= S.day ? 'the day' : 'tomorrow'}.</small></div></div>`).join('');
+  return rows || board ? `<div class="sect bigs"><h2 class="cap">Big decisions</h2>${rows}${board}</div>` : '';
 }
 function deskHTML() {
   const plan = S.phase === 'plan', tabs = (plan && S.reports.length ? [['report', 'Last night']] : []).concat([['company', 'Company'], ['team', 'Team'], ['stores', 'Stores']], plan ? [['projects', 'Projects']] : []);
@@ -255,7 +275,7 @@ function deskHTML() {
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="d-t">
 <div class="row"><div style="flex:1;min-width:220px"><h2 id="d-t" style="font:400 26px/1.05 var(--display)">${plan ? 'Planning desk: ' + L.dow(upcoming()) : 'Desk'}</h2><p class="dim">${plan ? (may('roster') ? 'Set the roster, stock the shelves, then open the gates.' : 'See what your colleagues decided overnight, then open the gates.') : 'The clock is still running out there.'}</p>${plan && S.day === 1 && !S.reports.length && !coached(S.seat) ? '<p style="color:var(--lantern);font-weight:700">First season? Leave all this for now and open the gates. Your first day is coached, and tonight the coach shows you this desk.</p>' : ''}</div><button type="button" class="btn sm" data-a="seats" data-fk="d-seat">Seat: ${esc(ROLE[S.seat].title)}</button><span class="chip c-warn num" style="font-size:14px;padding:4px 10px">${fmtMoney(S.cash)} in the bank</span>${plan ? '' : '<button type="button" class="x" data-a="closedesk" aria-label="Close desk">✕</button>'}</div>
 ${chips.length ? `<div class="row">${chips.join('')}</div>` : ''}
-${deskCoachHTML()}<nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-a="tab" data-v="${k}" data-fk="tab-${k}" aria-selected="${k === tab}">${l}</button>`).join('')}</nav>
+${deskCoachHTML()}${bigHTML()}<nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-a="tab" data-v="${k}" data-fk="tab-${k}" aria-selected="${k === tab}">${l}</button>`).join('')}</nav>
 <div class="tabbody" data-key="tab-${tab}">${body}</div>
 <div class="row" style="position:sticky;bottom:-20px;background:var(--panel);padding:10px 0 2px;border-top:1px solid var(--line)">${plan ? `<button type="button" class="btn go big" data-a="go" data-fk="go">Open the gates for ${L.dow(upcoming())}</button>` : '<button type="button" class="btn go" data-a="closedesk" data-fk="cd">Back to the park</button>'}${now() < ui.msgUntil ? `<span style="color:${ui.msgc || 'var(--ember)'};font-weight:700">${esc(ui.msg)}</span>` : ''}</div></div></div>`;
 }
