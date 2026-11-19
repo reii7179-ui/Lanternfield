@@ -33,6 +33,7 @@ A real-time maintenance-management browser game. It ships as one self-contained 
   - Money: signing bands in `LIMIT` (supervisor $300, manager $1,500, director $5,000, chief executive $20,000, then the board). Big-ticket items (`BIG`) wait at the desk.
   - Reopening: a finished job leaves the ride "fixed, waiting to reopen" (`r.so`) until its sign-offs are done (`SO_STEPS` by level: quick reset, normal, safety-critical, red tag, injury, substation) and every padlock is off. `soStepAll` moves them on each minute. The job sheet (`writeUp`) decides whether a countersign is a good one (`soBad`). The UI shows "Sign to reopen" on the board tile (`.asw` wrapper, `.sgn`) and the map pill.
   - Character: every mistake on the seat cards can happen and costs something in the park, and is counted in `s.sc[seat]` and charged in `personal()` (`mist`). Crew traits (`TRAIT`, `traitsFor`) and boss styles (`STYLE`, `s.styles`) come from the seed through `hashOf(s.salt…)`, so they are the same every time for the same game. With you above the manager, the computer manager makes an unattended fault a rush job (`mgrRush`), so the seats above never need floor work. Planned services (`plannedServices`) are done before the gates. The computer approves its own crew's spending (`pick`); only your requests going up can be turned down as weak (`weakAsk`, `keySpend`).
+- **SATURN** (the company-wide game built on top of this one): each phase is logged in `../docs/DEVLOG.md`. Phase 0 added 4× speed (`SPEEDS` in `00-core.js`) and `tests/engine/replay.js`, which plays seasons twice and once saved and loaded every night, and requires them identical.
 - **Playtest builds** (phase 7, see `PLAYTEST.md`): `npm run package:itch` builds with `--playtest` and zips `index.html` for itch.io in `dist/`.
   - Every build carries a stamp, `BUILD` in the UI: the `package.json` version plus a short hash of `src/`. It depends only on the sources, so `build:check` stays stable.
   - `PLAYTEST` is true only in playtest builds. It adds the note on the title screen.
@@ -68,7 +69,7 @@ A real-time maintenance-management browser game. It ships as one self-contained 
 - **The tests find things through hooks.** These include `window.LF` and `window.LFUI`, the `data-a` button names, and element ids such as `#rail`, `#board`, `#selp`, `#obj`, `#coach` and `#map`. If you rename any of them, update `tests/browser/` in the same change.
 
 ## Before calling a change done
-1. Run `npm run test:engine` (golden master and random-input test).
+1. Run `npm run test:engine` (golden master, random input, rules, seat duties and replay).
 2. Run `npm run test:browser` (smoke, layout, saves, motion, sound, perf, dusk, end screen, playtest, seats, coach).
    While the golden master is expected to fail (gameplay changing on purpose), run `npm run test:fuzz` and `npm run test:rules` directly: `npm test` stops at the first failure.
 3. Look at the screenshots in `tests/browser/out/` for whatever you changed.

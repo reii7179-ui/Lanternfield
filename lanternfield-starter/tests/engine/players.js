@@ -192,5 +192,5 @@ module.exports = function makePlayers(L) {
     'ceo idle': { seat: 'ceo', about: 'Chief executive who does nothing at all' },
     'ceo active': { seat: 'ceo', plan: true, inbox: true, inboxEvery: 3, play: 'ceo', walk: true, about: 'Fills key posts, the board and the big decisions, vouchers, happy hour, briefings; no floor work' },
   };
-  return { season, PLAYERS, plan, dispatch, answerAll, signOffs, seatPlay };
+  return { season, PLAYERS, plan, desk, dispatch, answerAll, signOffs, seatPlay };
 };

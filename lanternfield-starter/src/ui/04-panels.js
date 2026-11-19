@@ -119,7 +119,7 @@ function hudUpdate() {
   const run = !S.paused && day && !ui.title && !ui.help && !ui.seats && !ui.role;
   const wait = run && coachHold();
   $('b-pause').setAttribute('aria-pressed', String(!run || wait)); $('b-pause').textContent = wait ? 'Waiting' : run ? 'Pause' : 'Paused';
-  for (const [v, id] of [[.5, 'b-sh'], [1, 'b-s1'], [2, 'b-s2']]) $(id).setAttribute('aria-pressed', String(run && S.speed === v));
+  for (const [v, id] of [[.5, 'b-sh'], [1, 'b-s1'], [2, 'b-s2'], [4, 'b-s4']]) $(id).setAttribute('aria-pressed', String(run && S.speed === v));
   countTo('h-cash', Math.round(S.cash), v => fmtMoney(Math.round(v)), 100, 100); $('h-cash').className = 'num' + (S.cash < 0 ? ' neg' : '');
   countTo('h-up', day && S.d.upT ? Math.round(S.d.upW / S.d.upT * 100) : S.reports.length ? Math.round(S.reports[S.reports.length - 1].up * 100) : 100, v => Math.round(v) + '%');
   countTo('h-conf', Math.round(S.conf), v => String(Math.round(v))); $('h-conf').className = 'num' + (S.conf < 30 ? ' neg' : '');

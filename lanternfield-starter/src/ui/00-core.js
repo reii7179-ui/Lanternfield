@@ -5,7 +5,7 @@ function oops(where, e) {
   if (b.textContent.length < 3000) b.textContent += '\n[' + where + '] ' + (e && (e.stack || e.message) || e);
 }
 window.addEventListener('error', ev => oops('window', ev.error || ev.message));
-const KEY = 'keep-lanternfield-lit-v7', TPS = 2.5, W = 1000, H = 680;
+const KEY = 'keep-lanternfield-lit-v7', TPS = 2.5, W = 1000, H = 680, SPEEDS = [.5, 1, 2, 4]; // park minutes a real second at 1×, and the speeds on offer
 const $ = id => document.getElementById(id);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TC = { mech: '#f08a5d', elec: '#f4d35e', ctrl: '#66d1c4', mach: '#c9a6ff', store: '#9db7ff', sup: '#f7edd8', temp: '#b9b9c9', eng: '#ff9ecb', mat: '#8fd3ff', hr: '#b6e388' };

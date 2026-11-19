@@ -82,7 +82,7 @@ function act(a, d, el, ev) {
     case 'me': { ui.units = []; ui.sel = null; const m = L.me(S); if (m && m.on) focus(m.x, m.y); break; }
     case 'goride': orderRide(L.ride(S, d.id)); break;
     case 'pause': if (day) S.paused = !S.paused; break;
-    case 'speed': S.speed = +d.v; if (day) S.paused = false; break;
+    case 'speed': if (SPEEDS.includes(+d.v)) { S.speed = +d.v; if (day) S.paused = false; } break;
     case 'alert': if (d.id) { const t = L.staff(S, d.id); if (t) { ui.units = [t.id]; ui.sel = null; if (t.on) focus(t.x, t.y, cam.z > cam.fit * 1.05); break; } const r = L.ride(S, d.id); if (r) { ui.sel = r.id; ui.units = []; focus(r.x, r.y, cam.z > cam.fit * 1.05); } } break; // a worn-out person: select them, so B sends them on a break
     case 'nearest': sendNearest(L.ride(S, d.id)); break;
     case 'gsend': orderRide(L.ride(S, d.id)); break;
@@ -296,7 +296,7 @@ function tick(t) {
 function start(data) {
   S = (data && saneSave(data.state) ? data.state : null) || load() || L.newGame(20261115);
   ui.pick = S.seat; ui.pickMe = S.me;
-  S.fx = S.fx || []; S.paused = true; S.speed = Math.min(2, S.speed || 1);
+  S.fx = S.fx || []; S.paused = true; S.speed = SPEEDS.includes(S.speed) ? S.speed : 1;
   if (data && data.state) ui.title = false;
   if (S.closed) ui.tab = 'report';
   if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ state: S }));

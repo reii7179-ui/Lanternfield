@@ -8,11 +8,14 @@
 //    snap to whole frames (16.7, 33.3, 50 ms) and drift between runs, so fps is printed but is too coarse to compare.
 //    Headless browsers also draw without a GPU, so a real phone is faster than this: the numbers are for comparing
 //    versions, not a promise about any one device.
+// 3. 4x speed on the same phone, same afternoon: the engine runs 10 park minutes a real second. The time spent
+//    inside the engine's step must stay under STEP_MS per frame (the panels redraw on a timer, not per step, so only
+//    the step cost grows with speed). The frame time at 4x is printed beside it.
 //   node tests/browser/perf.js            all of it
 //   node tests/browser/perf.js --phone    only the phone budget
 const fs = require('fs'), path = require('path');
 const { launch, openGame, report } = require('./lib.js');
-const BASELINE = path.join(__dirname, 'baseline', 'before-visuals.html'), RUNS = 3;
+const BASELINE = path.join(__dirname, 'baseline', 'before-visuals.html'), RUNS = 3, STEP_MS = 2;
 const median = a => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
 const players = fs.readFileSync(path.join(__dirname, '../engine/players.js'), 'utf8')
   .replace('return { season, PLAYERS };', 'return { season, PLAYERS, plan, dispatch, answerAll, seatPlay };')
@@ -23,7 +26,7 @@ const measure = (page, ms) => page.evaluate(ms => new Promise(res => {
   requestAnimationFrame(f);
 }), ms);
 
-async function busyPhone(file) {
+async function busyPhone(file, speed = 2) {
   const browser = await launch(), { page } = await openGame(browser, { width: 390, height: 844, touch: true, dpr: 3, file });
   await page.addScriptTag({ content: players });
   await page.evaluate(() => {
@@ -36,14 +39,16 @@ async function busyPhone(file) {
       L.step(S); S.fx.length = 0;
       if (S.phase !== 'day' && S.phase !== 'plan') break;
     }
-    LFUI.act('speed', { v: 2 });
   });
+  await page.evaluate(v => LFUI.act('speed', { v }), speed);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable'); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await page.waitForTimeout(4000); // guests fill the paths
   const busy = async () => (await cdp.send('Performance.getMetrics')).metrics.find(m => m.name === 'TaskDuration').value;
+  await page.evaluate(() => { const f = LF.step; window.__stepMs = 0; window.__steps = 0; LF.step = s => { const t = performance.now(); f(s); window.__stepMs += performance.now() - t; window.__steps++; }; }); // the engine's share of each frame
   const b0 = await busy(), r = await measure(page, 6000);
   r.mainMs = +((await busy() - b0) * 1000 / r.frames).toFixed(1); // main-thread time per frame
+  { const e = await page.evaluate(() => [window.__stepMs, window.__steps]); r.steps = e[1]; r.stepMs = +(e[0] / r.frames).toFixed(2); } // engine time per frame
   await browser.close();
   return r;
 }
@@ -67,6 +72,10 @@ if (require.main === module) (async () => {
   }
   const before = median(ms.before), now = median(ms.now);
   if (now > before) problems.push(`phone budget: ${now} ms of main-thread work per frame, more than the ${before} ms before the visual work (medians of ${RUNS}; fps ${median(fps.now)} against ${median(fps.before)})`);
+  { const r = await busyPhone(null, 4); // 4x: only the engine's step does more work
+    console.log(`phone at 4x, this build (390x844 @3x, CPU slowed 4x, busy afternoon): ${JSON.stringify(r)}`);
+    if (!(r.steps > 0)) problems.push('phone at 4x: the engine never stepped');
+    if (r.stepMs > STEP_MS) problems.push(`phone at 4x: ${r.stepMs} ms of engine work per frame, more than ${STEP_MS} ms`); }
   report('perf', problems, `phone budget ${now} ms per frame against ${before} ms before the visual work, ${median(fps.now)} fps against ${median(fps.before)} (medians of ${RUNS})`);
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

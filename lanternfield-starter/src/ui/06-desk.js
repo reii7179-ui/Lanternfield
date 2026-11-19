@@ -240,7 +240,7 @@ const HOW = `<ol class="how">
 <li>Senior seats have their own levers. Manager and up: a rush job (R) puts everyone who can help on one ride. Director and up: agency crew for three hours, a prevention service on a worn ride, a fast lane on a healthy one. Chief executive: goodwill vouchers for a closed ride, a happy hour, a briefing to the chair. Walking the floor takes you away from your desk, and requests wait while you are gone.</li>
 <li>Toolbox talks have topics: Safety brings alertness back, Wellbeing restores energy and morale, Pace makes people faster for two hours. Each has its own cooldown, and anyone you pull out misses it.</li>
 <li>Glitches come in three kinds: a quick reset gets worse after 15 minutes, a standard glitch after 25, and an intermittent one clears itself if left, then fails properly within the hour unless serviced.</li>
-<li>Your grade is 80% the company's result and 20% your own work in the seat you played most. Difficulty (chosen at the start) changes the reaction windows and how much goes wrong; ½× speed is there whenever you need it.</li>
+<li>Your grade is 80% the company's result and 20% your own work in the seat you played most. Difficulty (chosen at the start) changes the reaction windows and how much goes wrong; ½× speed is there whenever you need it, and 4× for a quiet spell.</li>
 <li>Between days the planning desk shows what your colleagues decided overnight. At 21:00 Lantern Hour starts, and after 14 days the board reviews the company, while each seat you played gets its own scorecard.</li>
 </ol>`;
 function finalHTML() {

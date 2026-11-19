@@ -729,6 +729,7 @@ html.calm *{animation:none!important;transition:none!important}
       <button type="button" data-a="speed" data-v="0.5" id="b-sh" aria-pressed="false" aria-label="Half speed">½×</button>
       <button type="button" data-a="speed" data-v="1" id="b-s1" aria-pressed="false">1×</button>
       <button type="button" data-a="speed" data-v="2" id="b-s2" aria-pressed="false">2×</button>
+      <button type="button" data-a="speed" data-v="4" id="b-s4" aria-pressed="false">4×</button>
     </div>
     <nav class="menu" aria-label="Company">
       <button type="button" class="mini keep seatb" data-a="seats" id="b-seat" aria-label="Change seat">Seat</button>
@@ -2896,7 +2897,7 @@ function oops(where, e) {
   if (b.textContent.length < 3000) b.textContent += '\n[' + where + '] ' + (e && (e.stack || e.message) || e);
 }
 window.addEventListener('error', ev => oops('window', ev.error || ev.message));
-const KEY = 'keep-lanternfield-lit-v7', TPS = 2.5, W = 1000, H = 680;
+const KEY = 'keep-lanternfield-lit-v7', TPS = 2.5, W = 1000, H = 680, SPEEDS = [.5, 1, 2, 4]; // park minutes a real second at 1×, and the speeds on offer
 const $ = id => document.getElementById(id);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TC = { mech: '#f08a5d', elec: '#f4d35e', ctrl: '#66d1c4', mach: '#c9a6ff', store: '#9db7ff', sup: '#f7edd8', temp: '#b9b9c9', eng: '#ff9ecb', mat: '#8fd3ff', hr: '#b6e388' };
@@ -2924,7 +2925,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+d511e581', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+d3a4ea73', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -4268,7 +4269,7 @@ function hudUpdate() {
   const run = !S.paused && day && !ui.title && !ui.help && !ui.seats && !ui.role;
   const wait = run && coachHold();
   $('b-pause').setAttribute('aria-pressed', String(!run || wait)); $('b-pause').textContent = wait ? 'Waiting' : run ? 'Pause' : 'Paused';
-  for (const [v, id] of [[.5, 'b-sh'], [1, 'b-s1'], [2, 'b-s2']]) $(id).setAttribute('aria-pressed', String(run && S.speed === v));
+  for (const [v, id] of [[.5, 'b-sh'], [1, 'b-s1'], [2, 'b-s2'], [4, 'b-s4']]) $(id).setAttribute('aria-pressed', String(run && S.speed === v));
   countTo('h-cash', Math.round(S.cash), v => fmtMoney(Math.round(v)), 100, 100); $('h-cash').className = 'num' + (S.cash < 0 ? ' neg' : '');
   countTo('h-up', day && S.d.upT ? Math.round(S.d.upW / S.d.upT * 100) : S.reports.length ? Math.round(S.reports[S.reports.length - 1].up * 100) : 100, v => Math.round(v) + '%');
   countTo('h-conf', Math.round(S.conf), v => String(Math.round(v))); $('h-conf').className = 'num' + (S.conf < 30 ? ' neg' : '');
@@ -4890,7 +4891,7 @@ const HOW = `<ol class="how">
 <li>Senior seats have their own levers. Manager and up: a rush job (R) puts everyone who can help on one ride. Director and up: agency crew for three hours, a prevention service on a worn ride, a fast lane on a healthy one. Chief executive: goodwill vouchers for a closed ride, a happy hour, a briefing to the chair. Walking the floor takes you away from your desk, and requests wait while you are gone.</li>
 <li>Toolbox talks have topics: Safety brings alertness back, Wellbeing restores energy and morale, Pace makes people faster for two hours. Each has its own cooldown, and anyone you pull out misses it.</li>
 <li>Glitches come in three kinds: a quick reset gets worse after 15 minutes, a standard glitch after 25, and an intermittent one clears itself if left, then fails properly within the hour unless serviced.</li>
-<li>Your grade is 80% the company's result and 20% your own work in the seat you played most. Difficulty (chosen at the start) changes the reaction windows and how much goes wrong; ½× speed is there whenever you need it.</li>
+<li>Your grade is 80% the company's result and 20% your own work in the seat you played most. Difficulty (chosen at the start) changes the reaction windows and how much goes wrong; ½× speed is there whenever you need it, and 4× for a quiet spell.</li>
 <li>Between days the planning desk shows what your colleagues decided overnight. At 21:00 Lantern Hour starts, and after 14 days the board reviews the company, while each seat you played gets its own scorecard.</li>
 </ol>`;
 function finalHTML() {
@@ -5234,7 +5235,7 @@ function act(a, d, el, ev) {
     case 'me': { ui.units = []; ui.sel = null; const m = L.me(S); if (m && m.on) focus(m.x, m.y); break; }
     case 'goride': orderRide(L.ride(S, d.id)); break;
     case 'pause': if (day) S.paused = !S.paused; break;
-    case 'speed': S.speed = +d.v; if (day) S.paused = false; break;
+    case 'speed': if (SPEEDS.includes(+d.v)) { S.speed = +d.v; if (day) S.paused = false; } break;
     case 'alert': if (d.id) { const t = L.staff(S, d.id); if (t) { ui.units = [t.id]; ui.sel = null; if (t.on) focus(t.x, t.y, cam.z > cam.fit * 1.05); break; } const r = L.ride(S, d.id); if (r) { ui.sel = r.id; ui.units = []; focus(r.x, r.y, cam.z > cam.fit * 1.05); } } break; // a worn-out person: select them, so B sends them on a break
     case 'nearest': sendNearest(L.ride(S, d.id)); break;
     case 'gsend': orderRide(L.ride(S, d.id)); break;
@@ -5448,7 +5449,7 @@ function tick(t) {
 function start(data) {
   S = (data && saneSave(data.state) ? data.state : null) || load() || L.newGame(20261115);
   ui.pick = S.seat; ui.pickMe = S.me;
-  S.fx = S.fx || []; S.paused = true; S.speed = Math.min(2, S.speed || 1);
+  S.fx = S.fx || []; S.paused = true; S.speed = SPEEDS.includes(S.speed) ? S.speed : 1;
   if (data && data.state) ui.title = false;
   if (S.closed) ui.tab = 'report';
   if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ state: S }));
