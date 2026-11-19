@@ -7,7 +7,7 @@ module.exports = function makePlayers(L) {
   const techs = s => s.crew.filter(t => t.role === 'tech' && !t.temp && !t.agency);
   const en = t => (t.en == null ? 100 : t.en);
   const dist = (c, r) => Math.hypot(c.x - r.x, c.y - r.y);
-  const unsent = s => s.rides.filter(r => r.job && r.job.type === 'fault' && !s.crew.some(c => c.target === r.id));
+  const unsent = s => s.rides.filter(r => r.job && r.job.type === 'fault' && !(L.attended ? L.attended(s, r) : s.crew.some(c => c.target === r.id))); // a contractor still on the way does not hold the job
 
   function cover(s) { // trades with nobody on one half of the day
     const gaps = [];

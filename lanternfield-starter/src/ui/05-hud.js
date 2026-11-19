@@ -326,7 +326,7 @@ function selRide(r) {
         if (L.SKU[j.part][3] && L.has(S, 'mach')) cm += cmd('order', `data-k="${j.part}" data-v="fab" data-fk="o-fab"`, 'Make in workshop', `${fmtMoney(L.price(S, j.part, 'fab'))}, about ${Math.round(L.SKU[j.part][3] / 60 * 10) / 10} h`);
       }
       const co = L.calloutCost(S), coming = S.crew.some(c => c.temp && c.target === r.id);
-      cm += canSpend(co) ? cmd('callout', `data-id="${r.id}" data-fk="co"`, 'Contractor', `${fmtMoney(co)} plus parts, 45 min`, '', !(S.cash >= co && !coming)) : cmd('ask', `data-k="callout" data-id="${r.id}" data-fk="co"`, 'Ask for a contractor', `${fmtMoney(co)}: ${askWho('mgr', co)} decides`, '', coming);
+      cm += canSpend(co) ? cmd('callout', `data-id="${r.id}" data-fk="co"`, 'Contractor', `${fmtMoney(co)} plus parts, ${L.CALL_ETA} min`, '', !(S.cash >= co && !coming)) : cmd('ask', `data-k="callout" data-id="${r.id}" data-fk="co"`, 'Ask for a contractor', `${fmtMoney(co)}: ${askWho('mgr', co)} decides`, '', coming);
     }
   }
   if (day && S.seat !== 'tech' && L.RANK[S.seat] >= 1 && ((j && j.type === 'service' && j.plan && !j.started) || (S.dplan || []).includes(r.id))) cm += cmd('postpone', `data-id="${r.id}" data-fk="pp"`, 'Postpone the service', 'To tomorrow: frees the crew for breakdowns');

@@ -2,7 +2,8 @@
 // The Manager and Technician balance rules, each in a small set-up scene:
 // - a rush past the free limit counts as going over the supervisor's head; the free ones don't;
 // - a rush alone never makes a ride a spending priority (keySpend); a major fault, stuck guests or the VIP's ride do;
-// - the rolling budget is always a real number, covers at most ROLL days, and decides the days on budget.
+// - the rolling budget is always a real number, covers at most ROLL days, and decides the days on budget;
+// - a contractor on the way does not hold the job, and is stood down for the call-off fee when our own crew start it.
 //   node tests/engine/mgr-tech.js
 const { loadEngine } = require('./load.js');
 const L = loadEngine();
@@ -63,5 +64,17 @@ const fault = (s, r, sev) => { if (r.job) r.job = null; r.so = null; L.createFau
   check(Array.isArray(m.budLog) && Number.isFinite(L.rolling(m).spend), 'an old save without a budget log does not get one');
 }
 
+// --- 4. a contractor on the way does not hold the job: our own crew can be sent, and the contractor is stood down
+{
+  const s = dayAt('mgr', 600), r = s.rides.find(x => x.sub && !x.job); fault(s, r, 'major');
+  const cash0 = s.cash; check(L.callout(s, r) === true, 'could not call a contractor');
+  const fee = cash0 - s.cash, c = s.crew.find(t => t.temp && t.target === r.id);
+  check(c && !L.attended(s, r), 'a ride with only a contractor on the way counted as attended');
+  const own = s.crew.find(t => t.role === 'tech' && t.on && !t.temp && t.skills[r.job.trade]);
+  if (own) { own.target = null; L.assign(s, own, r, null, true); own.x = r.x + 10; own.y = r.y + 10; for (let i = 0; i < 4; i++) { L.step(s); s.fx.length = 0; }
+    check(!s.crew.includes(c), 'the contractor was not stood down when our own crew started the job');
+    check(Math.abs((cash0 - s.cash) - L.CALL_OFF) < fee, `standing the contractor down did not refund the call-out (paid ${fee}, now ${cash0 - s.cash})`); }
+}
+
 if (fails.length) { console.error(`MGR-TECH FAILED: ${fails.length} problem(s)`); for (const f of fails) console.error('  ' + f); process.exit(1); }
-console.log(`mgr-tech OK: rush limit, keySpend, rolling budget (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
