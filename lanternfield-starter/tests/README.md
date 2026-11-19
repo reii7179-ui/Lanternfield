@@ -16,25 +16,32 @@ npx playwright install chromium
 ## Commands
 | Command | What it checks | Time |
 |---|---|---|
+| `npm run build` | Not a test: rebuilds `index.html` from `src/`. Run it after every change to `src/`. | 1 s |
+| `npm run build:check` | `index.html` matches `src/` (nobody edited the built file by hand). `npm test` runs it first. | 1 s |
 | `npm run test:golden` | **Golden master.** 35 seeded seasons played by scripted players must match `golden.json` exactly. This is the "gameplay didn't change" check. | ~15 s |
 | `npm run test:fuzz` | **Random input.** 60 seasons with every engine command called at random. Nothing may throw, and no number may go bad (NaN, negative stock, out-of-range health or energy). | ~15 s |
 | `npm run test:engine` | Both of the above. | ~30 s |
 | `npm run balance` | **Balance report** (not pass/fail). Spread of scores for each scripted player; compare with the table below. | ~2 min |
 | `node tests/browser/smoke.js [n]` | **UI stress.** Plays `n` seasons (default 3) inside the page, presses every kind of button and redraws every panel every park minute. Fails on errors, the game's red error box, or NaN/undefined on screen. | ~1 min per season |
-| `node tests/browser/layout.js` | **Layout.** 7 screen sizes. Fails on overlapping panels, clipped ride names, cut-off buttons, top-bar overflow, sideways scrolling, or an unreachable Start button. | ~30 s |
+| `node tests/browser/layout.js` | **Layout.** 16 screen sizes, from 360×640 to 2560×1440. Fails on overlapping panels, clipped ride names on the board, ride names overlapping on the map, cut-off buttons, top-bar overflow, sideways scrolling, or an unreachable Start button. | ~1 min |
 | `node tests/browser/saves.js` | **Saves.** Broken or old saves start a fresh game; a reload mid-day carries on. | ~15 s |
-| `node tests/browser/perf.js` | **Frame time** at 2× speed. Prints numbers; fails only below 30 fps. | ~20 s |
+| `node tests/browser/motion.js` | **Motion setting.** Auto follows the device's reduced-motion setting, Reduced and Full override it, CSS animations stop when reduced, the choice survives a reload and stays out of the saved game. | ~10 s |
+| `node tests/browser/ui-motion.js` | **Interface motion.** Panels are patched in place: a card keeps its element across redraws and its slide-in plays once, timer bars slide, top-bar numbers settle on the real value, and a closing dialog fades out then goes. Feedback: a breakdown flashes the edge of the map, and the streak meter follows the streak and cracks when it's lost. With reduced motion nothing animates. | ~20 s |
+| `node tests/browser/sound.js` | **Sound.** Off on a first visit, with no audio created. Turning it on, and the four volumes, are remembered across a reload and kept out of the saved game. Audio starts on the first click or key. Without Web Audio the game still runs, silently. | ~15 s |
+| `node tests/browser/perf.js` | **Frame time** at 2× speed. Laptop and phone screens fail only below 30 fps. **Phone budget:** a busy afternoon on a 390×844 phone with a 3× screen and the processor slowed 4×. It runs alternately with the game from before the visual work (`baseline/before-visuals.html`), three times each in fresh browsers. It fails if this build's median main-thread time per frame is higher. Headless fps snaps to whole frames and drifts, so fps is printed but not compared. `--phone` runs only the phone budget. | ~3 min |
+| `node tests/browser/dusk.js` | **The light changing.** In plain day and night nothing is composed. At dusk the composed ground covers the map on screen, also after panning and zooming. After a zoom late in the afternoon, the night layer is ready again before 18:00. On a phone and a laptop. | ~20 s |
 | `node tests/browser/final-screen.js` | **End-of-season screen.** Score split, your own work, playtest record, Copy button. | ~15 s |
+| `node tests/browser/playtest.js` | **Playtest record.** One day in, How to play holds a record that parses, with the build stamp, the finished day and the device. Copy the record copies exactly that. A playtest build shows the note on the title screen (same stamp, fits a phone); the normal build doesn't. Inside a frame on another site, as itch.io shows games, the game saves across a reload and Copy still works. | ~20 s |
 | `node tests/browser/coach.js` | **Coaching.** Does what each seat's coach asks, with real clicks, all seats side by side; checks the clock waits when it should. Options: `--phone`, `--desk`, a seat list. | ~2 min |
 | `node tests/browser/real-day.js` | **One real day** of clicks and keys at 2×; checks the playtest record. | ~3–4 min |
-| `npm run test:browser` | smoke, layout, saves, perf, final screen, coach. | ~6 min |
+| `npm run test:browser` | smoke, layout, saves, motion, ui motion, sound, perf, dusk, final screen, playtest, coach. | ~6 min |
 | `npm run test:slow` | real day, phone coach, desk coach. | ~10 min |
 
 Screenshots from the browser tests are saved in `tests/browser/out/`.
 
 ## Pointing the tests at a different file
 - `LF_GAME=dist/index.html`: the built game, for the browser tests.
-- `LF_ENGINE=src/engine.js`: the engine file, for the engine tests, once it is split out. By default they read the first plain `<script>` block of `index.html`.
+- `LF_ENGINE=src/engine.js`: the engine file, for the engine tests. By default they read the first plain `<script>` block of `index.html`, which is the same code once built.
 - `CHROME_PATH=/path/to/chrome`: use a specific browser instead of Playwright's Chromium.
 
 ## When the golden master fails

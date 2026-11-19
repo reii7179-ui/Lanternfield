@@ -1,0 +1,23 @@
+/* Look A, "Lantern Glow": glass panels over the night park, lantern-gold accents that glow. Mock-up only. */
+:root{--night:#080c24;--panel:#0f1536;--raise:#1a2150;--line:#2a3470}
+body{background:#050918}
+.top{background:linear-gradient(180deg,rgba(9,13,38,.94),rgba(9,13,38,.72));border-bottom:1px solid rgba(160,180,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.35);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.brand{text-shadow:0 0 16px rgba(255,179,71,.6),0 0 2px rgba(255,179,71,.8)}
+.when .clock{text-shadow:0 0 14px rgba(247,237,216,.25)}
+.stat{background:linear-gradient(180deg,rgba(30,38,88,.7),rgba(10,14,40,.7));border-color:rgba(160,180,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.glowbar span{box-shadow:0 0 8px var(--lantern)}
+.speed{background:rgba(5,8,24,.7);border-color:rgba(160,180,255,.14)}
+.speed button[aria-pressed="true"]{box-shadow:0 0 16px rgba(255,179,71,.6)}
+.mini,.cmd{background:linear-gradient(180deg,rgba(38,46,104,.85),rgba(22,28,72,.85));border-color:rgba(160,180,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.cmd.go{background:linear-gradient(180deg,#ffc56b,#ffa634);box-shadow:0 0 18px rgba(255,179,71,.45),inset 0 1px 0 rgba(255,255,255,.4)}
+.hp{background:linear-gradient(180deg,rgba(24,31,76,.78),rgba(9,13,38,.78));border-color:rgba(160,180,255,.14);box-shadow:0 12px 34px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}
+.oitem{background:rgba(255,255,255,.04)}
+.oitem.main{box-shadow:-6px 0 14px -6px var(--lantern)}
+.dock{background:linear-gradient(0deg,rgba(6,9,28,.97),rgba(9,13,38,.9));border-top:1px solid rgba(160,180,255,.14);box-shadow:0 -12px 30px rgba(0,0,0,.35)}
+.as{background:linear-gradient(180deg,rgba(32,40,94,.9),rgba(20,26,66,.9));border-color:rgba(160,180,255,.12)}
+.as.on{box-shadow:0 0 0 1px var(--ink),0 0 18px rgba(247,237,216,.15)}
+.selp{background:rgba(6,9,28,.7);border-color:rgba(160,180,255,.14)}
+.unit{background:rgba(9,13,38,.82);border-color:rgba(160,180,255,.18);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.unit.on{box-shadow:0 0 0 2px rgba(121,194,255,.5),0 0 18px rgba(121,194,255,.45)}
+.ticker{background:rgba(9,13,38,.85);box-shadow:0 10px 30px rgba(0,0,0,.4),-4px 0 18px -6px var(--c,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.alert{box-shadow:0 0 16px -4px var(--c)}

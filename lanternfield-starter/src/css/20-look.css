@@ -1,0 +1,36 @@
+/* ---------- the "Lantern Glow" look: glass panels over the night park, lantern-gold accents that glow,
+   and chunky, raised buttons with a hard bottom edge.
+   Speed: panels that sit over the moving map use hard edges, not soft blurred shadows. A soft shadow over the map
+   measurably slowed the phone budget (tests/browser/perf.js); hard edges cost next to nothing. ---------- */
+:root{--night:#080c24;--panel:#0f1536;--raise:#222a62;--line:#2f3a7c;--edge:#060820}
+body{background:#060a1e}
+.top{background:linear-gradient(180deg,rgba(9,13,38,.96),rgba(9,13,38,.88));border-bottom:1px solid rgba(160,180,255,.16);box-shadow:0 3px 0 rgba(3,5,18,.6)}
+.brand{text-shadow:0 0 16px rgba(255,179,71,.6),0 0 2px rgba(255,179,71,.8)}
+.when .clock{text-shadow:0 0 14px rgba(247,237,216,.25)}
+.stat{background:linear-gradient(180deg,rgba(30,38,88,.75),rgba(10,14,40,.75));border-color:rgba(160,180,255,.14);border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.glowbar span{box-shadow:0 0 8px var(--lantern)}
+.hp{background:linear-gradient(180deg,rgba(24,31,76,.86),rgba(9,13,38,.86));border-color:rgba(160,180,255,.14);border-radius:14px;box-shadow:0 3px 0 var(--edge),inset 0 1px 0 rgba(255,255,255,.06)}
+.oitem{background:rgba(255,255,255,.05);border-radius:8px}
+.dock{background:linear-gradient(0deg,rgba(6,9,28,.98),rgba(9,13,38,.94));border-top:1px solid rgba(160,180,255,.16);box-shadow:0 -3px 0 rgba(3,5,18,.6)}
+.selp{background:rgba(6,9,28,.75);border-color:rgba(160,180,255,.14);border-radius:14px}
+.ticker{background:rgba(9,13,38,.94);border-radius:12px;box-shadow:0 3px 0 var(--edge)}
+
+/* chunky buttons: solid, rounded, a hard edge underneath; they sink when pressed */
+.mini,.cmd{border:0;border-radius:12px;background:linear-gradient(180deg,#2c3676,#222a62);box-shadow:0 3px 0 var(--edge),inset 0 1px 0 rgba(255,255,255,.08)}
+.mini:hover,.cmd:hover{background:linear-gradient(180deg,#36428c,#2a3374)}
+.mini:active,.cmd:active{transform:translateY(2px);box-shadow:0 1px 0 var(--edge),inset 0 1px 0 rgba(255,255,255,.08)}
+.cmd[disabled],.cmd[disabled]:active{transform:none;box-shadow:0 3px 0 var(--edge)}
+.cmd.go{background:linear-gradient(180deg,#ffc56b,#ffa634);box-shadow:0 3px 0 #a5600f,inset 0 1px 0 rgba(255,255,255,.45)}
+.cmd.go:active{box-shadow:0 1px 0 #a5600f,inset 0 1px 0 rgba(255,255,255,.45)}
+.cmd[aria-pressed="true"]{box-shadow:0 3px 0 var(--edge),inset 0 0 0 2px var(--lantern)}
+.speed{border:0;border-radius:14px;background:#060920;box-shadow:inset 0 2px 0 rgba(0,0,0,.4)}
+.speed button{border-radius:10px}
+.speed button[aria-pressed="true"]{box-shadow:0 3px 0 #a5600f}
+/* board tiles keep a solid background so the alarm flash (which animates the background colour) still shows */
+.as{border:0;border-left:5px solid var(--c);border-radius:10px;background:#222a62;box-shadow:0 3px 0 var(--edge),inset 0 1px 0 rgba(255,255,255,.06)}
+.as:hover{border-color:var(--c);background:#2a3374}
+.as.on{border-left-color:var(--c);box-shadow:0 3px 0 var(--edge),0 0 0 2px var(--ink)}
+/* crew cards keep their 2px border: a crew member calling for you flashes it red */
+.unit{border:2px solid rgba(160,180,255,.18);border-radius:14px;background:rgba(15,20,54,.92);box-shadow:0 3px 0 var(--edge)}
+.unit.on{box-shadow:0 3px 0 var(--edge),0 0 0 3px var(--sky)}
+#mini{border-radius:12px}

@@ -16,13 +16,13 @@ async function launch() {
 }
 
 // Opens the game on a fresh page. coached: true marks every coach as already seen, so it stays out of the way.
-async function openGame(browser, { width = 1366, height = 768, touch = false, coached = true, clear = true, initScript = null } = {}) {
-  const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch });
+async function openGame(browser, { width = 1366, height = 768, touch = false, coached = true, clear = true, initScript = null, dpr = 1, file = null } = {}) {
+  const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, deviceScaleFactor: dpr });
   const errors = [];
   page.on('pageerror', e => errors.push('page error: ' + String(e.stack || e).slice(0, 400)));
   await page.route('**/fonts.g*/**', r => r.abort()); // tests run offline; the game falls back to system fonts
   if (initScript) await page.addInitScript(initScript);
-  await page.goto('file://' + GAME, { waitUntil: 'domcontentloaded' });
+  await page.goto('file://' + (file || GAME), { waitUntil: 'domcontentloaded' });
   if (clear) {
     await page.evaluate(c => { localStorage.clear(); if (c) ['sup', 'desk', 'tech', 'mgr', 'dir', 'ceo'].forEach(k => localStorage.setItem('kll-coached-' + k, '1')); }, coached);
     await page.reload({ waitUntil: 'domcontentloaded' });

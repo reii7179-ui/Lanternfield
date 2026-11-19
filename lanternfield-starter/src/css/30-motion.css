@@ -1,0 +1,78 @@
+/* ---------- interface motion: quick, small, and never in the way ----------
+   New cards slide in once, timers and bars slide to their new length, panels and dialogs fade instead of snapping.
+   Panels are patched in place (setHTML), so an element that stays keeps its animation state.
+   Reduced motion (html.calm, or the device setting) switches every animation and transition here off. */
+@keyframes lf-slide{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+@keyframes lf-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes lf-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes lf-fade{from{opacity:0}to{opacity:1}}
+@keyframes lf-pop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes lf-fadeout{to{opacity:0}}
+@keyframes lf-popout{to{opacity:0;transform:translateY(6px) scale(.98)}}
+@keyframes lf-fast{0%,100%{box-shadow:0 0 0 0 rgba(121,194,255,0),0 3px 0 var(--edge)}50%{box-shadow:0 0 0 3px rgba(121,194,255,.55),0 3px 0 var(--edge)}}
+@keyframes lf-bolt{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+
+/* new alerts and inbox cards slide in from the left, the side they live on */
+.alert,.req{animation:lf-slide .26s cubic-bezier(.2,.8,.3,1) both}
+.alert.a-rescue{animation:lf-slide .26s cubic-bezier(.2,.8,.3,1) both,alarm .5s .26s ease-in-out infinite alternate}
+/* a fault still inside its fast-response window: the card breathes blue, faster as the window closes, and the bolt beats */
+.alert.fast{animation:lf-slide .26s cubic-bezier(.2,.8,.3,1) both,lf-fast var(--beat,1s) .26s ease-in-out infinite}
+.alert .bolt{display:inline-block;animation:lf-bolt var(--beat,1s) ease-in-out infinite}
+/* new radio lines rise into the log; the objectives drop open; a new subject in the selection panel fades in */
+.radio>div{animation:lf-rise .22s ease-out both}
+.obody{animation:lf-drop .18s ease-out both}
+.selw{animation:lf-fade .16s ease-out both}
+.coach>*{animation:lf-rise .22s ease-out both}
+.tabbody{display:flex;flex-direction:column;gap:inherit;animation:lf-fade .16s ease-out both}
+/* dialogs: the backdrop fades and the dialog lifts in; closing reverses it quickly */
+.scrim{animation:lf-fade .18s ease-out both}
+.scrim>.dialog{animation:lf-pop .22s cubic-bezier(.2,.8,.3,1) both}
+#modal.leaving .scrim{animation:lf-fadeout .16s ease-in both;pointer-events:none}
+#modal.leaving .dialog{animation:lf-popout .16s ease-in both}
+/* timers drain and bars fill smoothly instead of jumping a step every park minute. Only the few that matter: a bar
+   whose width animates is laid out again every frame, and the 14 board tiles and the crew's energy bars would cost too much. */
+.alert i,.req>i,.glowbar span,#selp .bar span{transition:width .45s linear,background-color .3s}
+/* state changes on tiles, cards and buttons fade rather than snap */
+.as,.unit,.cmd,.mini,.speed button,.alert,.req,.stat b{transition:background-color .2s,border-color .2s,color .25s,box-shadow .2s,opacity .2s}
+.cmd:active,.mini:active{transition-duration:.05s}
+.stat b{display:inline-block} /* so the streak can pop */
+
+/* ---------- feedback (phase 4): a breakdown is felt, streaks build, the night and the season get their moment ---------- */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* the streak: six pips up to the bonus cap, warmer as it builds */
+.spips{display:flex;gap:2px;margin-top:2px}
+.spips i{flex:1;height:3px;border-radius:2px;background:var(--raise);transition:background-color .25s}
+.spips i.on{background:var(--lantern)}
+.stat.heat1 b{color:#ffd27a}
+.stat.heat2 b{color:#ffb347;text-shadow:0 0 8px rgba(255,179,71,.55)}
+.stat.heat3 b{color:#ff9a5a;text-shadow:0 0 12px rgba(255,140,60,.8)}
+.stat.heat3 .spips i.on{background:#ff8f3d}
+.stat.heat3{border-color:rgba(255,143,61,.6)}
+/* numbers counted by CSS: a registered whole-number property runs from 0 to --to; the number itself is in .sr for screen readers */
+@property --n{syntax:'<integer>';inherits:false;initial-value:0}
+@keyframes lf-count{from{--n:0}to{--n:var(--to)}}
+.cnt{--n:var(--to);counter-reset:lfn var(--n);animation:lf-count var(--dur,1s) var(--ease,linear) var(--delay,0s) both}
+.cnt::before{content:counter(lfn)}
+/* the night's report: each lantern that went up lights in turn, in time with the count, then the headline */
+@keyframes lf-light{0%{filter:grayscale(1) brightness(.45);transform:translateY(5px)}55%{filter:brightness(1.6) drop-shadow(0 0 8px #ffb347);transform:translateY(-4px)}100%{filter:none;transform:none}}
+.lant.lit{animation:lf-light .55s cubic-bezier(.2,.8,.3,1) calc(300ms + var(--i,0) * 140ms) both}
+.rephead{animation:lf-rise .4s ease-out var(--delay,0s) both}
+@keyframes lf-glow{0%,100%{filter:none}50%{filter:drop-shadow(0 0 10px #ffd27a) brightness(1.25)}}
+.lrow.all .lant.lit svg{animation:lf-glow .9s ease-in-out calc(500ms + var(--n,12) * 140ms) 2}
+/* the season: the grade stamps down, the score counts up, the bars fill one after another */
+@keyframes lf-stamp{0%{opacity:0;transform:scale(2.6) rotate(-10deg)}65%{opacity:1;transform:scale(.9) rotate(2deg)}100%{opacity:1;transform:none}}
+@keyframes lf-fill{from{transform:scaleX(0)}to{transform:none}}
+.final .grade{animation:lf-stamp .5s cubic-bezier(.2,.8,.3,1) .25s both;text-shadow:0 0 30px rgba(255,179,71,.45)}
+.final .kpi .bar span{transform-origin:left;animation:lf-fill .7s cubic-bezier(.2,.8,.3,1) calc(.6s + var(--k,0) * 110ms) both}
+.scrim.final{background:linear-gradient(rgba(7,9,26,.12),rgba(7,9,26,.85) 45%)}
+
+/* ---------- sound settings (phase 5) ---------- */
+.vols{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 14px;margin-top:8px}
+.vol{display:grid;grid-template-columns:minmax(0,1fr) 34px;grid-template-areas:"name val" "range range";align-items:center;gap:2px 8px;font-size:13px}
+.vol>span{grid-area:name}.vol small{display:block;color:var(--dim);font-size:11.5px}
+.vol output{grid-area:val;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+.vol input{grid-area:range;width:100%;accent-color:var(--lantern);min-height:28px}
+.vol input:disabled{opacity:.45}
+
+/* the playtest note on the title screen (playtest builds only) */
+.ptnote{max-width:62ch;border:1px solid var(--lantern);border-left-width:4px;border-radius:10px;padding:8px 12px;background:color-mix(in srgb,var(--lantern) 10%,transparent);font-size:14px}
