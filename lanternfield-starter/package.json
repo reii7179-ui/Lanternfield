@@ -7,7 +7,7 @@
     "build": "node build.js",
     "build:check": "node build.js --check",
     "test": "npm run build:check && npm run test:engine && npm run test:browser",
-    "test:engine": "node tests/engine/golden.js && node tests/engine/fuzz.js && node tests/engine/rules.js && node tests/engine/duties.js",
+    "test:engine": "node tests/engine/golden.js && node tests/engine/fuzz.js && node tests/engine/rules.js && node tests/engine/duties.js && node tests/engine/mgr-tech.js",
     "test:golden": "node tests/engine/golden.js",
     "test:fuzz": "node tests/engine/fuzz.js",
     "balance": "node tests/engine/balance.js",
@@ -17,7 +17,8 @@
     "records": "node scripts/records.js",
     "package:itch-images": "node design/itch-images.js",
     "test:rules": "node tests/engine/rules.js",
-    "test:duties": "node tests/engine/duties.js"
+    "test:duties": "node tests/engine/duties.js",
+    "test:mgrtech": "node tests/engine/mgr-tech.js"
   },
   "devDependencies": {
     "playwright": "^1.63.0"
