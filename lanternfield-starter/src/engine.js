@@ -108,17 +108,18 @@ const PERKS = {
 };
 /* the chain of command you can sit in. Each seat can spend up to its limit; above that it has to ask. */
 const LV = ['tech', 'sup', 'mgr', 'dir', 'ceo'];
-const SAVE_V = 9; // the saved game's version: bump it when the saved state changes, and teach migrate() the step up
+const SAVE_V = 10; // the saved game's version: bump it when the saved state changes, and teach migrate() the step up
 function migrate(s) { // an older save brought up to date; anything new starts empty
   if (!s || typeof s !== 'object' || !s.sc) return s;
-  if (s.v !== 7 && s.v !== 8 && s.v !== 9) return s;
+  if (![7, 8, 9, 10].includes(s.v)) return s;
   for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0, upSum: Number.isFinite(c.upSum) ? c.upSum : 0, rushOver: c.rushOver || 0 }); }
+  if (s.sc.tech && s.sc.tech.jobsOk == null) s.sc.tech.jobsOk = s.sc.tech.jobs || 0; // an older save: the jobs it finished count as done properly
   Object.assign(s, { big: s.big || [], boardQ: s.boardQ || [], bigN: s.bigN || 0, bigDay: s.bigDay != null ? s.bigDay : -9 });
   s.plan = s.plan || []; s.dplan = s.dplan || []; s.budLog = s.budLog || [];
   if (!s.salt) s.salt = s.seed; for (const t of s.crew || []) if (!t.traits) t.traits = traitsFor(s, t); if (!s.styles) rollStyles(s); // an older save: traits and styles from its seed
   if (s.gates == null) { s.gates = s.phase === 'day' && s.clock >= OPEN; s.chk = s.chk || {}; for (const r of s.rides || []) if (r.chk == null) r.chk = s.phase === 'day' ? s.day : 0; } // a save from before the morning checks: its rides count as checked
   for (const r of s.rides || []) Object.assign(r, { pc: r.pc || 0, mf: r.mf || 0, cf: r.cf || 0, hzm: r.hzm || 1, so: r.so || null, restart: r.restart || 0, gb: r.gb || 0 });
-  s.v = 9; return s;
+  s.v = 10; return s;
 }
 const RANK = { tech: 0, sup: 1, mgr: 2, dir: 3, ceo: 4 };
 const LIMIT = { tech: 0, sup: 300, mgr: 1500, dir: 5000, ceo: 20000 }; // above the chief executive's limit, only the board can say yes
@@ -354,7 +355,7 @@ function mkStaff0(s, i, a, name, role, skills, shift, grade) {
 function place(t) { t.x = YARD.x + t.ox * .7; t.y = YARD.y - 30 + t.oy * .5; if (t.role === 'store') { t.x = STORE.x; t.y = STORE.y; } if (t.role === 'mach') { t.x = SHOP.x; t.y = SHOP.y; } if (isMgr(t)) { t.x = OFFICE.x + ({ eng: -18, mat: 0, hr: 18 })[t.role]; t.y = OFFICE.y; } }
 // what each seat is judged on, counted only while you sit in it
 const mkSc = () => ({
-  tech: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, upSum: 0, jobs: 0, dx: 0, ftf: 0, lock: 0, skip: 0, hurt: 0, wo: 0, woOk: 0, woLate: 0, reports: 0, asks: 0 },
+  tech: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, upSum: 0, jobs: 0, jobsOk: 0, dx: 0, ftf: 0, lock: 0, skip: 0, hurt: 0, wo: 0, woOk: 0, woLate: 0, reports: 0, asks: 0 },
   sup: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, disp: 0, resp: 0, respN: 0, quick: 0, rescued: 0, stuck: 0, upSum: 0, asks: 0 },
   mgr: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, budOk: 0, upSum: 0, moraleSum: 0, oneone: 0, asks: 0 },
   dir: { op: 0, tac: 0, str: 0, al: 0, mis: 0, brief: 0, off: 0, min: 0, days: 0, asked: 0, onTime: 0, missed: 0, missW: 0, run: 0, mrun: 0, bonus: 0, esc: 0, over: 0, budOk: 0, upSum: 0, asks: 0 },
@@ -917,10 +918,16 @@ function soStart(s, r, j, crew, mt) {
   if (s.seat === 'tech' && r.so.lead === s.me) pushTech(s, 'test', r);
   return r.so;
 }
+// a job you worked on counts as done properly when you locked out first, the cause is found and written down (a service or a
+// quick reset has none to find), and it had a test run before it was signed fit to run (by you, if it was your job to sign)
+const PROPER_CAUSE = ['found', 'service', 'reset'];
+const isProper = (s, o) => !!(o.mine && o.mine.lk && PROPER_CAUSE.includes(o.wr.cause) && o.wr.test === true && (o.lead !== s.me || o.by.fit === 'You'));
+function properly(s, o) { o.mine.ok = isProper(s, o); if (o.mine.ok) s.sc.tech.jobsOk = (s.sc.tech.jobsOk || 0) + 1; }
 const soWhoNext = (s, r) => { const o = r.so, st = soStep0(o);
   return st === 'fit' ? `${o.lead === s.me && s.seat === 'tech' ? 'you sign' : (staff(s, o.lead) || { name: 'the technician' }).name + ' signs'} it fit to run` : st === 'ops' ? 'Operations run it empty' : st === 'insp' ? 'the inspector clears the tag' : st === 'power' ? 'power is restored' : st === 'go' ? 'every padlock is off' : st === 'review' ? 'the incident review' : `${seatWho(s, o.x || soSigner(s, st, o))} countersigns`; };
 function soNext(s, r) {
-  const o = r.so; o.i++; o.at = s.clock; o.lag = 0; o.esc = 0; o.x = null; o.signedAt = 0;
+  const o = r.so; if (o.mine && soStep0(o) === 'fit') properly(s, o);
+  o.i++; o.at = s.clock; o.lag = 0; o.esc = 0; o.x = null; o.signedAt = 0;
   if (o.i >= o.steps.length) return soOpen(s, r);
   const st = soStep0(o);
   if (st === 'insp') { o.inspAt = s.clock + RI(s, 20, 30); log(s, `${r.name}: countersigned. The inspector is booked for ${fmtClock(o.inspAt)} to clear the red tag.`, 'info'); }
@@ -1055,6 +1062,7 @@ function complete(s, r) {
   if (s.prio === r.id) s.prio = null;
   s.comp = Math.min(100, s.comp + 4);
   const o = soStart(s, r, j, crew, mt);
+  if (mt) o.mine = { lk: !!(mt.lk && mt.lk.id === r.id && !mt.lk.skip) }; // your own job: done properly is judged once it is signed fit to run
   log(s, `${r.name} is ${j.type === 'service' ? 'serviced' : 'fixed'}${j.mode === 'patch' ? ' on a patch, which will not hold for long' : ''}. Waiting to reopen: ${soWhoNext(s, r)}${o.pads.length ? ', once every padlock is off' : ''}.`, 'good');
   for (const t of crew) {
     if (t !== mt || !(o.lead === t.id || o.pads.includes(t.id))) release(t); t.jobs++; t.day++;
@@ -1962,11 +1970,12 @@ function endDay(s) {
   if (has(s, 'store') && s.seat !== 'mgr') { let n = 0; for (const k in SKU) { const want = Math.max(s.min[k], s.rides.filter(r => r.job && r.job.part === k && r.job.ps === 'none' && (r.job.type !== 'fault' || r.job.mode === 'full')).length); let have = s.stock[k] + s.inbound.filter(o => o.sku === k).length; while (have < want && order(s, k, 'std') === true) { have++; n++; } } if (n) log(s, `Stores placed the overnight order: ${n} item${n > 1 ? 's' : ''} to reach your minimum levels.`); }
 }
 // how well you did your own job, 0 to 1, in the seat you spent most of the season in
+const JOBS_DAY = 2.9; // a technician's jobs done properly in a day for full marks: what a skilled technician reaches on a normal day (was 4 jobs of any kind)
 function personal(s) {
   const seat = LV.slice().sort((a, b) => s.sc[b].min - s.sc[a].min)[0], c = s.sc[seat], days = Math.max(1, c.days), r01 = (a, b, dflt) => a + b ? a / (a + b) : dflt;
   const req = r01(c.onTime + (c.bonus || 0), c.missW != null ? c.missW : c.missed, .5), parts = [];
   const add = (name, w, v) => { parts.push([name, w, clamp(v, 0, 1)]); };
-  if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs finished', .3, c.jobs / segDays / 4); add('Cause found first time', .15, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .2, r01(c.lock, c.skip, .5)); add('Work orders answered', .15, r01(c.woOk, c.woLate, .5)); add('Checks and sign-offs in time', .2, req); }
+  if (seat === 'tech') { const segDays = Math.max(.5, c.min / (CLOSE - OPEN)); add('Jobs done properly', .3, (c.jobsOk || 0) / segDays / JOBS_DAY); add('Cause found first time', .15, r01(c.ftf, c.dx - c.ftf, .5)); add('Locked out first', .2, r01(c.lock, c.skip, .5)); add('Work orders answered', .15, r01(c.woOk, c.woLate, .5)); add('Checks and sign-offs in time', .2, req); }
   else if (seat === 'sup') { const avg = c.respN ? c.resp / c.respN : 99; add('Response time', .3, (25 - avg) / 17); add('Fast responses', .2, c.respN ? (c.fast || 0) / c.respN : 0); add('Requests answered in time', .3, req); add('No guests left stuck', .2, 1 - c.stuck / 3); }
   else if (seat === 'mgr' || seat === 'dir') { const u = c.days ? c.upSum / c.days : 0; add('Uptime on your days', .35, (u - .7) / .2); add('Days on budget', .15, c.days ? c.budOk / days : 0);
     if (seat === 'mgr') add('Crew morale', .2, c.days ? (c.moraleSum / days - 35) / 30 : 0); else add('Days on strategy', .2, c.days ? 1 - c.off / days : 0); add('Requests answered in time', .3, req); }
@@ -1985,7 +1994,7 @@ function personal(s) {
 }
 // how the grade is made: the company's result and your own work. A technician on the tools controls little of the company's
 // result, so their own work counts for most of it; every other seat is 80% company, 20% own work.
-const TECH_CO = .3, SPLIT = { tech: { co: TECH_CO, own: Math.round((1 - TECH_CO) * 100) } }, SPLIT0 = { co: .8, own: 20 };
+const TECH_CO = .35, SPLIT = { tech: { co: TECH_CO, own: Math.round((1 - TECH_CO) * 100) } }, SPLIT0 = { co: .8, own: 20 };
 const splitOf = seat => SPLIT[seat] || SPLIT0;
 function review(s) { // the board's end-of-season review
   mods(s);
@@ -2152,7 +2161,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { TECH_CO, SPLIT, splitOf, CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { JOBS_DAY, isProper, PROPER_CAUSE, TECH_CO, SPLIT, splitOf, CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);

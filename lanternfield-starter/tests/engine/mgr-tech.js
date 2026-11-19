@@ -5,7 +5,9 @@
 // - the rolling budget is always a real number, covers at most ROLL days, and decides the days on budget;
 // - a contractor on the way does not hold the job, and is stood down for the call-off fee when our own crew start it;
 // - every contractor job needs the Manager's acceptance before it reopens;
-// - the technician's grade is 30% company and 70% their own work; every other seat stays 80/20.
+// - the technician's grade is TECH_CO company, the rest their own work; every other seat stays 80/20;
+// - a job counts as done properly only with a lockout, the cause found and a test run;
+// - the same seed gives the same season.
 //   node tests/engine/mgr-tech.js
 const { loadEngine } = require('./load.js');
 const L = loadEngine();
@@ -105,5 +107,32 @@ const fault = (s, r, sev) => { if (r.job) r.job = null; r.so = null; L.createFau
   }
 }
 
+// --- 7. a technician's job counts as done properly only with a lockout, the cause found and a test run
+{
+  const s = L.newGame(909); L.setSeat(s, 'tech');
+  const sheet = (lk, cause, test, fit) => ({ mine: { lk }, wr: { cause, test }, lead: s.me, by: { fit } });
+  check(L.isProper(s, sheet(true, 'found', true, 'You')), 'a job locked out, cause found and test-run did not count as done properly');
+  check(!L.isProper(s, sheet(false, 'found', true, 'You')), 'a job without a lockout counted as done properly');
+  check(!L.isProper(s, sheet(true, 'found', false, 'You')), 'a job signed without a test run counted as done properly');
+  check(!L.isProper(s, sheet(true, 'guess', true, 'You')) && !L.isProper(s, sheet(true, 'none', true, 'You')), 'a job with the cause guessed or not found counted as done properly');
+  check(!L.isProper(s, sheet(true, 'found', true, 'Mo')), 'your own job, signed fit by someone else after you missed it, counted as done properly');
+  check(L.isProper(s, sheet(true, 'service', true, 'You')) && L.isProper(s, sheet(true, 'reset', true, 'You')), 'a service or a quick reset (no cause to find) did not count as done properly');
+  check(!L.isProper(s, { wr: { cause: 'found', test: true }, lead: 'x', by: {} }), "a job you did not work on counted as yours");
+  const T = require('./tech-players.js')(L);
+  const cut = T.season(606, 'cutter', 'standard').sc.tech, sk = T.season(606, 'skilled', 'standard').sc.tech;
+  check(cut.jobs > 0 && cut.jobsOk === 0, `the cutter (no lockout, no test run) finished ${cut.jobs} jobs and ${cut.jobsOk} counted as done properly`);
+  check(sk.jobsOk > 0 && sk.jobsOk <= sk.jobs, `the skilled technician has ${sk.jobsOk} jobs done properly of ${sk.jobs}`);
+  const old = JSON.parse(JSON.stringify(L.newGame(5))); delete old.sc.tech.jobsOk; old.sc.tech.jobs = 7; old.v = 9;
+  check(L.migrate(old).sc.tech.jobsOk === 7 && old.v === L.SAVE_V, 'an older save does not get its jobs done properly');
+}
+
+// --- 8. the same seed gives the same season, in both seats
+{
+  const M = require('./mgr-players.js')(L), T = require('./tech-players.js')(L);
+  const sum = s => JSON.stringify({ f: s.final, cash: s.cash, lit: s.total, sc: s.sc, reports: s.reports });
+  check(sum(M.season(1313, 'skilled', 'standard')) === sum(M.season(1313, 'skilled', 'standard')), 'the same seed gave two different Manager seasons');
+  check(sum(T.season(1313, 'skilled', 'standard')) === sum(T.season(1313, 'skilled', 'standard')), 'the same seed gave two different Technician seasons');
+}
+
 if (fails.length) { console.error(`MGR-TECH FAILED: ${fails.length} problem(s)`); for (const f of fails) console.error('  ' + f); process.exit(1); }
-console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance, grade split (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance, grade split, jobs done properly, same seed same season (${((Date.now() - t0) / 1000).toFixed(1)}s)`);

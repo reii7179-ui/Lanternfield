@@ -1,6 +1,6 @@
 'use strict';
 // End-of-season screen: plays a whole season inside the page, then checks the score breakdown,
-// "your own work" (and, as a technician, the 30/70 split), the seat's counts (on time, missed, escalated, countersigns, its mistakes), the playtest record and its Copy button.
+// "your own work" (and, as a technician, their own company/own-work split), the seat's counts (on time, missed, escalated, countersigns, its mistakes), the playtest record and its Copy button.
 //   node tests/browser/final-screen.js
 const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
 (async () => {
@@ -26,7 +26,7 @@ const { launch, openGame, gameErrors, shot, report } = require('./lib.js');
   await shot(page, 'final-screen-seats');
   const copy = page.locator('[data-a=ptcopy]');
   if (await copy.count()) { await copy.click(); await page.waitForTimeout(300); } else problems.push('no Copy button for the playtest record');
-  // as a technician the score is split differently: 30% company, 70% your own work
+  // as a technician the score is split differently: TECH_CO company, the rest your own work
   { const { page: tp, errors: te } = await openGame(browser);
     await tp.evaluate(() => { LFUI.act('pickseat', { v: 'tech' }); LFUI.act('begin', {}); const S = LFUI.state;
       while (!S.final) { if (S.phase === 'plan') { LF.startDay(S); continue; } LF.step(S); S.fx.length = 0; }
