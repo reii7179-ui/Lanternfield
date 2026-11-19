@@ -1862,6 +1862,7 @@ function step(s) {
     }
   }
   morning(s); plannedServices(s); toolsStep(s); micro(s); mgrRush(s); quietStep(s); standDown(s);
+  for (const r of s.rides) { const j = r.job; if (j && j.type === 'fault' && j.mode === 'full' && j.part && !partReady(j) && s.stock[j.part] < 1) s.d.partWait = (s.d.partWait || 0) + 1; } // a repair waiting for a part nobody has on the shelf
   if (s.seat === 'sup') for (const t of s.crew) { // break rotation: someone worn out and not resting is the supervisor's to send on a break
     if (t.role !== 'tech' || t.temp || t.agency || !t.on) { t.tiredAt = 0; continue; }
     const worn = (t.en == null ? 100 : t.en) < 30 && !t.brk && !t.talk;
@@ -1918,6 +1919,7 @@ function endDay(s) {
     if (d.mis >= 3) { s.conf = clamp(s.conf - 2, 0, 100); log(s, `${d.mis} of your calls today pulled against the day's priority. Effort went into things the company was not trying to do. Board confidence −2.`, 'bad'); }
     else if (d.al >= 3 && !d.mis) { for (const t of s.crew) if (!isMgr(t) && !t.temp) t.morale = clamp(t.morale + 2, 0, 100); log(s, 'Every call you made today pulled the same way as the priority. People knew where they stood: crew morale +2.', 'good'); } }
   const sm = d.seatMin || {}, major = Object.keys(sm).sort((a, b) => sm[b] - sm[a])[0] || s.seat, sc = s.sc[major];
+  rep.partWait = Math.round((d.partWait || 0) / 6) / 10; // hours repairs waited for parts
   Object.assign(rep, { seat: major, seatMin: sm, spend: d.wages + d.ot + d.parts + d.contract - (d.mkt || 0), budget: s.budget, focus: s.focus, al: d.al, mis: d.mis, strategy: s.strategy, comp: Math.round(s.comp) });
   { const past = (s.budLog || []).slice(-(ROLL - 1)), ws = past.reduce((a, x) => a + x.spend, 0) + rep.spend, wb = past.reduce((a, x) => a + x.budget, 0) + s.budget;
     rep.wkSpend = Math.round(ws); rep.wkBudget = wb; rep.wkDays = past.length + 1; s.budLog = past.concat([{ spend: Math.round(rep.spend), budget: s.budget }]); }

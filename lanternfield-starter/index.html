@@ -2634,6 +2634,7 @@ function step(s) {
     }
   }
   morning(s); plannedServices(s); toolsStep(s); micro(s); mgrRush(s); quietStep(s); standDown(s);
+  for (const r of s.rides) { const j = r.job; if (j && j.type === 'fault' && j.mode === 'full' && j.part && !partReady(j) && s.stock[j.part] < 1) s.d.partWait = (s.d.partWait || 0) + 1; } // a repair waiting for a part nobody has on the shelf
   if (s.seat === 'sup') for (const t of s.crew) { // break rotation: someone worn out and not resting is the supervisor's to send on a break
     if (t.role !== 'tech' || t.temp || t.agency || !t.on) { t.tiredAt = 0; continue; }
     const worn = (t.en == null ? 100 : t.en) < 30 && !t.brk && !t.talk;
@@ -2690,6 +2691,7 @@ function endDay(s) {
     if (d.mis >= 3) { s.conf = clamp(s.conf - 2, 0, 100); log(s, `${d.mis} of your calls today pulled against the day's priority. Effort went into things the company was not trying to do. Board confidence −2.`, 'bad'); }
     else if (d.al >= 3 && !d.mis) { for (const t of s.crew) if (!isMgr(t) && !t.temp) t.morale = clamp(t.morale + 2, 0, 100); log(s, 'Every call you made today pulled the same way as the priority. People knew where they stood: crew morale +2.', 'good'); } }
   const sm = d.seatMin || {}, major = Object.keys(sm).sort((a, b) => sm[b] - sm[a])[0] || s.seat, sc = s.sc[major];
+  rep.partWait = Math.round((d.partWait || 0) / 6) / 10; // hours repairs waited for parts
   Object.assign(rep, { seat: major, seatMin: sm, spend: d.wages + d.ot + d.parts + d.contract - (d.mkt || 0), budget: s.budget, focus: s.focus, al: d.al, mis: d.mis, strategy: s.strategy, comp: Math.round(s.comp) });
   { const past = (s.budLog || []).slice(-(ROLL - 1)), ws = past.reduce((a, x) => a + x.spend, 0) + rep.spend, wb = past.reduce((a, x) => a + x.budget, 0) + s.budget;
     rep.wkSpend = Math.round(ws); rep.wkBudget = wb; rep.wkDays = past.length + 1; s.budLog = past.concat([{ spend: Math.round(rep.spend), budget: s.budget }]); }
@@ -2963,7 +2965,7 @@ applyMotion();
 if (motionMQ && motionMQ.addEventListener) motionMQ.addEventListener('change', applyMotion);
 /* filled in by build.js: the version and a short hash of the sources (so a playtest record says which build it came
    from), and whether this is a playtest build (npm run package:itch) */
-const BUILD = '0.4.0+46eb59f0', PLAYTEST = 'no' === 'yes';
+const BUILD = '0.4.0+24d4d8eb', PLAYTEST = 'no' === 'yes';
 let S = null;
 const ui = { pick: null, pickMe: null, seats: false, role: null, held: null, msgc: '', sel: null, units: [], box: null, touch: false, ai: 0, title: true, help: false, desk: null, tab: 'company', dept: 'ops', auto: false, pdown: false, reportAt: 0, tick: null, tickUntil: 0, lastFeed: 0, msg: '', msgUntil: 0, obj: null, log: false };
 Object.defineProperty(ui, 'tech', { get() { return this.units[0] || null; }, set(v) { this.units = v ? [v] : []; } });
@@ -4702,6 +4704,7 @@ function reportTab() {
 <div class="tile"><small>Uptime</small><b>${Math.round(rep.up * 100)}%</b><i>earnings-weighted</i></div>
 <div class="tile"><small>Average glow</small><b>${Math.round(rep.glow)}</b><i>out of 100</i></div>
 <div class="tile"><small>Faults</small><b>${rep.fixed} fixed</b><i>${rep.faults} raised today</i></div>
+${rep.partWait != null ? `<div class="tile"><small>Waiting for parts</small><b style="color:var(--${rep.partWait >= 2 ? 'ember' : rep.partWait >= .5 ? 'lantern' : 'jade'})">${rep.partWait ? rep.partWait + ' h' : 'None'}</b><i>${rep.partWait >= 2 ? `Repairs waited ${rep.partWait} h for parts today. Spares on the shelf matter most: <button type="button" class="btn sm" data-a="tab" data-v="stores" data-fk="pw-stores">Stores tab</button>` : rep.partWait ? `Repairs waited ${rep.partWait} h for parts today` : 'Every repair had its part on the shelf'}</i></div>` : ''}
 ${rep.wkBudget ? `<div class="tile"><small>Maintenance budget</small><b style="color:var(--${rep.wkSpend <= rep.wkBudget ? 'jade' : 'ember'})">${rep.wkSpend <= rep.wkBudget ? 'On budget' : 'Over by ' + fmtMoney(rep.wkSpend - rep.wkBudget)}</b><i>${fmtMoney(rep.wkSpend)} of ${fmtMoney(rep.wkBudget)} over the last ${rep.wkDays} day${rep.wkDays > 1 ? 's' : ''}</i></div>` : ''}
 <div class="tile"><small>VIP party</small><b>${rep.vip == null ? 'None' : rep.vip ? 'Delighted' : 'Let down'}</b><i>${rep.insp == null ? 'no inspection' : rep.insp ? 'inspector: clean sheet' : 'inspector: red tags'}</i></div>
 <div class="tile"><small>The board asked</small><b style="color:var(--${rep.memo.met ? 'jade' : 'ember'})">${rep.memo.met ? 'Delivered' : 'Missed'}</b><i>${esc(L.MEMOS[rep.memo.k])} Confidence now ${rep.conf}.</i></div>
@@ -5071,7 +5074,7 @@ const COACHES = {
     { wait: 150, when: () => signWait('mgr'), pick: () => signWait('mgr').id, ride: () => ui.coach.rid, until: 12, done: () => { const r = CR(); return !r || !r.so || r.so.esc || r.so.steps[r.so.i] !== 'mgr'; }, el: '#board [data-a=signopen]',
       text: () => `${esc((CR() || {}).name || 'A ride')} was red-tagged, and it needs your countersign before the inspector can clear it. ${tapOr('Tap', 'Click')} Sign to reopen on its card, read the job sheet, then Sign or Send back.` },
     { btn: 'Next', el: '#selp [data-a=walk]', text: () => 'Walking the floor lifts morale and alertness, but you are away from your desk for 20 minutes and requests wait. Go when your inbox is empty.' },
-    { btn: 'Done', until: 30, text: () => `At night the planning desk is yours: rosters, hiring, training and minimum stock. Keep every trade covered on both shifts: one person carrying a whole trade wears them down. ${bossLine('mgr')}` },
+    { btn: 'Done', until: 30, text: () => `At night the planning desk is yours: rosters, hiring, training and minimum stock. Spares on the shelf matter most: a repair with no part in stores waits for a delivery, so keep the minimums up in Stores. Keep every trade covered on both shifts: one person carrying a whole trade wears them down. ${bossLine('mgr')}` },
   ],
   dir: [
     { hold: true, btn: 'Show me', text: () => 'You are the Operations Director: the day\'s priority, the budget, and the bigger calls when things go wrong.' },
