@@ -57,7 +57,42 @@ Screenshots from the browser tests are saved in `tests/browser/out/`.
 - **If you did mean to,** run `node tests/engine/golden.js --update` and say why in the commit.
 - **If you changed `players.js`,** the golden master changes too. Update it in the same commit.
 
-## Reference balance (12 seeds, before any visual work)
+## Reference balance (12 seeds, Standard, with the active seats)
+Scores are out of 100. Grades: A from 85, B from 70, C from 55. `npm run balance` prints this table.
+
+```
+player                      mean    sd  p10  med  p90  fired  grades
+sup idle                    15.1   1.4   12   16   16  12/12  D12
+sup slow                    36.2  11.6   22   42   49   1/12  D12
+sup casual                  58.2  12.6   48   61   72   0/12  B4 C3 D5
+sup human                   74.8   5.7   69   74   85   0/12  A2 B7 C3
+sup skilled                 84.9   6.4   75   87   93   0/12  A7 B5
+sup human relaxed           79.6   9.8   74   82   88   0/12  A4 B7 D1
+sup human sharp             60.7   8.9   50   59   75   0/12  B2 C7 D3
+sup human 2x                44.2  10.5   35   41   61   0/12  C3 D9
+sup human 2x relaxed        65.6   6.2   59   66   74   0/12  B3 C8 D1
+sup ignores everything      71.1   5.5   66   72   77   0/12  B8 C4
+sup answers fast            71.4   7.9   63   71   84   0/12  B7 C5
+sup rubber stamp            81.9   8.4   76   82   92   0/12  A4 B7 C1
+sup on the tools            79.8   6.8   70   81   89   0/12  A3 B8 C1
+tech idle                   19.3   3.9   13   20   22  11/12  D12
+tech active                 69.4   7.0   57   72   77   0/12  B7 C5
+mgr idle                    13.9   3.8    9   14   20  11/12  D12
+mgr active                  80.9   5.5   78   81   88   0/12  A2 B9 C1
+dir idle                    37.8   5.1   33   36   44   1/12  D12
+dir active                  75.1   5.5   68   75   81   0/12  A1 B9 C2
+ceo idle                    21.4   3.5   18   21   25  12/12  D12
+ceo active                  78.9   6.2   74   78   88   0/12  A3 B8 C1
+```
+
+What these numbers say:
+- Doing nothing in any seat gets you a D, and in most seats fired.
+- Dispatching well but ignoring every request and sign-off costs about 14 points (sup ignores everything).
+- Rubber-stamping every sheet, or picking up a spanner yourself, scores below doing the job properly.
+- Answering every request the minute it lands is no better than answering in time: missing the deadline is what costs.
+- Each seat's active player reaches B or A, within about 5 points of the table below.
+
+## Reference balance before the active seats (12 seeds, before any visual work)
 Scores are out of 100. Grades: A from 85, B from 70, C from 55.
 
 ```
