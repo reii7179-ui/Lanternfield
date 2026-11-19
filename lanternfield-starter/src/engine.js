@@ -1983,6 +1983,10 @@ function personal(s) {
   if (c.csFast || c.csHurt || c.csInj) parts.push(['Sign-offs', 0, clamp(.5 + csUp * 10 - csDown * 5, 0, 1)]);
   return { seat, p: clamp(parts.reduce((a, x) => a + x[1] * x[2], 0) + csUp - csDown - mist, 0, 1), parts, mist: +mist.toFixed(3) };
 }
+// how the grade is made: the company's result and your own work. A technician on the tools controls little of the company's
+// result, so their own work counts for most of it; every other seat is 80% company, 20% own work.
+const TECH_CO = .3, SPLIT = { tech: { co: TECH_CO, own: Math.round((1 - TECH_CO) * 100) } }, SPLIT0 = { co: .8, own: 20 };
+const splitOf = seat => SPLIT[seat] || SPLIT0;
 function review(s) { // the board's end-of-season review
   mods(s);
   const n = s.reports.length, up = s.reports.reduce((t, r) => t + r.up, 0) / n;
@@ -1995,9 +1999,9 @@ function review(s) { // the board's end-of-season review
     safe: clamp(15 - 2 * s.safety.tags - .5 * s.safety.patches - 3 * (s.safety.inj || 0) - (s.safety.fail || 0), 0, 15),
     conf: 15 * clamp((s.conf - 20) / 75, 0, 1),
   };
-  const company = pts.up + pts.net + pts.lit + pts.safe + pts.conf, own = personal(s), total = Math.round(company * .8 + own.p * 20);
+  const company = pts.up + pts.net + pts.lit + pts.safe + pts.conf, own = personal(s), sp = splitOf(own.seat), total = Math.round(company * sp.co + own.p * sp.own);
   const grade = s.fired ? 'D' : total >= 85 ? 'A' : total >= 70 ? 'B' : total >= 55 ? 'C' : 'D';
-  return { up, net, tax, auditFee, lit: s.total, pts, company: Math.round(company), own, total, grade, diff: s.diff || 'standard', fired: s.fired, broke: !!s.broke, conf: Math.round(s.conf), tags: s.safety.tags, patches: s.safety.patches, inj: s.safety.inj || 0, heads: headcount(s), perfect: s.reports.filter(r => r.n === N_RIDES).length };
+  return { up, net, tax, auditFee, lit: s.total, pts, company: Math.round(company), own, split: sp, total, grade, diff: s.diff || 'standard', fired: s.fired, broke: !!s.broke, conf: Math.round(s.conf), tags: s.safety.tags, patches: s.safety.patches, inj: s.safety.inj || 0, heads: headcount(s), perfect: s.reports.filter(r => r.n === N_RIDES).length };
 }
 
 /* ---------- big decisions, at the desk between days ----------
@@ -2148,7 +2152,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { TECH_CO, SPLIT, splitOf, CALL_ETA, CALL_OFF, attended, standDownCtr, ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);

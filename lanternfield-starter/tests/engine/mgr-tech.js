@@ -4,7 +4,8 @@
 // - a rush alone never makes a ride a spending priority (keySpend); a major fault, stuck guests or the VIP's ride do;
 // - the rolling budget is always a real number, covers at most ROLL days, and decides the days on budget;
 // - a contractor on the way does not hold the job, and is stood down for the call-off fee when our own crew start it;
-// - every contractor job needs the Manager's acceptance before it reopens.
+// - every contractor job needs the Manager's acceptance before it reopens;
+// - the technician's grade is 30% company and 70% their own work; every other seat stays 80/20.
 //   node tests/engine/mgr-tech.js
 const { loadEngine } = require('./load.js');
 const L = loadEngine();
@@ -91,5 +92,18 @@ const fault = (s, r, sev) => { if (r.job) r.job = null; r.so = null; L.createFau
   check(ctr > 0 && signed > 0, `no contractor job came up to check (${ctr} jobs, ${signed} accepted)`);
 }
 
+// --- 6. the grade: a technician's is TECH_CO company and the rest their own work; every other seat stays 80/20
+{
+  const want = { tech: { co: L.TECH_CO, own: Math.round((1 - L.TECH_CO) * 100) }, sup: { co: .8, own: 20 }, mgr: { co: .8, own: 20 }, dir: { co: .8, own: 20 }, ceo: { co: .8, own: 20 } };
+  check(L.TECH_CO >= .25 && L.TECH_CO <= .35, `the technician's company weight ${L.TECH_CO} is outside 25-35%`);
+  for (const seat of Object.keys(want)) {
+    const s = L.newGame(808); L.setSeat(s, seat); L.startDay(s); while (s.phase === 'day') { L.step(s); s.fx.length = 0; }
+    const f = L.review(s), w = want[seat], co = Object.values(f.pts).reduce((a, x) => a + x, 0);
+    check(f.own.seat === seat, `${seat}: the own-work score was judged in the ${f.own.seat} seat`);
+    check(f.split && f.split.co === w.co && f.split.own === w.own, `${seat}: the grade split is ${JSON.stringify(f.split)}, not ${JSON.stringify(w)}`);
+    check(f.total === Math.round(co * w.co + f.own.p * w.own), `${seat}: total ${f.total} is not company ${co.toFixed(1)} x ${w.co} + own ${f.own.p.toFixed(3)} x ${w.own}`);
+  }
+}
+
 if (fails.length) { console.error(`MGR-TECH FAILED: ${fails.length} problem(s)`); for (const f of fails) console.error('  ' + f); process.exit(1); }
-console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+console.log(`mgr-tech OK: rush limit, keySpend, rolling budget, contractor stand-down, contractor acceptance, grade split (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
