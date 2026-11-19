@@ -104,7 +104,7 @@ function selPark() {
     if (x === 'dir' || x === 'ceo') row.push(chip(`Strategy: ${L.STRATEGY[S.strategy][0]}`, 'dim'));
     if (x === 'ceo') row.push(chip(`Board ${Math.round(S.conf)}`, S.conf >= 50 ? 'ok' : S.conf >= 30 ? 'warn' : 'bad'));
     info += `<div class="row">${row.join('')}</div>`;
-    if (x === 'mgr' || x === 'dir') { const sp = L.maintSpend(S), b = S.budget; info += `<div class="meter c-${sp > b ? 'bad' : sp > b * .85 ? 'warn' : 'ok'}"><span>Spend</span><div class="bar"><span style="width:${Math.round(clamp(sp / b, 0, 1) * 100)}%"></span></div><b class="num">${fmtMoney(sp)} / ${fmtMoney(b)}</b></div>`; }
+    if (x === 'mgr' || x === 'dir') { const w = L.rolling(S), sp = w.spend, b = w.budget; info += `<div class="meter c-${sp > b ? 'bad' : sp > b * .85 ? 'warn' : 'ok'}"><span>${w.days > 1 ? `Spend, ${w.days} days` : 'Spend today'}</span><div class="bar"><span style="width:${Math.round(clamp(sp / b, 0, 1) * 100)}%"></span></div><b class="num">${fmtMoney(sp)} / ${fmtMoney(b)}</b></div>`; } // the budget is judged over a rolling week
     if (S.freeze === S.day) info += '<div class="warnbox c-bad">Maintenance spending is on hold for the rest of today.</div>';
     if (S.hh > S.clock) info += `<div class="warnbox c-work">Happy hour until ${fmtClock(S.hh)}: 50% more guests, queues build fast.</div>`;
     if (S.talk) info += `<div class="warnbox c-warn">Toolbox talk on ${L.TOPIC[S.talk.topic || 'safety'][0].toLowerCase()} under way: ${S.crew.filter(c => c.talk).length} listening, back to work at ${fmtClock(S.talk.end)}. Pulling someone out means they miss it.</div>`;

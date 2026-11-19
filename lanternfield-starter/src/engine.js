@@ -114,7 +114,7 @@ function migrate(s) { // an older save brought up to date; anything new starts e
   if (s.v !== 7 && s.v !== 8 && s.v !== 9) return s;
   for (const x of LV) { const c = s.sc[x]; if (c) Object.assign(c, { missW: c.missW != null ? c.missW : c.missed || 0, run: c.run || 0, mrun: c.mrun || 0, bonus: c.bonus || 0, esc: c.esc || 0, upSum: Number.isFinite(c.upSum) ? c.upSum : 0, rushOver: c.rushOver || 0 }); }
   Object.assign(s, { big: s.big || [], boardQ: s.boardQ || [], bigN: s.bigN || 0, bigDay: s.bigDay != null ? s.bigDay : -9 });
-  s.plan = s.plan || []; s.dplan = s.dplan || [];
+  s.plan = s.plan || []; s.dplan = s.dplan || []; s.budLog = s.budLog || [];
   if (!s.salt) s.salt = s.seed; for (const t of s.crew || []) if (!t.traits) t.traits = traitsFor(s, t); if (!s.styles) rollStyles(s); // an older save: traits and styles from its seed
   if (s.gates == null) { s.gates = s.phase === 'day' && s.clock >= OPEN; s.chk = s.chk || {}; for (const r of s.rides || []) if (r.chk == null) r.chk = s.phase === 'day' ? s.day : 0; } // a save from before the morning checks: its rides count as checked
   for (const r of s.rides || []) Object.assign(r, { pc: r.pc || 0, mf: r.mf || 0, cf: r.cf || 0, hzm: r.hzm || 1, so: r.so || null, restart: r.restart || 0, gb: r.gb || 0 });
@@ -384,6 +384,7 @@ function newGame(seed) {
   s.forecast = rollDay(s, 1);
   mods(s);
   s.cands = rollCands(s);
+  s.budget = budgetFor(s, s.focus); s.budLog = [];
   resetDay(s);
   return s;
 }
@@ -1201,6 +1202,13 @@ function holder(s, x) { // who sits in a seat, as the crew would say it
 }
 const Who = (w, verb) => w + ' ' + verb;
 const me = s => s.seat === 'tech' ? staff(s, s.me) : null;
+// the maintenance budget: what a well-run park spends beyond its wage bill (set from the skilled manager's spending),
+// judged over a rolling week rather than a single day, so one bad breakdown day is not a failure
+const ALLOW = { uptime: 5500, safety: 5500, cost: 4000 }, ROLL = 7;
+const budgetFor = (s, f) => Math.round((s.crew.filter(t => !t.temp).reduce((a, t) => a + wage(t), 0) + (ALLOW[f] || ALLOW.uptime)) / 100) * 100;
+// the rolling week so far: the last six days plus today (spent and committed)
+function rolling(s) { const past = (s.budLog || []).slice(-(ROLL - 1)); return { spend: past.reduce((a, x) => a + x.spend, 0) + maintSpend(s), budget: past.reduce((a, x) => a + x.budget, 0) + s.budget, days: past.length + 1 }; }
+const overBudget = (s, extra) => { const r = rolling(s); return r.spend + (extra || 0) > r.budget; };
 const maintSpend = s => { const d = s.d; if (s.phase !== 'day') return d.wages + d.ot + d.parts + d.contract - (d.mkt || 0);
   return s.crew.filter(t => !t.temp).reduce((a, t) => a + wage(t) + (t.shift === 'full' && !isMgr(t) && !t.sick ? otCost(t) : 0), 0) + d.parts + d.contract - (d.mkt || 0); };
 // while the overspend question waits for an answer (in your inbox or escalated), nothing more is spent
@@ -1282,7 +1290,7 @@ function weakAsk(s, it) {
   const r = it.o && it.o.rid && ride(s, it.o.rid), key = keySpend(s, r);
   const sty = styleOf(s, it.x), minor = r && r.job && r.job.type === 'fault' && r.job.sev !== 'major';
   if (sty === 'fire' && minor && r.w >= 7) return ''; // a firefighter approves anything that keeps a busy ride going today
-  if (maintSpend(s) + it.cost > s.budget * (sty === 'cautious' ? .85 : 1) && !key) return `the budget is spent and ${r ? r.short + ' is' : 'this is'} not a priority today`;
+  if (overBudget(s, it.cost + (sty === 'cautious' ? .15 * s.budget : 0)) && !key) return `this week's budget is spent and ${r ? r.short + ' is' : 'this is'} not a priority today`;
   return '';
 }
 function decideAsk(s, it) {
@@ -1554,12 +1562,12 @@ function resolveEsc(s, a) { // the seat above makes the call it was handed
 }
 function settle(s, it, v, mine, late) {
   const Q = REQ[it.k]; let txt = '';
-  const overBudget = maintSpend(s) > s.budget && !keySpend(s, it.rid && ride(s, it.rid));
+  const overWeek = overBudget(s) && !keySpend(s, it.rid && ride(s, it.rid));
   try { txt = Q.res(s, it, v, mine ? 'You' : holder(s, it.h), late); } catch (e) { txt = ''; }
-  if (mine && s.seat === 'mgr' && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && overBudget) { // ignoring the budget
+  if (mine && s.seat === 'mgr' && ['callout', 'express', 'otsign'].includes(it.k) && v === 'yes' && overWeek) { // ignoring the budget
     const sc0 = s.sc.mgr; sc0.budIgnored = (sc0.budIgnored || 0) + 1;
-    if (s.d.budWarn) { s.freeze = s.day; log(s, `Another spend approved with the day already over budget. ${holder(s, handler(s, 'dir'))} has put extra maintenance spending on hold for the rest of today.`, 'bad'); }
-    else { s.d.budWarn = 1; log(s, `Today is already over budget (${fmtMoney(maintSpend(s))} of ${fmtMoney(s.budget)}) and that was not a priority job. Do it again today and the director holds all extra spending.`, 'bad'); }
+    if (s.d.budWarn) { s.freeze = s.day; log(s, `Another spend approved with the week already over budget. ${holder(s, handler(s, 'dir'))} has put extra maintenance spending on hold for the rest of today.`, 'bad'); }
+    else { const w = rolling(s); s.d.budWarn = 1; log(s, `The week is already over budget (${fmtMoney(w.spend)} of ${fmtMoney(w.budget)} over ${w.days} day${w.days > 1 ? 's' : ''}) and that was not a priority job. Do it again today and the director holds all extra spending.`, 'bad'); }
   }
   if (mine) { const sc0 = s.sc[s.seat];
     if (it.k === 'hold' && v === 'yes') sc0.otYes = (sc0.otYes || 0) + 1; // yes to every overtime request
@@ -1629,7 +1637,7 @@ function walk(s, topic) {
   log(s, `${w[0]}. ${w[1]}`, 'good'); return true;
 }
 const setFocus = (s, f) => { if (!FOCUS[f]) return false; const was = s.focus; s.focus = f; priorityChanged(s, was, f); return true; };
-const setBudget = (s, d) => { s.budget = clamp(s.budget + d, 1000, 9000); return true; };
+const setBudget = (s, d) => { s.budget = clamp(s.budget + d, 1000, 15000); return true; };
 // the situations that turn into requests, checked every minute
 function requests(s) {
   const cd = (k, m) => { if ((s.cdq[k] || 0) > s.clock) return false; s.cdq[k] = s.clock + m; return true; };
@@ -1691,7 +1699,7 @@ function requests(s) {
     const r = ride(s, e.ride); if (r.job || r.health >= 65) continue;
     e.q = 1; raise(s, 'vip', { rid: r.id, vat: e.at, from: 'Engineering and Operations', due: s.clock + 20, txt: `VIP party on ${r.short} at ${fmtClock(e.at)}. Engineering wants to close it now for a 45-minute service (health ${Math.round(r.health)}%). Operations wants it open for the queues.` });
   }
-  if (!s.d.bq && s.clock > OPEN + 5 && maintSpend(s) > s.budget) { s.d.bq = 1; raise(s, 'budget', { from: holder(s, 'mgr'), due: s.clock + 25, txt: `Maintenance has spent or committed ${fmtMoney(maintSpend(s))}, over today's budget of ${fmtMoney(s.budget)}. Approve the overspend, or hold spending?` }); }
+  if (!s.d.bq && s.clock > OPEN + 5 && overBudget(s)) { const w = rolling(s); s.d.bq = 1; raise(s, 'budget', { from: holder(s, 'mgr'), due: s.clock + 25, txt: `Maintenance has spent or committed ${fmtMoney(w.spend)} over the last ${w.days} day${w.days > 1 ? 's' : ''}, over the budget of ${fmtMoney(w.budget)}. Approve the overspend, or hold spending?` }); }
   if (s.heat && !s.d.hq && s.clock >= 630) { s.d.hq = 1; raise(s, 'heat', { from: holder(s, 'mgr'), due: s.clock + 30, txt: 'Heatwave. Engineering wants portable cooling for both substations today.' }); }
   if (s.glow < 50 && s.clock > 630 && s.clock >= s.cdC && s.cash > 250 && cd('crowd', 120)) raise(s, 'crowd', { from: 'Operations', due: s.clock + 20, txt: 'The queues are long and guests are grumbling. Buskers and free ice cream on the midway?' });
   if (s.clock === s.d.boardAt) raise(s, 'board', { from: 'Rosalind Teo, chair', due: s.clock + 15, txt: `The chair is on the line wanting an update. Uptime so far today is ${Math.round(s.d.upW / Math.max(1, s.d.upT) * 100)}%.` });
@@ -1711,7 +1719,7 @@ function aiNight(s) {
   if (not('dir')) {
     const D = who('dir'), f = s.conf < 40 ? 'uptime' : s.cash < 4000 ? 'cost' : s.safety.tags + s.safety.inj >= 2 ? 'safety' : s.strategy;
     if (f !== s.focus) { s.focus = f; notes.push(`${D} set tomorrow's priority: ${FOCUS[f].toLowerCase()}.`); }
-    const bill = s.crew.filter(t => !t.temp).reduce((a, t) => a + wage(t), 0), b = Math.round((bill + (f === 'cost' ? 1200 : 2200)) / 100) * 100;
+    const b = budgetFor(s, f);
     if (b !== s.budget) { s.budget = b; notes.push(`${D} set the maintenance budget at ${fmtMoney(b)} a day.`); }
     // capital spending only with money to spare, never on a night before the board wants a profit, and one at a time
     const room = s.forecast.memo !== 'net' && s.day - (s.capexDay || -9) >= 2;
@@ -1895,7 +1903,9 @@ function endDay(s) {
     else if (d.al >= 3 && !d.mis) { for (const t of s.crew) if (!isMgr(t) && !t.temp) t.morale = clamp(t.morale + 2, 0, 100); log(s, 'Every call you made today pulled the same way as the priority. People knew where they stood: crew morale +2.', 'good'); } }
   const sm = d.seatMin || {}, major = Object.keys(sm).sort((a, b) => sm[b] - sm[a])[0] || s.seat, sc = s.sc[major];
   Object.assign(rep, { seat: major, seatMin: sm, spend: d.wages + d.ot + d.parts + d.contract - (d.mkt || 0), budget: s.budget, focus: s.focus, al: d.al, mis: d.mis, strategy: s.strategy, comp: Math.round(s.comp) });
-  sc.days++; sc.upSum += up; if (major === 'mgr' || major === 'dir') sc.budOk += rep.spend <= s.budget ? 1 : 0;
+  { const past = (s.budLog || []).slice(-(ROLL - 1)), ws = past.reduce((a, x) => a + x.spend, 0) + rep.spend, wb = past.reduce((a, x) => a + x.budget, 0) + s.budget;
+    rep.wkSpend = Math.round(ws); rep.wkBudget = wb; rep.wkDays = past.length + 1; s.budLog = past.concat([{ spend: Math.round(rep.spend), budget: s.budget }]); }
+  sc.days++; sc.upSum += up; if (major === 'mgr' || major === 'dir') sc.budOk += rep.wkSpend <= rep.wkBudget ? 1 : 0;
   if (major === 'ceo') { sc.netSum += rep.net; sc.confD = (sc.confD || 0) + Math.round(s.conf - d.conf0); }
   boardDecides(s); bigCheck(s);
   if (s.seat === 'mgr') { // one person carrying a whole trade (ignoring the budget is counted when spending is approved)
@@ -2120,7 +2130,7 @@ function alerts(s) {
   for (const w of s.waves) if (w.warned && !w.hit) out.push({ k: 'wave', id: null, t0: w.at - 30, due: w.at, txt: `Squall: about ${w.size} breakdowns` });
   return out.sort((a, b) => a.due - b.due);
 }
-G.LF = { RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
+G.LF = { ALLOW, ROLL, budgetFor, rolling, overBudget, RUSH_FREE, keySpend, takeJob, leaveTools, TRAIT, STYLE, traitsFor, styleOf, hasT, postpone, planFor, coverFor, PRE, CHECK_MIN, dailyCheck, myChecks, shareChecks, createFault, SO_STEPS, SO_NAME, SO_SIGN, SO_LAG, REVIEW, soKind, soBad, soSigner, soStepAll, safetyJob, hourly, signFit, padOff, countersign, review, worthIt, SAVE_V, migrate, ESC_DELAY, INBOX_CAP, above, escalate, LIMIT_BOARD: 20000, band, weakAsk, BIG, bigOpts, decideBig, DIFF, setDiff, fastOf, GKIND, TOPIC, orderService, fastLane, happyHour, briefChair, personal, GLITCH, GLITCH_RATE, GLITCH_ESC, glitch, FAST, AGENCY, VOUCH, enOf, enMult, gentle, rest, talk, rush, callIn, agency, vouch, DTYPE, STRATEGY, ALIGN, polAligned, setStrategy, optsOf, gutOk, procedure, LV, RANK, LIMIT, SEATNAME, BOSS, FOCUS, WALK, ASK, REQ, setSeat, ask, answer, lockout, diagnose, walk, setFocus, setBudget, handler, holder, filled, maintSpend, me, decider, helper, bestCand, alerts, moveOrder, sprint, pushOn, crowdPleaser, DEPTS, EXEC, ORG, ORGX, ADDKEYS, OVERHEAD, mods, orgWages, headcount, orgFee, hireOrg, fireOrg, perkCost, calloutCost, consult, dow, OPEN, CLOSE, LH, DAYS, LIT_MIN, CASH0, TRADES, JOBTITLE, GRADE, DOW, SHIFT, YARD, STORE, SHOP, OFFICE, GATE, MGR, MEMOS, isMgr, hazard, hireFee, ovhCost, crossCost, advertise, payRise, teamMeal, advance, moraleMult, NODES, N_RIDES, SKU, PERKS, COST, AV,
   newGame, startDay, step, status, assign, setMode, standDown, holdOver, callout, order, price, expressEta, hire, dismiss, train, trainCost, setShift, buyPerk, overhaul,
   ride, staff, primary, need, speed, rate, wage, otCost, topSkill, roleKey, has, onNow, incoming, partReady, attendance, fmtClock, fmtMoney, clamp, subDown };
 })(typeof window !== 'undefined' ? window : globalThis);
