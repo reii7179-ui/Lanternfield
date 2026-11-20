@@ -8,8 +8,9 @@
 //    snap to whole frames (16.7, 33.3, 50 ms) and drift between runs, so fps is printed but is too coarse to compare.
 //    Headless browsers also draw without a GPU, so a real phone is faster than this: the numbers are for comparing
 //    versions, not a promise about any one device.
-//    The two drift against each other by a millisecond or so between machines and runs, so this build may be up to
-//    MARGIN (3%, about 1 ms) slower than the baseline. The first runs on a cold machine are slow (this build 40.5 ms,
+//    The two drift against each other between machines and runs: on one machine single runs of the same file ranged
+//    from 20 to 41 ms, and three runs of an unchanged build came out from 7% faster to 7% slower than the baseline. So
+//    each round is RUNS (5) of each, and this build may be up to MARGIN (10%, about 2.5 ms) slower than the baseline. The first runs on a cold machine are slow (this build 40.5 ms,
 //    then 37.7, then 34.3), so one run of each is a warm-up and not counted. A round that fails is run once more and
 //    the better of the two rounds (the lower ratio of this build to the baseline) is the one that counts. A real
 //    slowdown fails both.
@@ -17,7 +18,7 @@
 //   node tests/browser/perf.js --phone    only the phone budget
 const fs = require('fs'), path = require('path');
 const { launch, openGame, report } = require('./lib.js');
-const BASELINE = path.join(__dirname, 'baseline', 'before-visuals.html'), RUNS = 3, MARGIN = .03;
+const BASELINE = path.join(__dirname, 'baseline', 'before-visuals.html'), RUNS = 5, MARGIN = .1;
 const median = a => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
 const players = fs.readFileSync(path.join(__dirname, '../engine/players.js'), 'utf8')
   .replace('return { season, PLAYERS };', 'return { season, PLAYERS, plan, dispatch, answerAll, seatPlay };')
